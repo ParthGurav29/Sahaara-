@@ -1,0 +1,65 @@
+{
+  "profile_id": "asha_demo_001",
+  "name": {
+    "full_name": "Asha Kulkarni",
+    "preferred_address": "Asha",
+    "notes": "Responds warmly to her name said softly; does not like being called 'Grandma' by anyone outside family."
+  },
+  "family": [
+    {
+      "name": "Priya",
+      "relationship": "daughter",
+      "notes": "Lives in another city, calls when she can. Asha asks about her often, especially in the evenings.",
+      "memory_box_clip": "priya_hello.mp3"
+    },
+    {
+      "name": "Rohan",
+      "relationship": "son",
+      "notes": "Local, visits on weekends. Primary caregiver account holder for this demo.",
+      "memory_box_clip": null
+    },
+    {
+      "name": "Vikram",
+      "relationship": "late husband",
+      "notes": "Passed away several years ago. Asha sometimes asks for him, especially when tired or anxious. Sensitive topic — see 'avoid' notes.",
+      "memory_box_clip": null
+    }
+  ],
+  "life_story": {
+    "hometown": "Pune, Maharashtra",
+    "work": "Retired schoolteacher, taught primary school for over 30 years",
+    "key_events": [
+      "Married Vikram in her early twenties",
+      "Raised two children, Priya and Rohan",
+      "Loved teaching and often talks about former students",
+      "Moved in with Rohan's family after Vikram passed away"
+    ]
+  },
+  "likes": {
+    "music": ["Old Hindi film songs", "Lata Mangeshkar"],
+    "food": ["Masala chai in the afternoon", "Simple home-style Maharashtrian food"],
+    "topics": ["Stories about her students", "Her garden", "Family memories from when the children were young"],
+    "routines": ["Sitting by the window in the morning", "A short walk if someone is with her"]
+  },
+  "avoid": {
+    "topics": [
+      "Direct statements about Vikram's death — she is aware but revisiting the fact directly can cause distress; redirect gently instead of restating it"
+    ],
+    "notes": "This list is caregiver-set and editable. It is not AI-guessed. If a topic here starts to feel like it's preventing Asha from processing something she needs to, that's a real tension — see docs/guardrails.md open question."
+  },
+  "daily_routine": {
+    "wake_time": "07:00",
+    "meals": {
+      "breakfast": "08:00",
+      "lunch": "13:00",
+      "dinner": "19:30"
+    },
+    "medication_times": ["08:30", "20:00"],
+    "notes": "Medication reminders only — Sahaara never advises on dosing, see docs/guardrails.md."
+  },
+  "meta": {
+    "source": "Built loosely from a teammate's shared experience — general patterns, not private family details",
+    "last_updated_by": "caregiver",
+    "editable": true
+  }
+}
