@@ -17,9 +17,20 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 from typing import AsyncIterator, Optional, Tuple
 
-from voice import asr, tts
+from dotenv import load_dotenv
+
+# Must run BEFORE importing asr/tts below — they read os.environ.get(...)
+# at import time, so if .env isn't loaded yet those values come back None
+# even when the file has real keys in it. This matches BASE_DIR in
+# conversation.py / main.py: backend/voice/voice_pipeline.py -> parent
+# (voice) -> parent (backend) -> parent (repo root, where .env lives).
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+from voice import asr, fillers, tts
 
 logger = logging.getLogger("voice.pipeline")
 
@@ -89,6 +100,18 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
             continue  # interim result, not a finished turn
 
         logger.info("User said: %s", text)
+
+        # Part 2.2 #1 — instant acknowledgment, fires before the LLM call
+        # even starts. Pre-rendered and cached (voice/fillers.py) so this
+        # is genuinely instant, not "fast" — no live generation on this path.
+        try:
+            yield await fillers.get_ack_audio()
+        except Exception as e:
+            # Don't let a missing/failed ack sound take down the actual
+            # reply — worst case is a slightly less instant-feeling turn,
+            # not a broken one.
+            logger.warning("Ack filler unavailable, continuing without it: %s", e)
+
         reply_text = await _llm_reply(text)
         logger.info("Agent reply: %s", reply_text)
 
