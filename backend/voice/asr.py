@@ -50,7 +50,11 @@ async def stream_transcripts(
     headers = {"Authorization": f"Token {DEEPGRAM_API_KEY}"}
     accumulated = ""
 
-    async with websockets.connect(DEEPGRAM_WS_URL, extra_headers=headers) as ws:
+    # websockets 14+ renamed extra_headers -> additional_headers.
+    _major = int(websockets.__version__.split(".")[0])
+    header_kwarg = "additional_headers" if _major >= 14 else "extra_headers"
+
+    async with websockets.connect(DEEPGRAM_WS_URL, **{header_kwarg: headers}) as ws:
 
         async def sender():
             try:

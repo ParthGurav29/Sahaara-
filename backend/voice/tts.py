@@ -42,7 +42,7 @@ async def stream_speech(text: str) -> AsyncIterator[bytes]:
 
     async with websockets.connect(url) as ws:
         request = {
-            "model_id": "sonic-2",  # verify current model id in Cartesia's docs
+            "model_id": "sonic-english",  # verify current model id in Cartesia's docs
             "transcript": text,
             "voice": {"mode": "id", "id": CARTESIA_VOICE_ID},
             "output_format": {
@@ -50,9 +50,7 @@ async def stream_speech(text: str) -> AsyncIterator[bytes]:
                 "encoding": "pcm_s16le",
                 "sample_rate": 22050,
             },
-            "context_id": "sahaara-tts",
         }
-        logger.info("TTS request: %s", request)
         await ws.send(json.dumps(request))
 
         async for raw in ws:

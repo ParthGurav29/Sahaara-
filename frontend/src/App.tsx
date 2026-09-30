@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import VoiceOrb from "./VoiceOrb";
+
 function App() {
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
@@ -40,6 +42,8 @@ function App() {
   return (
     <main>
       <h1>Sahaara</h1>
+
+      <VoiceOrb />
 
       <input
         value={message}

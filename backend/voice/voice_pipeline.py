@@ -17,8 +17,9 @@ import logging
 import os
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator, Optional, Tuple
+from typing import AsyncIterator, Literal, Optional, Tuple
 
 from dotenv import load_dotenv
 
@@ -33,6 +34,25 @@ load_dotenv(BASE_DIR / ".env")
 from voice import asr, fillers, tts
 
 logger = logging.getLogger("voice.pipeline")
+
+VoiceOrbState = Literal["listening", "thinking", "speaking"]
+
+
+@dataclass
+class VoiceEvent:
+    """
+    One item from the pipeline's output stream. `kind` says which field is
+    populated:
+      - "state": orb-facing state change (listening/thinking/speaking) —
+        the WebSocket handler forwards this as a JSON text frame.
+      - "audio": raw PCM bytes to play — forwarded as a binary frame.
+    Two kinds in one stream (rather than two separate streams) because
+    order matters: the state change has to reach the client before the
+    audio it explains, and a single ordered stream guarantees that.
+    """
+    kind: Literal["state", "audio"]
+    state: Optional[VoiceOrbState] = None
+    audio: Optional[bytes] = None
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
 VOICECHAT_AVAILABILITY_TTL_SECONDS = 300
@@ -94,29 +114,35 @@ async def _llm_reply(user_text: str) -> str:
     return result["response"]
 
 
-async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEvent]:
     async for text, is_utterance_end in asr.stream_transcripts(audio_in):
         if not is_utterance_end:
-            continue  # interim result, not a finished turn
+            continue  # interim result, not a finished turn — orb stays "listening"
 
         logger.info("User said: %s", text)
 
-        # Part 2.2 #1 — instant acknowledgment, fires before the LLM call
-        # even starts. Pre-rendered and cached (voice/fillers.py) so this
-        # is genuinely instant, not "fast" — no live generation on this path.
+        # Part 2.4 state machine: listening -> thinking
+        yield VoiceEvent(kind="state", state="thinking")
+
+        # Part 2.2 #1 — instant ack, fires before the LLM call even starts.
+        # Pre-rendered and cached (fillers.py), so this is genuinely
+        # instant, not just fast.
         try:
-            yield await fillers.get_ack_audio()
+            yield VoiceEvent(kind="audio", audio=await fillers.get_ack_audio())
         except Exception as e:
-            # Don't let a missing/failed ack sound take down the actual
-            # reply — worst case is a slightly less instant-feeling turn,
-            # not a broken one.
             logger.warning("Ack filler unavailable, continuing without it: %s", e)
 
         reply_text = await _llm_reply(text)
         logger.info("Agent reply: %s", reply_text)
 
+        # thinking -> speaking
+        yield VoiceEvent(kind="state", state="speaking")
+
         async for audio_chunk in tts.stream_speech(reply_text):
-            yield audio_chunk
+            yield VoiceEvent(kind="audio", audio=audio_chunk)
+
+        # speaking -> listening, ready for the next turn
+        yield VoiceEvent(kind="state", state="listening")
 
 
 async def get_active_backend_name() -> str:
@@ -130,15 +156,17 @@ async def get_active_backend_name() -> str:
     )
 
 
-async def stream(audio_in: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+async def stream(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEvent]:
     backend = await get_active_backend_name()
     logger.info("Active voice backend: %s", backend)
 
     if backend == "nemotron-3-voicechat":
         raise VoiceBackendUnavailable("VoiceChat streaming not implemented yet.")
 
-    async for chunk in run_cascaded(audio_in):
-        yield chunk
+    yield VoiceEvent(kind="state", state="listening")
+
+    async for event in run_cascaded(audio_in):
+        yield event
 
 
 async def _run_check():
