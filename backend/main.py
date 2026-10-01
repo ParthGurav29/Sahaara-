@@ -15,6 +15,7 @@ wrapper.
        for the client side of this contract.
 """
 
+import asyncio
 import logging
 import os
 
@@ -22,7 +23,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from conversation import process_turn, provider
+from conversation import process_turn, provider, escalation_engine, event_log
 from voice import voice_pipeline
 
 logger = logging.getLogger("main")
@@ -60,6 +61,83 @@ def health():
         "status": "ok",
         "provider_ready": provider is not None,
     }
+
+
+@app.get("/escalation/status")
+def escalation_status():
+    """Current escalation tier and status for dashboard."""
+    return escalation_engine.get_status()
+
+
+@app.get("/escalation/events")
+def escalation_events(
+    event_type: str = None,
+    since: float = None,
+    limit: int = 100,
+):
+    """Get recent events from the event log."""
+    events = event_log.get_all()
+    
+    # Filter by type
+    if event_type:
+        from events.event_log import EventType
+        try:
+            et = EventType(event_type)
+            events = [e for e in events if e.type == et]
+        except ValueError:
+            pass
+    
+    # Filter by time
+    if since:
+        events = [e for e in events if e.timestamp >= since]
+    
+    # Limit
+    events = events[-limit:]
+    
+    return {
+        "events": [e.to_dict() for e in events],
+        "total": len(event_log.get_all()),
+    }
+
+
+@app.get("/escalation/summary")
+def escalation_summary():
+    """Session summary for daily summary screen."""
+    return event_log.summary()
+
+
+@app.websocket("/ws/escalation")
+async def escalation_ws(websocket: WebSocket):
+    """WebSocket for real-time escalation updates (SSE alternative)."""
+    await websocket.accept()
+    last_event_count = len(event_log.get_all())
+    
+    try:
+        while True:
+            # Check for new events
+            current_events = event_log.get_all()
+            if len(current_events) > last_event_count:
+                new_events = current_events[last_event_count:]
+                for event in new_events:
+                    await websocket.send_json(event.to_dict())
+                last_event_count = len(current_events)
+            
+            # Also send current status periodically
+            await websocket.send_json({
+                "type": "status",
+                "data": escalation_engine.get_status(),
+            })
+            
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        logger.info("Escalation WebSocket client disconnected.")
+    except Exception:
+        logger.exception("Escalation WebSocket handler crashed.")
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.post("/chat")

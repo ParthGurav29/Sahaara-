@@ -1,0 +1,247 @@
+/* frontend/src/EscalationLadder.css */
+
+.escalation-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #faf9f6;
+  border-radius: 12px;
+  border: 1px solid #e8e4dc;
+  font-family: inherit;
+}
+
+.ladder-tier {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fff;
+  border: 2px solid #e8e4dc;
+  transition: all 0.3s ease;
+}
+
+.ladder-tier.active {
+  border-color: var(--tier-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier-color) 20%, transparent);
+}
+
+.ladder-tier.green {
+  --tier-color: #7C93A8;
+}
+
+.ladder-tier.yellow {
+  --tier-color: #E8A85C;
+}
+
+.ladder-tier.orange {
+  --tier-color: #D47B2E;
+}
+
+.ladder-tier.red {
+  --tier-color: #C2716B;
+}
+
+.tier-indicator {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e8e4dc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.ladder-tier.active .tier-indicator {
+  background: var(--tier-color);
+}
+
+.tier-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tier-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2d2a26;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tier-reason {
+  font-size: 12px;
+  color: #6b6660;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tier-duration {
+  font-size: 11px;
+  color: #999;
+  font-family: monospace;
+}
+
+.tier-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tier-color);
+  opacity: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.ladder-tier.active .tier-pulse {
+  opacity: 1;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+/* Event Feed */
+.event-feed {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e8e4dc;
+}
+
+.event-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  transition: background 0.2s;
+}
+
+.event-item:hover {
+  background: #faf9f6;
+}
+
+.event-time {
+  color: #999;
+  font-family: monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.event-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.event-type.session_start { background: #e8e4dc; color: #6b6660; }
+.event-type.repeat { background: #d4e6f1; color: #2c6fad; }
+.event-type.distress { background: #fef3c7; color: #b45309; }
+.event-type.tier_change { background: #fce7f3; color: #be185d; }
+.event-type.fallback { background: #fef2f2; color: #991b1b; }
+.event-type.danger_statement { background: #fef2f2; color: #991b1b; }
+.event-type.system_health { background: #e0e7ff; color: #3730a3; }
+
+.event-detail {
+  flex: 1;
+  color: #4a4642;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status Panel */
+.status-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-card {
+  background: #fff;
+  border: 1px solid #e8e4dc;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.status-label {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.status-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2d2a26;
+  font-family: monospace;
+}
+
+.status-value.tier-green { color: #7C93A8; }
+.status-value.tier-yellow { color: #E8A85C; }
+.status-value.tier-orange { color: #D47B2E; }
+.status-value.tier-red { color: #C2716B; }
+
+/* Dashboard Layout */
+.dashboard {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.dashboard-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #2d2a26;
+}
+
+.dashboard-subtitle {
+  font-size: 14px;
+  color: #6b6660;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b6660;
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e8e4dc;
+}
+
+.connection-dot.connected {
+  background: #7C93A8;
+  animation: pulse 1.5s ease-in-out infinite;
+}

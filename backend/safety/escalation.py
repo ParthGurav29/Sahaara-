@@ -138,6 +138,10 @@ class EscalationEngine:
         repeat_count = self.session_notes.repeat_count(user_message)
         is_repeated = self.session_notes.is_repeated_question(user_message)
         sustained_distress = self.session_notes.sustained_distress()
+
+        # The current turn will be recorded after this evaluation, so if it's
+        # a repeated question, the effective count will be +1
+        effective_repeat_count = repeat_count + (1 if is_repeated else 0)
         
         # Track distress timing
         if sustained_distress and self.state.distress_since is None:
@@ -145,12 +149,12 @@ class EscalationEngine:
         elif not sustained_distress:
             self.state.distress_since = None
         
-        # Track repeat count
-        self.state.last_repeat_count = repeat_count
+        # Track repeat count (effective, including current turn)
+        self.state.last_repeat_count = effective_repeat_count
         
         # Evaluate transitions based on current tier
         if self.state.tier == EscalationTier.GREEN:
-            self._evaluate_green(now, repeat_count, is_repeated, sustained_distress)
+            self._evaluate_green(now, effective_repeat_count, is_repeated, sustained_distress)
         elif self.state.tier == EscalationTier.YELLOW:
             self._evaluate_yellow(now, sustained_distress)
         elif self.state.tier == EscalationTier.ORANGE:
