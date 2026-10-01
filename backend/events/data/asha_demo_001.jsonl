@@ -22,3 +22,32 @@
 {"timestamp": 1790837402.3141, "timestamp_iso": "2026-10-01T12:20:02.314100", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 2, "is_repeated": true}}
 {"timestamp": 1790837403.0921018, "timestamp_iso": "2026-10-01T12:20:03.092102", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 3, "is_repeated": true}}
 {"timestamp": 1790837403.092729, "timestamp_iso": "2026-10-01T12:20:03.092729", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 2.777087926864624}}
+{"timestamp": 1790847258.1995509, "timestamp_iso": "2026-10-01T15:04:18.199551", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847270.442579, "timestamp_iso": "2026-10-01T15:04:30.442579", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847288.208802, "timestamp_iso": "2026-10-01T15:04:48.208802", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847325.1501708, "timestamp_iso": "2026-10-01T15:05:25.150171", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847328.236279, "timestamp_iso": "2026-10-01T15:05:28.236279", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790847328.237211, "timestamp_iso": "2026-10-01T15:05:28.237211", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 3.087108850479126}}
+{"timestamp": 1790847328.995161, "timestamp_iso": "2026-10-01T15:05:28.995161", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 3.8450708389282227}}
+{"timestamp": 1790847329.612449, "timestamp_iso": "2026-10-01T15:05:29.612449", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 4.462361812591553}}
+{"timestamp": 1790847330.5444942, "timestamp_iso": "2026-10-01T15:05:30.544494", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790847330.5448802, "timestamp_iso": "2026-10-01T15:05:30.544880", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 5.394792795181274}}
+{"timestamp": 1790847331.244714, "timestamp_iso": "2026-10-01T15:05:31.244714", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 3, "is_repeated": true}}
+{"timestamp": 1790847331.245431, "timestamp_iso": "2026-10-01T15:05:31.245431", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 6.095343828201294}}
+{"timestamp": 1790847331.996331, "timestamp_iso": "2026-10-01T15:05:31.996331", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "calm", "duration_seconds": 6.846244812011719}}
+{"timestamp": 1790847405.073948, "timestamp_iso": "2026-10-01T15:06:45.073948", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847407.940532, "timestamp_iso": "2026-10-01T15:06:47.940532", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790847407.941065, "timestamp_iso": "2026-10-01T15:06:47.941065", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 2.311933994293213}}
+{"timestamp": 1790847410.194201, "timestamp_iso": "2026-10-01T15:06:50.194201", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790847410.9358132, "timestamp_iso": "2026-10-01T15:06:50.935813", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 3, "is_repeated": true}}
+{"timestamp": 1790847410.936078, "timestamp_iso": "2026-10-01T15:06:50.936078", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 2.1757729053497314}}
+{"timestamp": 1790847456.318315, "timestamp_iso": "2026-10-01T15:07:36.318315", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847456.3245492, "timestamp_iso": "2026-10-01T15:07:36.324549", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847474.798517, "timestamp_iso": "2026-10-01T15:07:54.798517", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847477.302325, "timestamp_iso": "2026-10-01T15:07:57.302325", "type": "fallback", "profile_id": "asha_demo_001", "detail": {"fallback_type": "standby_mild_delay"}}
+{"timestamp": 1790847516.3400269, "timestamp_iso": "2026-10-01T15:08:36.340027", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847518.844169, "timestamp_iso": "2026-10-01T15:08:38.844169", "type": "fallback", "profile_id": "asha_demo_001", "detail": {"fallback_type": "standby_mild_delay"}}
+{"timestamp": 1790847539.757332, "timestamp_iso": "2026-10-01T15:08:59.757332", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847539.85938, "timestamp_iso": "2026-10-01T15:08:59.859380", "type": "fallback", "profile_id": "asha_demo_001", "detail": {"fallback_type": "standby_hard_failure"}}
+{"timestamp": 1790847671.714742, "timestamp_iso": "2026-10-01T15:11:11.714742", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790847872.820715, "timestamp_iso": "2026-10-01T15:14:32.820715", "type": "fallback", "profile_id": "asha_demo_001", "detail": {"fallback_type": "standby_mild_delay"}}

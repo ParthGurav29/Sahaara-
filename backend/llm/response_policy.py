@@ -136,6 +136,11 @@ def build_prompt(
             "Do NOT claim to have 'detected a fall' or make clinical assertions."
         )
 
+    # Combine distress and red blocks for the template
+    escalation_block = distress_block
+    if red_block:
+        escalation_block = distress_block + "\n" + red_block if distress_block else red_block
+
     system = SYSTEM_PROMPT_TEMPLATE.format(
         preferred_address=profile.preferred_address,
         preferred_address_upper=profile.preferred_address.upper(),
@@ -146,8 +151,7 @@ def build_prompt(
         avoid_topics_block=avoid_block,
         memory_box_block=memory_block,
         repetition_block=repetition_block,
-        distress_block=distress_block,
-        distress_block=distress_block + "\n" + red_block if red_block else distress_block,
+        distress_block=escalation_block,
     )
 
     return PromptBundle(system=system, user=user_message)
