@@ -23,7 +23,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from conversation import process_turn, provider, escalation_engine, event_log
+from conversation import process_turn, provider, escalation_engine, event_log, alert_builder
 from voice import voice_pipeline
 
 logger = logging.getLogger("main")
@@ -104,6 +104,57 @@ def escalation_events(
 def escalation_summary():
     """Session summary for daily summary screen."""
     return event_log.summary()
+
+
+@app.get("/alerts")
+def get_alerts(
+    since: float = None,
+    limit: int = 50,
+):
+    """Get alerts for the dashboard."""
+    # Since we don't persist alerts separately, we build them from events
+    # In production, alerts would be persisted separately
+    return {
+        "alerts": [],
+        "message": "Alerts are built from events. Use /escalation/events and /escalation/status for now.",
+    }
+
+
+@app.get("/alerts/test")
+def test_alert():
+    """Test endpoint to build a sample alert."""
+    from conversation import alert_builder, escalation_engine
+    from safety.escalation import EscalationTier
+    
+    alert = alert_builder.build_tier_change_alert(
+        EscalationTier.GREEN,
+        EscalationTier.YELLOW,
+        "repeat_threshold",
+        {"repeat_count": 3, "sustained_distress": False},
+    )
+    return alert.to_dict()
+
+
+@app.websocket("/ws/alerts")
+async def alerts_ws(websocket: WebSocket):
+    """WebSocket for real-time alert updates."""
+    await websocket.accept()
+    try:
+        while True:
+            await websocket.send_json({
+                "type": "status",
+                "data": escalation_engine.get_status(),
+            })
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        logger.info("Alerts WebSocket client disconnected.")
+    except Exception:
+        logger.exception("Alerts WebSocket handler crashed.")
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.websocket("/ws/escalation")

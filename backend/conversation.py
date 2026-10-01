@@ -27,6 +27,7 @@ from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 from safety.escalation import EscalationEngine, EscalationConfig, EscalationTier
 from safety.consent import ConsentManager, ConsentState
+from dashboard.alerts import AlertBuilder
 from events.event_log import (
     EventLog,
     EventType,
@@ -62,6 +63,9 @@ consent_manager = ConsentManager(
     demo_mode=True,
     demo_multiplier=300.0,
 )
+
+# Initialize alert builder
+alert_builder = AlertBuilder(event_log, profile)
 
 # Unresponsive detection: track when Sahaara last spoke
 UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
@@ -115,6 +119,7 @@ def process_turn(user_message: str) -> dict:
         if consent_result == ConsentState.ACCEPTED:
             # User accepted - proceed with escalation (in real implementation,
             # this would trigger the actual call; for now we acknowledge)
+            alert_builder.build_consent_alert("accepted", pending_contact, escalation_engine.current_tier)
             return {
                 "response": f"Calling {pending_contact} now. They'll be on the line in a moment.",
                 "meta": {
@@ -128,6 +133,7 @@ def process_turn(user_message: str) -> dict:
             }
         elif consent_result == ConsentState.DECLINED:
             # User declined - respect their choice, log quietly
+            alert_builder.build_consent_alert("declined", pending_contact, escalation_engine.current_tier)
             return {
                 "response": f"I understand. I won't call {pending_contact} right now. I'm here if you need anything.",
                 "meta": {
@@ -141,6 +147,7 @@ def process_turn(user_message: str) -> dict:
             }
         elif consent_result == ConsentState.TIMED_OUT:
             # Timed out - treat as decline for safety
+            alert_builder.build_consent_alert("timeout", pending_contact, escalation_engine.current_tier)
             return {
                 "response": f"I'll give you some time. I'm here if you need anything.",
                 "meta": {
@@ -211,8 +218,24 @@ def process_turn(user_message: str) -> dict:
         )
 
     # Evaluate escalation tier
+    prev_tier = escalation_engine.current_tier
     escalation_engine.evaluate(user_message)
-    current_tier = escalation_engine.current_tier.value
+    current_tier_enum = escalation_engine.current_tier
+    current_tier = current_tier_enum.value
+    
+    # Trigger alert on tier change
+    if prev_tier != current_tier_enum:
+        tier_change_events = event_log.get_events(EventType.TIER_CHANGE)
+        if tier_change_events:
+            latest_change = tier_change_events[-1]
+            alert = alert_builder.build_tier_change_alert(
+                tier_from=prev_tier,
+                tier_to=current_tier_enum,
+                reason=latest_change.detail.get("reason", "unknown"),
+                context=latest_change.detail.get("context", {}),
+            )
+            # Alert is built but we don't send it anywhere yet - 
+            # dashboard endpoints will fetch it
 
     # ---- 2. Build the prompt (Listen/Validate/Ground/Offer policy) ----
     bundle = build_prompt(
