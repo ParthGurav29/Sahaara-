@@ -26,6 +26,7 @@ from memory.profile import load_profile
 from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 from safety.escalation import EscalationEngine, EscalationConfig, EscalationTier
+from safety.consent import ConsentManager, ConsentState
 from events.event_log import (
     EventLog,
     EventType,
@@ -36,6 +37,7 @@ from events.event_log import (
     get_event_log,
 )
 import time
+import re
 
 # ---- Loaded once, shared across every /chat request AND every voice turn ----
 # Same single-persona / single-global-session scope as before (see
@@ -52,6 +54,14 @@ event_log = init_event_log(profile, persist=True, demo_mode=True)
 # Initialize escalation engine
 escalation_config = EscalationConfig(demo_mode=True, demo_multiplier=300.0)
 escalation_engine = EscalationEngine(event_log, session_notes, escalation_config)
+
+# Initialize consent manager
+consent_manager = ConsentManager(
+    event_log=event_log,
+    timeout_seconds=30.0,
+    demo_mode=True,
+    demo_multiplier=300.0,
+)
 
 # Unresponsive detection: track when Sahaara last spoke
 UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
@@ -77,6 +87,83 @@ def process_turn(user_message: str) -> dict:
     
     if provider is None:
         return {"error": f"LLM provider not configured: {provider_init_error}"}
+
+    # ---- CONSENT HANDLING (must be first) ----
+    # Check for pending consent and interpret user's response
+    consent_manager.check_timeout()
+    
+    # Handle already-timed-out consent
+    if consent_manager.state == ConsentState.TIMED_OUT:
+        pending_contact = consent_manager.context.contact_name if consent_manager.context else "caregiver"
+        return {
+            "response": f"I'll give you some time. I'm here if you need anything.",
+            "meta": {
+                "emotion": "neutral",
+                "is_repeated_question": False,
+                "sustained_distress": False,
+                "consent_outcome": "timeout",
+                "contact_called": None,
+                "tier": escalation_engine.current_tier.value,
+            },
+        }
+    
+    if consent_manager.state == ConsentState.PENDING:
+        # Capture contact name before it gets reset by interpret_response
+        pending_contact = consent_manager.context.contact_name if consent_manager.context else "caregiver"
+        consent_result = consent_manager.interpret_response(user_message)
+        
+        if consent_result == ConsentState.ACCEPTED:
+            # User accepted - proceed with escalation (in real implementation,
+            # this would trigger the actual call; for now we acknowledge)
+            return {
+                "response": f"Calling {pending_contact} now. They'll be on the line in a moment.",
+                "meta": {
+                    "emotion": "neutral",
+                    "is_repeated_question": False,
+                    "sustained_distress": False,
+                    "consent_outcome": "accepted",
+                    "contact_called": pending_contact,
+                    "tier": escalation_engine.current_tier.value,
+                },
+            }
+        elif consent_result == ConsentState.DECLINED:
+            # User declined - respect their choice, log quietly
+            return {
+                "response": f"I understand. I won't call {pending_contact} right now. I'm here if you need anything.",
+                "meta": {
+                    "emotion": "neutral",
+                    "is_repeated_question": False,
+                    "sustained_distress": False,
+                    "consent_outcome": "declined",
+                    "contact_called": None,
+                    "tier": escalation_engine.current_tier.value,
+                },
+            }
+        elif consent_result == ConsentState.TIMED_OUT:
+            # Timed out - treat as decline for safety
+            return {
+                "response": f"I'll give you some time. I'm here if you need anything.",
+                "meta": {
+                    "emotion": "neutral",
+                    "is_repeated_question": False,
+                    "sustained_distress": False,
+                    "consent_outcome": "timeout",
+                    "contact_called": None,
+                    "tier": escalation_engine.current_tier.value,
+                },
+            }
+        else:
+            # Still pending (ambiguous response) - don't process as normal turn
+            # Re-ask or wait
+            return {
+                "response": "Would you like me to call them?",
+                "meta": {
+                    "emotion": "neutral",
+                    "is_repeated_question": False,
+                    "sustained_distress": False,
+                    "consent_pending": True,
+                },
+            }
 
     # ---- RED tier triggers ----
     # 1. Danger statement detection
@@ -161,7 +248,20 @@ def process_turn(user_message: str) -> dict:
             detail={"violations": guardrail.violations},
         )
 
-    # ---- 5. Update session state for future turns ----
+    # ---- 5. Detect consent request in response ----
+    # If Sahaara asks "Would you like me to call [Name]?", start consent flow
+    consent_triggered = _detect_consent_request(response_text, current_tier)
+    if consent_triggered:
+        # consent_triggered is (contact_name, relationship, question_text)
+        contact_name, relationship, question = consent_triggered
+        consent_manager.ask_consent(
+            contact_name=contact_name,
+            contact_relationship=relationship,
+            tier=EscalationTier(current_tier),
+            question_text=question,
+        )
+
+    # ---- 6. Update session state for future turns ----
     session_notes.record_turn(user_message, emotion=intent.emotion)
     _last_sahaara_prompt_time = time.time()
 
@@ -177,5 +277,48 @@ def process_turn(user_message: str) -> dict:
             "structure_check_passed": structure.passes,
             "model": result.model,
             "tier": current_tier,
+            "consent_state": consent_manager.state.value,
         },
     }
+
+
+def _detect_consent_request(response_text: str, tier: str) -> tuple[str, str, str] | None:
+    """
+    Detect if the response contains a consent question.
+    Returns (contact_name, relationship, question_text) if found.
+    
+    Looks for patterns like:
+    - "Would you like me to call Priya?"
+    - "Should I call your daughter?"
+    - "May I call Rohan?"
+    """
+    text_lower = response_text.lower()
+    
+    # Only check for consent in Yellow/Orange tiers
+    if tier not in ("yellow", "orange"):
+        return None
+    
+    # Patterns for consent questions
+    call_patterns = [
+        (r"would you like me to call (\w+)\??", "call"),
+        (r"should i call (\w+)\??", "call"),
+        (r"may i call (\w+)\??", "call"),
+        (r"can i call (\w+)\??", "call"),
+        (r"do you want me to call (\w+)\??", "call"),
+        (r"would you like me to reach out to (\w+)\??", "reach out to"),
+        (r"shall i call (\w+)\??", "call"),
+    ]
+    
+    for pattern, verb in call_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            contact_name = match.group(1).capitalize()
+            # Get relationship from profile
+            relationship = "caregiver"
+            for member in profile.get_family():
+                if member["name"].lower() == contact_name.lower():
+                    relationship = member["relationship"]
+                    break
+            return (contact_name, relationship, match.group(0))
+    
+    return None
