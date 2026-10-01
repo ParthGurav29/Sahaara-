@@ -731,3 +731,113 @@
 {"timestamp": 1790874845.6755562, "timestamp_iso": "2026-10-01T22:44:05.675556", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "red", "new_tier": "green", "reason": "session_start", "context": {}}}
 {"timestamp": 1790874846.879215, "timestamp_iso": "2026-10-01T22:44:06.879215", "type": "system_health", "profile_id": "asha_demo_001", "detail": {"message": "Unresponsive: 0.4s silence after prompt (threshold: 0.3s)", "severity": "warning"}}
 {"timestamp": 1790874846.879952, "timestamp_iso": "2026-10-01T22:44:06.879952", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "unresponsive", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875117.985703, "timestamp_iso": "2026-10-01T22:48:37.985703", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I'm not feeling well. It's a it's", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875117.9866061, "timestamp_iso": "2026-10-01T22:48:37.986606", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875120.508566, "timestamp_iso": "2026-10-01T22:48:40.508566", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "yellow", "new_tier": "green", "reason": "step_down", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875392.128267, "timestamp_iso": "2026-10-01T22:53:12.128267", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875392.128566, "timestamp_iso": "2026-10-01T22:53:12.128566", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875419.137905, "timestamp_iso": "2026-10-01T22:53:39.137905", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875419.1380742, "timestamp_iso": "2026-10-01T22:53:39.138074", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875422.408872, "timestamp_iso": "2026-10-01T22:53:42.408872", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875422.409889, "timestamp_iso": "2026-10-01T22:53:42.409889", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875424.928192, "timestamp_iso": "2026-10-01T22:53:44.928192", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790875424.929891, "timestamp_iso": "2026-10-01T22:53:44.929891", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790875449.396716, "timestamp_iso": "2026-10-01T22:54:09.396716", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875449.396874, "timestamp_iso": "2026-10-01T22:54:09.396874", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875451.606486, "timestamp_iso": "2026-10-01T22:54:11.606486", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875451.607019, "timestamp_iso": "2026-10-01T22:54:11.607019", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875463.032779, "timestamp_iso": "2026-10-01T22:54:23.032779", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875463.032994, "timestamp_iso": "2026-10-01T22:54:23.032994", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875465.8966951, "timestamp_iso": "2026-10-01T22:54:25.896695", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875465.8973608, "timestamp_iso": "2026-10-01T22:54:25.897361", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875467.605993, "timestamp_iso": "2026-10-01T22:54:27.605993", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790875467.607002, "timestamp_iso": "2026-10-01T22:54:27.607002", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790875503.443943, "timestamp_iso": "2026-10-01T22:55:03.443943", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875503.4441228, "timestamp_iso": "2026-10-01T22:55:03.444123", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875542.226133, "timestamp_iso": "2026-10-01T22:55:42.226133", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875542.2265, "timestamp_iso": "2026-10-01T22:55:42.226500", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875694.694158, "timestamp_iso": "2026-10-01T22:58:14.694158", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875694.694325, "timestamp_iso": "2026-10-01T22:58:14.694325", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875721.889183, "timestamp_iso": "2026-10-01T22:58:41.889183", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875721.889469, "timestamp_iso": "2026-10-01T22:58:41.889469", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875724.929431, "timestamp_iso": "2026-10-01T22:58:44.929431", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875724.930312, "timestamp_iso": "2026-10-01T22:58:44.930312", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875726.523652, "timestamp_iso": "2026-10-01T22:58:46.523652", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790875726.525167, "timestamp_iso": "2026-10-01T22:58:46.525167", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790875739.352457, "timestamp_iso": "2026-10-01T22:58:59.352457", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875739.352621, "timestamp_iso": "2026-10-01T22:58:59.352621", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875748.47524, "timestamp_iso": "2026-10-01T22:59:08.475240", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875748.475453, "timestamp_iso": "2026-10-01T22:59:08.475453", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875761.9111848, "timestamp_iso": "2026-10-01T22:59:21.911185", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875761.9113479, "timestamp_iso": "2026-10-01T22:59:21.911348", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875770.400348, "timestamp_iso": "2026-10-01T22:59:30.400348", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875770.400533, "timestamp_iso": "2026-10-01T22:59:30.400533", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875783.760917, "timestamp_iso": "2026-10-01T22:59:43.760917", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875783.761291, "timestamp_iso": "2026-10-01T22:59:43.761291", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875784.2843862, "timestamp_iso": "2026-10-01T22:59:44.284386", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875853.732167, "timestamp_iso": "2026-10-01T23:00:53.732167", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875853.732384, "timestamp_iso": "2026-10-01T23:00:53.732384", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875870.612772, "timestamp_iso": "2026-10-01T23:01:10.612772", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875870.612959, "timestamp_iso": "2026-10-01T23:01:10.612959", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875907.6079302, "timestamp_iso": "2026-10-01T23:01:47.607930", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790875907.6090748, "timestamp_iso": "2026-10-01T23:01:47.609075", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790875909.166348, "timestamp_iso": "2026-10-01T23:01:49.166348", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790875909.167382, "timestamp_iso": "2026-10-01T23:01:49.167382", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790875938.522423, "timestamp_iso": "2026-10-01T23:02:18.522423", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875938.522641, "timestamp_iso": "2026-10-01T23:02:18.522641", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875956.298005, "timestamp_iso": "2026-10-01T23:02:36.298005", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875956.298238, "timestamp_iso": "2026-10-01T23:02:36.298238", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875965.2954931, "timestamp_iso": "2026-10-01T23:02:45.295493", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875965.2957299, "timestamp_iso": "2026-10-01T23:02:45.295730", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875987.2330801, "timestamp_iso": "2026-10-01T23:03:07.233080", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875987.233304, "timestamp_iso": "2026-10-01T23:03:07.233304", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875996.329571, "timestamp_iso": "2026-10-01T23:03:16.329571", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790875996.329793, "timestamp_iso": "2026-10-01T23:03:16.329793", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876068.3132951, "timestamp_iso": "2026-10-01T23:04:28.313295", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876068.313457, "timestamp_iso": "2026-10-01T23:04:28.313457", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 123, "timestamp_iso": "1970-01-01T05:32:03", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"test": "data"}}
+{"timestamp": 1790876098.524412, "timestamp_iso": "2026-10-01T23:04:58.524412", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876098.524632, "timestamp_iso": "2026-10-01T23:04:58.524632", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 123, "timestamp_iso": "1970-01-01T05:32:03", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"test": "data"}}
+{"timestamp": 1790876118.7515578, "timestamp_iso": "2026-10-01T23:05:18.751558", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876118.751727, "timestamp_iso": "2026-10-01T23:05:18.751727", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 123, "timestamp_iso": "1970-01-01T05:32:03", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"test": "data"}}
+{"timestamp": 1790876128.979427, "timestamp_iso": "2026-10-01T23:05:28.979427", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876128.97965, "timestamp_iso": "2026-10-01T23:05:28.979650", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876152.833205, "timestamp_iso": "2026-10-01T23:05:52.833205", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876152.8334012, "timestamp_iso": "2026-10-01T23:05:52.833401", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876154.582783, "timestamp_iso": "2026-10-01T23:05:54.582783", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790876154.5836082, "timestamp_iso": "2026-10-01T23:05:54.583608", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790876167.524492, "timestamp_iso": "2026-10-01T23:06:07.524492", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876167.524767, "timestamp_iso": "2026-10-01T23:06:07.524767", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876189.605035, "timestamp_iso": "2026-10-01T23:06:29.605035", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790876189.606029, "timestamp_iso": "2026-10-01T23:06:29.606029", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790876191.2208, "timestamp_iso": "2026-10-01T23:06:31.220800", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790876191.221506, "timestamp_iso": "2026-10-01T23:06:31.221506", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790876231.6725729, "timestamp_iso": "2026-10-01T23:07:11.672573", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876231.672796, "timestamp_iso": "2026-10-01T23:07:11.672796", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 123, "timestamp_iso": "1970-01-01T05:32:03", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold"}}
+{"timestamp": 1790876243.2012742, "timestamp_iso": "2026-10-01T23:07:23.201274", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876243.2014668, "timestamp_iso": "2026-10-01T23:07:23.201467", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876521.817218, "timestamp_iso": "2026-10-01T23:12:01.817218", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876521.8174121, "timestamp_iso": "2026-10-01T23:12:01.817412", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876584.721901, "timestamp_iso": "2026-10-01T23:13:04.721901", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876584.722212, "timestamp_iso": "2026-10-01T23:13:04.722212", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790876622.060035, "timestamp_iso": "2026-10-01T23:13:42.060035", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790876622.060721, "timestamp_iso": "2026-10-01T23:13:42.060721", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790876623.623043, "timestamp_iso": "2026-10-01T23:13:43.623043", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "Call Priya?", "contact_name": "Priya", "tier": "yellow"}}
+{"timestamp": 1790876623.6248739, "timestamp_iso": "2026-10-01T23:13:43.624874", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "accepted", "contact_name": "Priya"}}
+{"timestamp": 1790876648.8955479, "timestamp_iso": "2026-10-01T23:14:08.895548", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790876648.896071, "timestamp_iso": "2026-10-01T23:14:08.896071", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790876683.423569, "timestamp_iso": "2026-10-01T23:14:43.423569", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 3, "is_repeated": true}}
+{"timestamp": 1790876683.4251678, "timestamp_iso": "2026-10-01T23:14:43.425168", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 161.60803389549255}}
+{"timestamp": 1790876683.425608, "timestamp_iso": "2026-10-01T23:14:43.425608", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "yellow", "new_tier": "orange", "reason": "distress_persistence", "context": {"repeat_count": 4, "sustained_distress": true, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790876684.476613, "timestamp_iso": "2026-10-01T23:14:44.476613", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 4, "is_repeated": true}}
+{"timestamp": 1790876684.4772701, "timestamp_iso": "2026-10-01T23:14:44.477270", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 162.66013598442078}}
+{"timestamp": 1790876685.203671, "timestamp_iso": "2026-10-01T23:14:45.203671", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 5, "is_repeated": true}}
+{"timestamp": 1790876685.204295, "timestamp_iso": "2026-10-01T23:14:45.204295", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 163.38716292381287}}
+{"timestamp": 1790876685.9551182, "timestamp_iso": "2026-10-01T23:14:45.955118", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "would you like me to call her", "contact_name": "Her", "tier": "orange"}}
+{"timestamp": 1790876686.961772, "timestamp_iso": "2026-10-01T23:14:46.961772", "type": "consent_answered", "profile_id": "asha_demo_001", "detail": {"outcome": "timeout", "contact_name": "Her"}}
+{"timestamp": 1790876686.9625301, "timestamp_iso": "2026-10-01T23:14:46.962530", "type": "system_health", "profile_id": "asha_demo_001", "detail": {"message": "Consent timeout for Her - treated as decline", "severity": "info"}}
+{"timestamp": 1790877065.5527968, "timestamp_iso": "2026-10-01T23:21:05.552797", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790877065.5530539, "timestamp_iso": "2026-10-01T23:21:05.553054", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}

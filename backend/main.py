@@ -24,11 +24,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from conversation import process_turn, provider, escalation_engine, event_log, alert_builder
+from dashboard.stream import router as stream_router, set_main_loop
 from voice import voice_pipeline
 
 logger = logging.getLogger("main")
 
 app = FastAPI(title="Sahaara API")
+
+app.include_router(stream_router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Capture the main event loop for thread-safe broadcasting."""
+    set_main_loop(asyncio.get_running_loop())
+
 
 app.add_middleware(
     CORSMiddleware,
