@@ -25,6 +25,7 @@ from memory.memory_box import MemoryBox
 from memory.profile import load_profile
 from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
+from safety.escalation import EscalationEngine, EscalationConfig
 from events.event_log import (
     EventLog,
     EventType,
@@ -46,6 +47,10 @@ session_notes = SessionNotes(profile_id=profile.profile_id)
 
 # Initialize event log (persist to JSONL for demo)
 event_log = init_event_log(profile, persist=True, demo_mode=True)
+
+# Initialize escalation engine
+escalation_config = EscalationConfig(demo_mode=True, demo_multiplier=300.0)
+escalation_engine = EscalationEngine(event_log, session_notes, escalation_config)
 
 try:
     provider = get_provider()
@@ -83,6 +88,10 @@ def process_turn(user_message: str) -> dict:
             duration_seconds=session_notes.duration_seconds(),
         )
 
+    # Evaluate escalation tier
+    escalation_engine.evaluate(user_message)
+    current_tier = escalation_engine.current_tier.value
+
     # ---- 2. Build the prompt (Listen/Validate/Ground/Offer policy) ----
     bundle = build_prompt(
         profile,
@@ -91,6 +100,7 @@ def process_turn(user_message: str) -> dict:
         memory_box_match=memory_match,
         is_repeated_question=is_repeat,
         sustained_distress=sustained,
+        escalation_tier=current_tier,
     )
 
     # ---- 3. Call the LLM ----
@@ -109,7 +119,6 @@ def process_turn(user_message: str) -> dict:
     if not guardrail.passed:
         # Hard rule, unchanged: a guardrail violation is never sent to the
         # person, voice or text. No retry-live, straight to the safe line.
-        # Hard rule: a guardrail violation is never sent to the person
         response_text = SAFE_FALLBACK_RESPONSE
         used_fallback = True
         event_log.log_fallback(
@@ -131,5 +140,6 @@ def process_turn(user_message: str) -> dict:
             "guardrail_violations": guardrail.violations if not guardrail.passed else [],
             "structure_check_passed": structure.passes,
             "model": result.model,
+            "tier": current_tier,
         },
     }

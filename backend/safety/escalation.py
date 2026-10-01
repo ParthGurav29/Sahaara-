@@ -1,151 +1,334 @@
 """
 safety/escalation.py
 
-Deterministic rule-based state machine for escalation tiers.
+Deterministic escalation engine for Sahaara. Manages Green/Yellow/Orange/Red
+tiers based on repetition and distress signals. No ML, no heuristics — pure
+threshold logic so the demo is 100% reproducible.
+
+Demo time-compression: "10-15 minutes" of real time can be compressed to
+~30 seconds on stage via `demo_mode` multiplier.
 """
 
+from __future__ import annotations
+
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Optional
 
-from memory.session_notes import SessionNotes
-from safety.event_log import EventLog
+from events.event_log import EventLog, EventType, EscalationTier
 
-class EscalationTier(str, Enum):
-    GREEN = "green"
-    YELLOW = "yellow"
-    ORANGE = "orange"
-    RED = "red"
+
+class EscalationReason(str, Enum):
+    """Reason for a tier change."""
+    REPEAT_THRESHOLD = "repeat_threshold"
+    SUSTAINED_DISTRESS = "sustained_distress"
+    DISTRESS_PERSISTENCE = "distress_persistence"
+    DANGER_STATEMENT = "danger_statement"
+    UNRESPONSIVE = "unresponsive"
+    MANUAL_OVERRIDE = "manual_override"
+    STEP_DOWN = "step_down"
+    SESSION_START = "session_start"
+
 
 @dataclass
-class TierDecision:
-    tier: EscalationTier
-    previous_tier: EscalationTier
-    reason: str
-    changed: bool
-    timestamp: float
+class EscalationConfig:
+    """Configuration for escalation thresholds. All times in seconds."""
+    # Repetition: number of repeated questions to trigger Yellow
+    repeat_threshold: int = 3
+    
+    # Distress: sustained_distress() must be True for this long to trigger Yellow
+    distress_hold_seconds: float = 300.0  # 5 minutes real time
+    
+    # Orange: distress persists after Yellow for this long
+    orange_hold_seconds: float = 600.0  # 10 minutes real time
+    
+    # Minimum time a tier must hold before it can change (hysteresis)
+    min_tier_hold_seconds: float = 60.0  # 1 minute real time
+    
+    # Demo mode time compression factor (e.g., 300x = 5 min -> 1 sec)
+    demo_mode: bool = False
+    demo_multiplier: float = 300.0
+    
+    def effective_distress_hold(self) -> float:
+        if self.demo_mode:
+            return self.distress_hold_seconds / self.demo_multiplier
+        return self.distress_hold_seconds
+    
+    def effective_orange_hold(self) -> float:
+        if self.demo_mode:
+            return self.orange_hold_seconds / self.demo_multiplier
+        return self.orange_hold_seconds
+    
+    def effective_min_hold(self) -> float:
+        if self.demo_mode:
+            return self.min_tier_hold_seconds / self.demo_multiplier
+        return self.min_tier_hold_seconds
+
+
+@dataclass
+class EscalationState:
+    """Current state of the escalation engine."""
+    tier: EscalationTier = EscalationTier.GREEN
+    tier_since: float = field(default_factory=time.time)
+    yellow_reason: Optional[EscalationReason] = None
+    yellow_since: Optional[float] = None
+    distress_since: Optional[float] = None
+    last_repeat_count: int = 0
+    
+    def tier_duration(self) -> float:
+        return time.time() - self.tier_since
+
 
 class EscalationEngine:
+    """
+    Deterministic escalation engine.
+    
+    Rules:
+    - GREEN: Default. No alerts.
+    - YELLOW: Triggered by EITHER:
+        a) Repetition count >= repeat_threshold (configurable, default 3)
+        b) Sustained distress held for distress_hold_seconds (default 5 min)
+    - ORANGE: Distress persists after YELLOW for orange_hold_seconds (default 10 min)
+    - RED: Only via explicit triggers (danger statement, unresponsive)
+    
+    Hysteresis:
+    - Each tier holds for at least min_tier_hold_seconds before it can change
+    - Step-down is deliberate: only when the triggering condition clears
+      AND the minimum hold time has passed.
+    """
+    
     def __init__(
         self,
         event_log: EventLog,
-        session_notes: SessionNotes,
-        demo_time_scale: float = 1.0,
-        repeat_threshold: int = 3,
-        orange_hold_seconds: float = 600.0,
-        min_hold_seconds: float = 120.0
+        session_notes,  # SessionNotes for repeat/distress checks
+        config: Optional[EscalationConfig] = None,
     ):
         self.event_log = event_log
         self.session_notes = session_notes
-        self.demo_time_scale = demo_time_scale
-        self.repeat_threshold = repeat_threshold
+        self.config = config or EscalationConfig()
+        self.state = EscalationState()
         
-        self.orange_hold_seconds = orange_hold_seconds / demo_time_scale
-        self.min_hold_seconds = min_hold_seconds / demo_time_scale
-
-        self._current_tier = EscalationTier.GREEN
-        self._last_change_time = time.time()
-        self._yellow_start_time = None
-
+        # Initialize with session start
+        self.state.tier = EscalationTier.GREEN
+        self.state.tier_since = time.time()
+        if event_log:
+            event_log.log_session_start()
+    
     @property
     def current_tier(self) -> EscalationTier:
-        return self._current_tier
-
-    def evaluate(self, current_text: str = "") -> TierDecision:
-        """Evaluate and possibly update the current tier."""
+        return self.state.tier
+    
+    @property
+    def time_in_current_tier(self) -> float:
+        return time.time() - self.state.tier_since
+    
+    def evaluate(self, user_message: str) -> EscalationTier:
+        """
+        Evaluate current state and transition tiers if needed.
+        Called on every turn.
+        """
         now = time.time()
         
-        # Red is a terminal/absorbing state for the session, or forced externally
-        if self._current_tier == EscalationTier.RED:
-            return self._make_decision(EscalationTier.RED, "Already at RED tier", now)
-
-        # Check conditions
-        is_sustained = self.session_notes.sustained_distress()
-        repeat_count = self.session_notes.repeat_count(current_text) if current_text else 0
-        has_yellow_condition = is_sustained or (repeat_count >= self.repeat_threshold)
+        # Check if minimum hold time has passed for current tier
+        if self.time_in_current_tier < self.config.effective_min_hold():
+            return self.state.tier
         
-        target_tier = EscalationTier.GREEN
-        reason = "Routine conversation"
-
-        if has_yellow_condition:
-            target_tier = EscalationTier.YELLOW
-            if is_sustained:
-                reason = "Sustained distress detected"
-            else:
-                reason = f"Question repeated {repeat_count} times"
-
-            # Check Orange upgrade
-            if self._yellow_start_time is not None:
-                if (now - self._yellow_start_time) >= self.orange_hold_seconds and is_sustained:
-                    target_tier = EscalationTier.ORANGE
-                    reason = "Distress persisted past yellow hold period"
-            
-            # Note: if we just hit yellow condition, but haven't recorded yellow start, we do it in the change logic below
-
-        # Hysteresis and state transitions
-        if target_tier == self._current_tier:
-            # Maintain current
-            return self._make_decision(self._current_tier, reason, now)
-
-        # We want to change tier
-        time_in_current = now - self._last_change_time
+        # Get current signals
+        repeat_count = self.session_notes.repeat_count(user_message)
+        is_repeated = self.session_notes.is_repeated_question(user_message)
+        sustained_distress = self.session_notes.sustained_distress()
         
-        # Upgrading is immediate (except orange which has its own hold above)
-        is_upgrade = self._tier_rank(target_tier) > self._tier_rank(self._current_tier)
+        # Track distress timing
+        if sustained_distress and self.state.distress_since is None:
+            self.state.distress_since = now
+        elif not sustained_distress:
+            self.state.distress_since = None
         
-        if is_upgrade or (time_in_current >= self.min_hold_seconds):
-            # Apply change
-            return self._apply_change(target_tier, reason, now)
-        else:
-            # Blocked by hysteresis
-            return self._make_decision(self._current_tier, f"Holding {self._current_tier.value} due to hysteresis", now)
-
-    def force_tier(self, tier: EscalationTier, reason: str) -> TierDecision:
-        """Force the engine into a specific tier, typically RED."""
+        # Track repeat count
+        self.state.last_repeat_count = repeat_count
+        
+        # Evaluate transitions based on current tier
+        if self.state.tier == EscalationTier.GREEN:
+            self._evaluate_green(now, repeat_count, is_repeated, sustained_distress)
+        elif self.state.tier == EscalationTier.YELLOW:
+            self._evaluate_yellow(now, sustained_distress)
+        elif self.state.tier == EscalationTier.ORANGE:
+            self._evaluate_orange(now, sustained_distress)
+        elif self.state.tier == EscalationTier.RED:
+            self._evaluate_red(now, sustained_distress)
+        
+        return self.state.tier
+    
+    def _evaluate_green(
+        self,
+        now: float,
+        repeat_count: int,
+        is_repeated: bool,
+        sustained_distress: bool,
+    ) -> None:
+        """Evaluate transitions from GREEN."""
+        
+        # Check repetition threshold
+        if repeat_count >= self.config.repeat_threshold:
+            self._transition_to(EscalationTier.YELLOW, EscalationReason.REPEAT_THRESHOLD, now)
+            self.state.yellow_reason = EscalationReason.REPEAT_THRESHOLD
+            return
+        
+        # Check sustained distress
+        if sustained_distress:
+            if self.state.distress_since is not None:
+                distress_duration = now - self.state.distress_since
+                if distress_duration >= self.config.effective_distress_hold():
+                    self._transition_to(EscalationTier.YELLOW, EscalationReason.SUSTAINED_DISTRESS, now)
+                    self.state.yellow_reason = EscalationReason.SUSTAINED_DISTRESS
+                    return
+    
+    def _evaluate_yellow(self, now: float, sustained_distress: bool) -> None:
+        """Evaluate transitions from YELLOW."""
+        
+        # Check if we should escalate to ORANGE (distress persistence)
+        if sustained_distress and self.state.yellow_since is not None:
+            yellow_duration = now - self.state.yellow_since
+            if yellow_duration >= self.config.effective_orange_hold():
+                self._transition_to(EscalationTier.ORANGE, EscalationReason.DISTRESS_PERSISTENCE, now)
+                return
+        
+        # Check if we should step down to GREEN
+        # Only step down if BOTH triggers are cleared AND min hold passed
+        repeat_count = self.session_notes.repeat_count("")
+        is_repeated = self.session_notes.is_repeated_question("")
+        
+        repeat_cleared = repeat_count < self.config.repeat_threshold
+        distress_cleared = not sustained_distress
+        
+        if repeat_cleared and distress_cleared:
+            self._transition_to(EscalationTier.GREEN, EscalationReason.STEP_DOWN, now)
+    
+    def _evaluate_orange(self, now: float, sustained_distress: bool) -> None:
+        """Evaluate transitions from ORANGE."""
+        
+        # ORANGE only steps down when distress clears
+        if not sustained_distress:
+            self._transition_to(EscalationTier.GREEN, EscalationReason.STEP_DOWN, now)
+    
+    def _evaluate_red(self, now: float, sustained_distress: bool) -> None:
+        """Evaluate transitions from RED."""
+        
+        # RED only steps down via manual override or session end
+        # (In practice, RED is terminal for the session)
+        pass
+    
+    def _transition_to(self, new_tier: EscalationTier, reason: EscalationReason, now: float) -> None:
+        """Perform a tier transition with logging."""
+        if new_tier == self.state.tier:
+            return
+        
+        old_tier = self.state.tier
+        self.state.tier = new_tier
+        self.state.tier_since = now
+        
+        # Track YELLOW entry time for ORANGE evaluation
+        if new_tier == EscalationTier.YELLOW:
+            self.state.yellow_since = now
+        elif old_tier == EscalationTier.YELLOW:
+            self.state.yellow_since = None
+        
+        # Log the tier change
+        if self.event_log:
+            self.event_log.log_tier_change(
+                old_tier=old_tier,
+                new_tier=new_tier,
+                reason=reason.value,
+                context={
+                    "repeat_count": self.state.last_repeat_count,
+                    "sustained_distress": self.session_notes.sustained_distress(),
+                    "time_in_previous_tier": now - self.state.tier_since if old_tier != new_tier else 0,
+                },
+            )
+    
+    def force_tier(self, tier, reason: str) -> None:
+        """Force a tier change (used for RED triggers: danger statement, unresponsive)."""
         now = time.time()
-        if self._current_tier == tier:
-            return self._make_decision(tier, reason, now)
-        return self._apply_change(tier, reason, now)
-
-    def _apply_change(self, new_tier: EscalationTier, reason: str, now: float) -> TierDecision:
-        prev = self._current_tier
-        self._current_tier = new_tier
-        self._last_change_time = now
+        if isinstance(tier, str):
+            tier = EscalationTier(tier)
+        reason_enum = EscalationReason(reason) if reason in EscalationReason.__members__.values() else EscalationReason.MANUAL_OVERRIDE
+        self._transition_to(tier, reason_enum, now)
+    
+    def reset(self) -> None:
+        """Reset engine to initial state."""
+        now = time.time()
+        old_tier = self.state.tier
+        self.state = EscalationState()
+        self.state.tier = EscalationTier.GREEN
+        self.state.tier_since = now
         
-        if new_tier == EscalationTier.YELLOW and prev == EscalationTier.GREEN:
-            self._yellow_start_time = now
-        elif new_tier == EscalationTier.GREEN:
-            self._yellow_start_time = None
-
-        self.event_log.set_current_tier(new_tier.value)
-        self.event_log.record("tier_change", {
-            "previous_tier": prev.value,
-            "new_tier": new_tier.value,
-            "reason": reason
-        }, tier=new_tier.value)
-        
-        return TierDecision(
-            tier=new_tier,
-            previous_tier=prev,
-            reason=reason,
-            changed=True,
-            timestamp=now
-        )
-
-    def _make_decision(self, tier: EscalationTier, reason: str, now: float) -> TierDecision:
-        return TierDecision(
-            tier=tier,
-            previous_tier=tier,
-            reason=reason,
-            changed=False,
-            timestamp=now
-        )
-
-    def _tier_rank(self, tier: EscalationTier) -> int:
+        if self.event_log and old_tier != EscalationTier.GREEN:
+            self.event_log.log_tier_change(
+                old_tier=old_tier,
+                new_tier=EscalationTier.GREEN,
+                reason=EscalationReason.SESSION_START.value,
+                context={},
+            )
+    
+    def get_status(self) -> dict:
+        """Get current escalation status for dashboard/API."""
         return {
-            EscalationTier.GREEN: 0,
-            EscalationTier.YELLOW: 1,
-            EscalationTier.ORANGE: 2,
-            EscalationTier.RED: 3
-        }[tier]
+            "tier": self.state.tier.value,
+            "tier_duration_seconds": self.time_in_current_tier,
+            "yellow_reason": self.state.yellow_reason.value if self.state.yellow_reason else None,
+            "yellow_duration_seconds": (
+                time.time() - self.state.yellow_since if self.state.yellow_since else None
+            ),
+            "distress_duration_seconds": (
+                time.time() - self.state.distress_since if self.state.distress_since else None
+            ),
+            "last_repeat_count": self.state.last_repeat_count,
+            "repeat_threshold": self.config.repeat_threshold,
+            "demo_mode": self.config.demo_mode,
+        }
 
+
+if __name__ == "__main__":
+    # Quick manual test
+    from memory.session_notes import SessionNotes
+    from events.event_log import EventLog
+    from memory.profile import load_profile
+    from pathlib import Path
+    from dotenv import load_dotenv
+    
+    load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+    profile = load_profile()
+    
+    event_log = EventLog(profile_id=profile.profile_id, demo_mode=True)
+    session_notes = SessionNotes(profile_id=profile.profile_id)
+    
+    config = EscalationConfig(demo_mode=True, demo_multiplier=300.0)
+    engine = EscalationEngine(event_log, session_notes, config)
+    
+    print("=== Escalation Engine Demo (compressed time) ===")
+    print(f"Config: repeat_threshold={config.repeat_threshold}, "
+          f"distress_hold={config.effective_distress_hold()}s, "
+          f"orange_hold={config.effective_orange_hold()}s")
+    print()
+    
+    # Simulate turns
+    test_turns = [
+        ("Hello", False, 0),
+        ("Where is my daughter?", False, 1),
+        ("Where is my daughter?", False, 2),
+        ("Where is my daughter?", True, 3),  # 3rd repeat -> Yellow
+    ]
+    
+    for msg, is_repeat, count in test_turns:
+        session_notes.record_turn(msg, emotion="calm" if not is_repeat else "anxious")
+        tier = engine.evaluate(msg)
+        print(f"Turn: '{msg}' -> Tier: {tier.value} (repeat_count={count})")
+    
+    print()
+    print("=== Sustained distress test ===")
+    session_notes.reset()
+    for i in range(4):
+        session_notes.record_turn(f"Worried turn {i}", emotion="anxious")
+        tier = engine.evaluate(f"Worried turn {i}")
+        print(f"Turn {i+1}: sustained_distress={session_notes.sustained_distress()} -> Tier: {tier.value}")
