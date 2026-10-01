@@ -1,0 +1,24 @@
+{"timestamp": 1790837057.203169, "timestamp_iso": "2026-10-01T12:14:17.203169", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837072.696131, "timestamp_iso": "2026-10-01T12:14:32.696131", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837093.050175, "timestamp_iso": "2026-10-01T12:14:53.050175", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837117.722296, "timestamp_iso": "2026-10-01T12:15:17.722296", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837119.942507, "timestamp_iso": "2026-10-01T12:15:19.942507", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790837143.390615, "timestamp_iso": "2026-10-01T12:15:43.390615", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837182.729603, "timestamp_iso": "2026-10-01T12:16:22.729603", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837201.785606, "timestamp_iso": "2026-10-01T12:16:41.785606", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837238.1095512, "timestamp_iso": "2026-10-01T12:17:18.109551", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837259.2046452, "timestamp_iso": "2026-10-01T12:17:39.204645", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790837284.038999, "timestamp_iso": "2026-10-01T12:18:04.038999", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837284.039171, "timestamp_iso": "2026-10-01T12:18:04.039171", "type": "fallback", "profile_id": "asha_demo_001", "detail": {"fallback_type": "standby_mild_delay"}}
+{"timestamp": 1790837302.401459, "timestamp_iso": "2026-10-01T12:18:22.401459", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837302.404783, "timestamp_iso": "2026-10-01T12:18:22.404783", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837337.524962, "timestamp_iso": "2026-10-01T12:18:57.524962", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837368.752662, "timestamp_iso": "2026-10-01T12:19:28.752662", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837370.820064, "timestamp_iso": "2026-10-01T12:19:30.820064", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790837383.220144, "timestamp_iso": "2026-10-01T12:19:43.220144", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837385.260375, "timestamp_iso": "2026-10-01T12:19:45.260375", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790837385.962702, "timestamp_iso": "2026-10-01T12:19:45.962702", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 3, "is_repeated": true}}
+{"timestamp": 1790837400.315681, "timestamp_iso": "2026-10-01T12:20:00.315681", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790837402.3141, "timestamp_iso": "2026-10-01T12:20:02.314100", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790837403.0921018, "timestamp_iso": "2026-10-01T12:20:03.092102", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I am worried and scared, where is everyone?", "count": 3, "is_repeated": true}}
+{"timestamp": 1790837403.092729, "timestamp_iso": "2026-10-01T12:20:03.092729", "type": "distress", "profile_id": "asha_demo_001", "detail": {"sustained": true, "emotion": "anxious", "duration_seconds": 2.777087926864624}}

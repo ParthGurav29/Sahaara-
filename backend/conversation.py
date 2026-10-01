@@ -25,6 +25,15 @@ from memory.memory_box import MemoryBox
 from memory.profile import load_profile
 from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
+from events.event_log import (
+    EventLog,
+    EventType,
+    EscalationTier,
+    FallbackType,
+    ConsentOutcome,
+    init_event_log,
+    get_event_log,
+)
 
 # ---- Loaded once, shared across every /chat request AND every voice turn ----
 # Same single-persona / single-global-session scope as before (see
@@ -34,6 +43,9 @@ from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 profile = load_profile()
 memory_box = MemoryBox(profile)
 session_notes = SessionNotes(profile_id=profile.profile_id)
+
+# Initialize event log (persist to JSONL for demo)
+event_log = init_event_log(profile, persist=True, demo_mode=True)
 
 try:
     provider = get_provider()
@@ -58,6 +70,18 @@ def process_turn(user_message: str) -> dict:
     memory_match = memory_box.match(user_message)
     is_repeat = session_notes.is_repeated_question(user_message)
     sustained = session_notes.sustained_distress()
+
+    # Log repetition event
+    if is_repeat:
+        event_log.log_repeat(user_message, session_notes.repeat_count(user_message), True)
+
+    # Log distress
+    if sustained:
+        event_log.log_distress(
+            sustained=True,
+            emotion=intent.emotion,
+            duration_seconds=session_notes.duration_seconds(),
+        )
 
     # ---- 2. Build the prompt (Listen/Validate/Ground/Offer policy) ----
     bundle = build_prompt(
@@ -85,8 +109,13 @@ def process_turn(user_message: str) -> dict:
     if not guardrail.passed:
         # Hard rule, unchanged: a guardrail violation is never sent to the
         # person, voice or text. No retry-live, straight to the safe line.
+        # Hard rule: a guardrail violation is never sent to the person
         response_text = SAFE_FALLBACK_RESPONSE
         used_fallback = True
+        event_log.log_fallback(
+            FallbackType.GUARDRAIL,
+            detail={"violations": guardrail.violations},
+        )
 
     # ---- 5. Update session state for future turns ----
     session_notes.record_turn(user_message, emotion=intent.emotion)

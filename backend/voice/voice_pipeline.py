@@ -33,6 +33,8 @@ load_dotenv(BASE_DIR / ".env")
 
 from voice import asr, fillers, tts
 
+from events.event_log import FallbackType, get_event_log
+
 logger = logging.getLogger("voice.pipeline")
 
 VoiceOrbState = Literal["listening", "thinking", "speaking"]
@@ -53,6 +55,10 @@ class VoiceEvent:
     kind: Literal["state", "audio"]
     state: Optional[VoiceOrbState] = None
     audio: Optional[bytes] = None
+
+# Standby ladder timing thresholds (seconds after ack sound fires)
+MILD_DELAY_THRESHOLD = 2.5
+REAL_DELAY_THRESHOLD = 5.0
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
 VOICECHAT_AVAILABILITY_TTL_SECONDS = 300
@@ -114,6 +120,12 @@ async def _llm_reply(user_text: str) -> str:
     return result["response"]
 
 
+async def _delayed_filler(seconds: float, filler_fn):
+    """Helper: wait `seconds`, then return pre-rendered filler audio."""
+    await asyncio.sleep(seconds)
+    return await filler_fn()
+
+
 async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEvent]:
     async for text, is_utterance_end in asr.stream_transcripts(audio_in):
         if not is_utterance_end:
@@ -132,14 +144,78 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
         except Exception as e:
             logger.warning("Ack filler unavailable, continuing without it: %s", e)
 
-        reply_text = await _llm_reply(text)
-        logger.info("Agent reply: %s", reply_text)
+        # --- Standby Ladder (Part 2.3) ---
+        # Race the LLM call against delay thresholds. Once ANY fallback
+        # fires, the turn is considered closed — late LLM responses are
+        # discarded to avoid splicing stale audio into a new turn.
+        llm_task = asyncio.create_task(_llm_reply(text))
+        mild_delay_task = asyncio.create_task(
+            _delayed_filler(MILD_DELAY_THRESHOLD, fillers.get_mild_delay_audio)
+        )
+        real_delay_task = asyncio.create_task(
+            _delayed_filler(REAL_DELAY_THRESHOLD, fillers.get_hard_failure_audio)
+        )
 
-        # thinking -> speaking
-        yield VoiceEvent(kind="state", state="speaking")
+        done, pending = await asyncio.wait(
+            [llm_task, mild_delay_task, real_delay_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
-        async for audio_chunk in tts.stream_speech(reply_text):
-            yield VoiceEvent(kind="audio", audio=audio_chunk)
+        # Cancel any pending tasks (the LLM call keeps running in background
+        # but its result will be ignored since the turn is over)
+        for t in pending:
+            t.cancel()
+
+        if llm_task in done:
+            # LLM won — normal path
+            try:
+                reply_text = llm_task.result()
+                logger.info("Agent reply: %s", reply_text)
+
+                # thinking -> speaking
+                yield VoiceEvent(kind="state", state="speaking")
+
+                async for audio_chunk in tts.stream_speech(reply_text):
+                    yield VoiceEvent(kind="audio", audio=audio_chunk)
+            except Exception as e:
+                # LLM error (provider failure, guardrail violation, etc.)
+                # Treat as hard failure — play safe fallback
+                logger.error("LLM call failed, playing hard failure fallback: %s", e)
+                logger.info(
+                    "standby_ladder_fallback tier=hard_failure latency_ms=%d",
+                    int(REAL_DELAY_THRESHOLD * 1000),
+                )
+                # Log to event log
+                event_log = get_event_log()
+                if event_log:
+                    event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
+                yield VoiceEvent(
+                    kind="audio", audio=await fillers.get_hard_failure_audio()
+                )
+        elif mild_delay_task in done:
+            # Mild delay fired — play filler, turn ends
+            logger.info("Standby ladder: mild delay triggered")
+            logger.info(
+                "standby_ladder_fallback tier=mild_delay latency_ms=%d",
+                int(MILD_DELAY_THRESHOLD * 1000),
+            )
+            # Log to event log
+            event_log = get_event_log()
+            if event_log:
+                event_log.log_fallback(FallbackType.STANDBY_MILD_DELAY)
+            yield VoiceEvent(kind="audio", audio=await fillers.get_mild_delay_audio())
+        elif real_delay_task in done:
+            # Real delay / hard failure — play safe fallback, turn ends
+            logger.info("Standby ladder: real delay / hard failure triggered")
+            logger.info(
+                "standby_ladder_fallback tier=real_delay latency_ms=%d",
+                int(REAL_DELAY_THRESHOLD * 1000),
+            )
+            # Log to event log
+            event_log = get_event_log()
+            if event_log:
+                event_log.log_fallback(FallbackType.STANDBY_REAL_DELAY)
+            yield VoiceEvent(kind="audio", audio=await fillers.get_hard_failure_audio())
 
         # speaking -> listening, ready for the next turn
         yield VoiceEvent(kind="state", state="listening")

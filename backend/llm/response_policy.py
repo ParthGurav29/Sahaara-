@@ -79,6 +79,7 @@ def build_prompt(
     memory_box_match: Optional[MemoryBoxMatch] = None,
     is_repeated_question: bool = False,
     sustained_distress: bool = False,
+    escalation_tier: str = "green",
 ) -> PromptBundle:
     """Assemble the full prompt for one conversational turn.
 
@@ -126,6 +127,15 @@ def build_prompt(
             "contact — but always ASK first, per the escalation rule above."
         )
 
+    red_block = ""
+    if escalation_tier == "red":
+        red_block = (
+            "- EMERGENCY / RED TIER: A danger statement or unresponsiveness was detected. "
+            "Direct the response toward emergency support and assure them that a human has "
+            "been notified. Use framing like 'I have notified your family' or 'Help is on the way.' "
+            "Do NOT claim to have 'detected a fall' or make clinical assertions."
+        )
+
     system = SYSTEM_PROMPT_TEMPLATE.format(
         preferred_address=profile.preferred_address,
         preferred_address_upper=profile.preferred_address.upper(),
@@ -137,6 +147,7 @@ def build_prompt(
         memory_box_block=memory_block,
         repetition_block=repetition_block,
         distress_block=distress_block,
+        distress_block=distress_block + "\n" + red_block if red_block else distress_block,
     )
 
     return PromptBundle(system=system, user=user_message)

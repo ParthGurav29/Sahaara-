@@ -52,6 +52,13 @@ FACTUAL_MARKERS = [
     r"\bhow do i\b", r"\bcan you turn\b", r"\bwhat'?s the weather\b",
 ]
 
+DANGER_PATTERNS = [
+    r"\bi want to die\b", r"\bkill myself\b", r"\bend it all\b",
+    r"\bdon'?t want to live\b", r"\bno reason to live\b",
+    r"\bwant to hurt myself\b", r"\bhurt myself\b",
+    r"\bnobody would miss me\b", r"\bbetter off without me\b",
+]
+
 DEFAULT_EMOTION = "calm"
 
 
@@ -61,6 +68,7 @@ class IntentResult:
     emotion: str                       # best-guess primary emotion label
     is_emotional_need: bool            # should the response-policy validate first?
     is_factual_ask: bool               # does it also carry a literal factual question?
+    is_danger_statement: bool          # Red tier trigger
     matched_emotion_keywords: list[str] = field(default_factory=list)
 
 
@@ -82,6 +90,7 @@ def classify_intent(text: str) -> IntentResult:
             if matched_emotion is None:
                 matched_emotion = emotion
 
+    is_danger = any(re.search(p, text_lower) for p in DANGER_PATTERNS)
     is_factual = any(re.search(p, text_lower) for p in FACTUAL_MARKERS)
     is_emotional = matched_emotion is not None and matched_emotion != "content"
 
@@ -92,6 +101,7 @@ def classify_intent(text: str) -> IntentResult:
         emotion=emotion,
         is_emotional_need=is_emotional,
         is_factual_ask=is_factual,
+        is_danger_statement=is_danger,
         matched_emotion_keywords=matched_keywords,
     )
 
@@ -121,12 +131,14 @@ def classify_with_llm(text: str, llm_call: Callable[[str], str]) -> IntentResult
         elif line.lower().startswith("emotional_need:"):
             is_emotional_need = line.split(":", 1)[1].strip().lower() == "true"
 
+    is_danger = any(re.search(p, text.lower()) for p in DANGER_PATTERNS)
     is_factual = any(re.search(p, text.lower()) for p in FACTUAL_MARKERS)
     return IntentResult(
         text=text,
         emotion=emotion,
         is_emotional_need=is_emotional_need,
         is_factual_ask=is_factual,
+        is_danger_statement=is_danger,
         matched_emotion_keywords=[],
     )
 

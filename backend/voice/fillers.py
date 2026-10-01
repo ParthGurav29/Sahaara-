@@ -23,6 +23,8 @@ from typing import Dict
 
 from voice import tts
 
+from safety.guardrails import SAFE_FALLBACK_RESPONSE
+
 logger = logging.getLogger("voice.fillers")
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
@@ -37,9 +39,12 @@ MILD_DELAY_FILLER = {
     "key": "mild_delay",
     "text": "Let me think about that for a second.",
 }
-# The "real delay" and "hard failure" tiers reuse
-# safety.guardrails.SAFE_FALLBACK_RESPONSE and a dedicated hard-failure
-# line — rendered the same way, added when Part 2.3 is built.
+# Hard failure / real delay fallback — uses the same safe response text
+# as the guardrails fallback, pre-cached for instant playback.
+HARD_FAILURE_FILLER = {
+    "key": "hard_failure",
+    "text": SAFE_FALLBACK_RESPONSE,
+}
 
 _cache: Dict[str, bytes] = {}
 _locks: Dict[str, asyncio.Lock] = {}
@@ -85,6 +90,10 @@ async def get_mild_delay_audio() -> bytes:
     return await _load_or_render(MILD_DELAY_FILLER["key"], MILD_DELAY_FILLER["text"])
 
 
+async def get_hard_failure_audio() -> bytes:
+    return await _load_or_render(HARD_FAILURE_FILLER["key"], HARD_FAILURE_FILLER["text"])
+
+
 async def prewarm_all() -> None:
     """Call once at server startup so the FIRST real conversation doesn't
     pay the one-time render cost live. Safe to call even before Cartesia
@@ -94,4 +103,5 @@ async def prewarm_all() -> None:
         return
     await get_ack_audio()
     await get_mild_delay_audio()
+    await get_hard_failure_audio()
     logger.info("Filler audio prewarmed and cached in %s", ASSETS_DIR)
