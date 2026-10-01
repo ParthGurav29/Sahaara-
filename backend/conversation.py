@@ -25,7 +25,7 @@ from memory.memory_box import MemoryBox
 from memory.profile import load_profile
 from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
-from safety.escalation import EscalationEngine, EscalationConfig
+from safety.escalation import EscalationEngine, EscalationConfig, EscalationTier
 from events.event_log import (
     EventLog,
     EventType,
@@ -35,6 +35,7 @@ from events.event_log import (
     init_event_log,
     get_event_log,
 )
+import time
 
 # ---- Loaded once, shared across every /chat request AND every voice turn ----
 # Same single-persona / single-global-session scope as before (see
@@ -52,6 +53,11 @@ event_log = init_event_log(profile, persist=True, demo_mode=True)
 escalation_config = EscalationConfig(demo_mode=True, demo_multiplier=300.0)
 escalation_engine = EscalationEngine(event_log, session_notes, escalation_config)
 
+# Unresponsive detection: track when Sahaara last spoke
+UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
+_last_sahaara_prompt_time: float = 0.0
+_unresponsive_enabled: bool = False  # Set to True for voice mode
+
 try:
     provider = get_provider()
     provider_init_error = None
@@ -67,11 +73,40 @@ def process_turn(user_message: str) -> dict:
     provider isn't configured or the LLM call fails — same shape /chat has
     always returned, so main.py can keep returning this directly.
     """
+    global _last_sahaara_prompt_time
+    
     if provider is None:
         return {"error": f"LLM provider not configured: {provider_init_error}"}
 
-    # ---- 1. Memory / context gathering ----
+    # ---- RED tier triggers ----
+    # 1. Danger statement detection
     intent = classify_intent(user_message)
+    if intent.is_danger_statement:
+        event_log.log_danger_statement(
+            phrase=user_message,
+            matched_pattern="danger_pattern",
+        )
+        escalation_engine.force_tier(EscalationTier.RED, "danger_statement")
+
+    # Unresponsive detection (prolonged silence after Sahaara prompt)
+    # NOTE: Only applies in voice mode where actual silence occurs.
+    # In text mode / tests, disabled by default. Voice pipeline should
+    # call a separate function or set a flag to enable it.
+    global _unresponsive_enabled
+    if _unresponsive_enabled and _last_sahaara_prompt_time > 0:
+        silence_duration = time.time() - _last_sahaara_prompt_time
+        # Apply demo mode compression if enabled
+        threshold = UNRESPONSIVE_THRESHOLD_SECONDS
+        if escalation_engine.config.demo_mode:
+            threshold = UNRESPONSIVE_THRESHOLD_SECONDS / escalation_engine.config.demo_multiplier
+        if silence_duration > threshold:
+            event_log.log_system_health(
+                message=f"Unresponsive: {silence_duration:.1f}s silence after prompt (threshold: {threshold:.1f}s)",
+                severity="warning",
+            )
+            escalation_engine.force_tier(EscalationTier.RED, "unresponsive")
+
+    # ---- 1. Memory / context gathering ----
     memory_match = memory_box.match(user_message)
     is_repeat = session_notes.is_repeated_question(user_message)
     sustained = session_notes.sustained_distress()
@@ -128,6 +163,7 @@ def process_turn(user_message: str) -> dict:
 
     # ---- 5. Update session state for future turns ----
     session_notes.record_turn(user_message, emotion=intent.emotion)
+    _last_sahaara_prompt_time = time.time()
 
     return {
         "response": response_text,
