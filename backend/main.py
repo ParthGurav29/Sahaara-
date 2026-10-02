@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from conversation import process_turn, provider, escalation_engine, event_log, alert_builder
 from dashboard.stream import router as stream_router, set_main_loop
+from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
 
 logger = logging.getLogger("main")
@@ -114,6 +115,14 @@ def escalation_events(
 def escalation_summary():
     """Session summary for daily summary screen."""
     return event_log.summary()
+
+
+@app.get("/daily-summary")
+def daily_summary():
+    """Generate daily summary from event log for caregiver dashboard."""
+    from conversation import profile
+    summary = generate_daily_summary(event_log, profile)
+    return summary.__dict__
 
 
 @app.get("/alerts")

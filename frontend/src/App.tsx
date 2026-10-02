@@ -2,12 +2,14 @@ import { useState } from "react";
 
 import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
+import DailySummaryScreen from "./DailySummaryScreen";
 import "./App.css";
 
 function App() {
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState<"live" | "summary">("live");
 
   async function sendMessage() {
     if (!message.trim()) return;
@@ -48,41 +50,64 @@ function App() {
         <p className="app-subtitle">Consent-based AI companion for dementia care</p>
       </header>
 
-      <div className="app-main">
-        {/* Asha's view - Voice Orb */}
-        <section className="asha-view">
-          <h2 className="view-title">Asha's View</h2>
-          <VoiceOrb />
-        </section>
-
-        {/* Rohan's view - Escalation Ladder */}
-        <section className="caregiver-view">
-          <h2 className="view-title">Rohan's View (Caregiver)</h2>
-          <EscalationLadder />
-        </section>
-      </div>
-
-      {/* Text chat fallback */}
-      <div className="chat-fallback">
-        <input
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              sendMessage();
-            }
-          }}
-          placeholder="Talk to Sahaara (text)..."
-        />
-        <button onClick={sendMessage} disabled={loading}>
-          {loading ? "Thinking..." : "Send"}
+      <nav className="app-tabs">
+        <button
+          className={`tab ${view === "live" ? "active" : ""}`}
+          onClick={() => setView("live")}
+        >
+          Live Session
         </button>
-        {response && (
-          <p className="chat-response">
-            <strong>Sahaara:</strong> {response}
-          </p>
-        )}
-      </div>
+        <button
+          className={`tab ${view === "summary" ? "active" : ""}`}
+          onClick={() => setView("summary")}
+        >
+          Daily Summary
+        </button>
+      </nav>
+
+      {view === "live" && (
+        <>
+          <div className="app-main">
+            {/* Asha's view - Voice Orb */}
+            <section className="asha-view">
+              <h2 className="view-title">Asha's View</h2>
+              <VoiceOrb />
+            </section>
+
+            {/* Rohan's view - Escalation Ladder */}
+            <section className="caregiver-view">
+              <h2 className="view-title">Rohan's View (Caregiver)</h2>
+              <EscalationLadder />
+            </section>
+          </div>
+
+          {/* Text chat fallback */}
+          <div className="chat-fallback">
+            <input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  sendMessage();
+                }
+              }}
+              placeholder="Talk to Sahaara (text)..."
+            />
+            <button onClick={sendMessage} disabled={loading}>
+              {loading ? "Thinking..." : "Send"}
+            </button>
+            {response && (
+              <p className="chat-response">
+                <strong>Sahaara:</strong> {response}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === "summary" && (
+        <DailySummaryScreen />
+      )}
     </div>
   );
 }

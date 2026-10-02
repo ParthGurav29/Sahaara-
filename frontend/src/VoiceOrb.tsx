@@ -167,7 +167,7 @@ export default function VoiceOrb() {
       if (ws.readyState !== WebSocket.OPEN) return;
       const input = event.inputBuffer.getChannelData(0);
       const pcm16 = downsampleTo16k(input, audioContext.sampleRate);
-      ws.send(pcm16.buffer);
+      ws.send(pcm16.buffer as ArrayBuffer);
     };
 
     source.connect(processor);

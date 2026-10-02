@@ -26,6 +26,39 @@
   margin: 0;
 }
 
+.app-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: #faf9f6;
+  border: 1px solid #e8e4dc;
+  border-radius: 10px;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b6660;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: #2d2a26;
+  background: #fff;
+}
+
+.tab.active {
+  color: #fff;
+  background: #7C93A8;
+}
+
 .app-main {
   display: grid;
   grid-template-columns: 1fr 1fr;
