@@ -125,6 +125,29 @@ def daily_summary():
     return summary.__dict__
 
 
+@app.post("/demo/reset")
+def demo_reset():
+    """Reset all demo state for a clean re-run."""
+    from conversation import (
+        event_log, session_notes, escalation_engine, consent_manager,
+        _last_sahaara_prompt_time, _unresponsive_enabled
+    )
+    event_log.clear()
+    session_notes.reset()
+    escalation_engine.reset()
+    consent_manager.reset()
+    
+    # Reset module-level globals
+    import conversation
+    conversation._last_sahaara_prompt_time = 0.0
+    conversation._unresponsive_enabled = False
+    
+    # Re-initialize event log with session_start
+    event_log.log_session_start()
+    
+    return {"status": "ok", "message": "Demo state reset"}
+
+
 @app.get("/alerts")
 def get_alerts(
     since: float = None,

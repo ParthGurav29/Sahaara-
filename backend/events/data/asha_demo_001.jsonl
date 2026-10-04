@@ -955,3 +955,13 @@
 {"timestamp": 1790917347.537001, "timestamp_iso": "2026-10-02T10:32:27.537001", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
 {"timestamp": 1790917712.3485289, "timestamp_iso": "2026-10-02T10:38:32.348529", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "I don't feel okay.", "count": 2, "is_repeated": true}}
 {"timestamp": 1790917712.3501492, "timestamp_iso": "2026-10-02T10:38:32.350149", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790951399.398741, "timestamp_iso": "2026-10-02T19:59:59.398741", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790951399.3990731, "timestamp_iso": "2026-10-02T19:59:59.399073", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790951443.251599, "timestamp_iso": "2026-10-02T20:00:43.251599", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1790951443.252209, "timestamp_iso": "2026-10-02T20:00:43.252209", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1790951444.1840022, "timestamp_iso": "2026-10-02T20:00:44.184002", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "yellow", "new_tier": "green", "reason": "session_start", "context": {}}}
+{"timestamp": 1790951444.184293, "timestamp_iso": "2026-10-02T20:00:44.184293", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790964453.6118941, "timestamp_iso": "2026-10-02T23:37:33.611894", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790964453.612064, "timestamp_iso": "2026-10-02T23:37:33.612064", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790964500.973513, "timestamp_iso": "2026-10-02T23:38:20.973513", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1790964500.973788, "timestamp_iso": "2026-10-02T23:38:20.973788", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
