@@ -50,7 +50,7 @@ MODEL_ULTRA = os.environ.get("SAHAARA_MODEL_ULTRA", "nvidia/Nemotron-3-Ultra-550
 MODEL_LIGHTNING = os.environ.get("SAHAARA_MODEL_LIGHTNING", "nvidia/Nemotron-3_5-Lightning")
 
 DEFAULT_MAX_TOKENS = 300  # short spoken-style replies, not essays
-DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.7"))
 
 
 class NemotronClientError(ProviderError):

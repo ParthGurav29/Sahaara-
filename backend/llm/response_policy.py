@@ -170,8 +170,26 @@ OPEN_ENDED_PATTERNS = [
 ]
 
 VALIDATION_MARKERS = [
+    # Direct validation phrases
     r"\bthat sounds\b", r"\bi understand\b", r"\bi'?m here\b", r"\bi hear you\b",
     r"\bmust be\b", r"\bthat must feel\b", r"\bi know\b",
+    # "That's [adjective]" validation
+    r"\bthat'?s (hard|tough|difficult|worrying|scary|unsettling|heavy|lovely|peaceful|nice)\b",
+    # "It's okay/alright to feel"
+    r"\b(it'?s )?(okay|alright) to feel\b",
+    # "I hear how [much/what]..." - common empathetic opening
+    r"\bi hear (how|what)\b",
+    # "That [noun] sounds [adjective]" - e.g., "That heaviness sounds uncomfortable"
+    r"\bthat \w+ sounds (uncomfortable|hard|difficult|lovely|nice|peaceful|heavy)\b",
+    # "I'm sorry you're feeling" / "Sorry you're feeling"
+    r"\bi'?m sorry you'?re feeling\b",
+    r"\bsorry you'?re feeling\b",
+    # "It sounds like" validation
+    r"\bit sounds like\b",
+    # "You must be" validation
+    r"\byou must be\b",
+    # "It can feel" validation
+    r"\bit can feel\b",
 ]
 
 CORRECTIVE_MARKERS = [
@@ -179,10 +197,58 @@ CORRECTIVE_MARKERS = [
     r"\bactually,? he'?s\b", r"\bactually,? she'?s\b",
 ]
 
+# Grounding markers - orienting to place/time/safety without being corrective
+GROUNDING_MARKERS = [
+    # Place references - flexible
+    r"\bhere at (home|the house)\b",
+    r"\byou'?re at (home|the house)\b",
+    r"\bat home\b",  # "at home" anywhere
+    r"\bhome\b",     # just "home" - but be careful not to over-match
+    # Time references
+    r"\bit'?s (a |the )?(morning|afternoon|evening|day)\b",
+    r"\bthis (morning|afternoon|evening)\b",
+    r"\b(quiet|lovely|nice|pleasant|gentle) (morning|afternoon|evening|day)\b",
+    r"\bit is (a |the )?(quiet|lovely|nice|pleasant|gentle|beautiful) (day|afternoon|morning|evening)\b",
+    # Environment observations
+    r"\bthe (weather|sky|garden|window|roses|flowers|birds) (is|looks|are)\b",
+    r"\b(roses|flowers|garden) (is|are|looks) (blooming|bloom|lovely|nice|beautiful)\b",
+    # Safety/companionship - flexible patterns
+    r"\byou'?re safe\b",
+    r"\byou'?re with me\b",
+    r"\bi'?m (right here )?with you\b",
+    r"\bwe'?re (here|together)\b",
+    r"\bwith you\b",    # "with you" anywhere
+    r"\bwith me\b",    # "with me" anywhere
+    # Time/routine references
+    r"\b(morning|afternoon|evening) (tea|coffee|meal|routine)\b",
+    r"\breminds me of\b",
+    # General orienting phrases
+    r"\bhere (with you|right now)\b",
+    r"\b(at|in) (the )?(window|garden|kitchen|living room)\b",
+    # Additional flexible grounding
+    r"\bhere\b.*\b(with you|with me|right now)\b",  # "here ... with you" anywhere in sentence
+    r"\b(you'?re|she'?s|he'?s) at home\b",  # "you're at home", "she's at home"
+    r"\bsafe\b",  # "safe" anywhere - but be careful
+]
+
+# Concrete choice markers - exactly ONE small, concrete choice offered
+CONCRETE_CHOICE_MARKERS = [
+    # Two-option choices with "or"
+    r"would you like (to|me to) .+?, or .+?\??",
+    r"would you like .+?, or .+?\??",
+    r"(sit|walk|listen|hear|look|have|drink|eat|call|talk) .+? or .+?\??",
+    r"\bor (hear|listen to|look at|sit|walk|have|drink|eat)\b",
+    # Single-option yes/no offers (also acceptable per policy "one small concrete choice")
+    r"would you like (to|me to) (\w+)\??",
+    r"would you like to (\w+)\??",
+    r"would you like (\w+)\??",
+]
 
 @dataclass
 class StructureCheck:
     has_validation_language: bool
+    has_grounding_language: bool
+    has_concrete_choice: bool
     has_open_ended_question: bool
     has_corrective_language: bool
     passes: bool
@@ -197,13 +263,17 @@ def check_response_structure(response_text: str) -> StructureCheck:
     text_lower = response_text.lower()
 
     has_validation = any(re.search(p, text_lower) for p in VALIDATION_MARKERS)
+    has_grounding = any(re.search(p, text_lower) for p in GROUNDING_MARKERS)
+    has_concrete_choice = any(re.search(p, text_lower) for p in CONCRETE_CHOICE_MARKERS)
     has_open_ended = any(re.search(p, text_lower) for p in OPEN_ENDED_PATTERNS)
     has_corrective = any(re.search(p, text_lower) for p in CORRECTIVE_MARKERS)
 
-    passes = has_validation and not has_open_ended and not has_corrective
+    passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
 
     return StructureCheck(
         has_validation_language=has_validation,
+        has_grounding_language=has_grounding,
+        has_concrete_choice=has_concrete_choice,
         has_open_ended_question=has_open_ended,
         has_corrective_language=has_corrective,
         passes=passes,

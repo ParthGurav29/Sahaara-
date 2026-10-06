@@ -41,6 +41,7 @@ class EventType(str, Enum):
     SYSTEM_HEALTH = "system_health"
     SESSION_START = "session_start"
     SESSION_END = "session_end"
+    TIMING = "timing"
 
 
 class EscalationTier(str, Enum):
@@ -321,6 +322,26 @@ class EventLog:
             type=EventType.SESSION_END,
             profile_id=self.profile_id,
             detail={},
+        )
+        self.append(event)
+        return event
+    
+    def log_timing(self, turn_id: str, timings: dict[str, float]) -> Event:
+        """Log timing measurements for a voice turn.
+        
+        Args:
+            turn_id: Unique identifier for the turn
+            timings: Dictionary of timing points (e.g., t_speech_end, t_llm_request, 
+                     t_first_tts_byte, etc.) as Unix timestamps
+        """
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.TIMING,
+            profile_id=self.profile_id,
+            detail={
+                "turn_id": turn_id,
+                "timings": timings,
+            },
         )
         self.append(event)
         return event

@@ -13,6 +13,7 @@ real, so the cascaded path is what actually runs today.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -33,9 +34,14 @@ load_dotenv(BASE_DIR / ".env")
 
 from voice import asr, fillers, tts
 
-from events.event_log import FallbackType, get_event_log
+from events.event_log import EventType, FallbackType, get_event_log
 
 logger = logging.getLogger("voice.pipeline")
+
+# Timing log file path
+TIMING_LOG_PATH = BASE_DIR / "backend" / "logs" / "voice_timing.jsonl"
+# Ensure log directory exists
+TIMING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 VoiceOrbState = Literal["listening", "thinking", "speaking"]
 
@@ -68,6 +74,37 @@ _voicechat_cache: Tuple[Optional[bool], float] = (None, 0.0)
 
 class VoiceBackendUnavailable(Exception):
     pass
+
+
+def _write_timing_log(turn_id: str, timings: dict) -> None:
+    """Write a single JSON line to the timing log file."""
+    try:
+        # Compute derived gaps
+        gaps = {}
+        t = timings
+        if "t_speech_end" in t and "t_llm_request" in t:
+            gaps["asr_end_to_llm_request_ms"] = round((t["t_llm_request"] - t["t_speech_end"]) * 1000, 1)
+        if "t_llm_request" in t and "t_first_llm_token" in t:
+            gaps["llm_time_ms"] = round((t["t_first_llm_token"] - t["t_llm_request"]) * 1000, 1)
+        if "t_first_llm_token" in t and "t_first_tts_byte" in t:
+            gaps["llm_token_to_tts_first_byte_ms"] = round((t["t_first_tts_byte"] - t["t_first_llm_token"]) * 1000, 1)
+        if "t_first_tts_byte" in t and "t_first_audio_sent" in t:
+            gaps["tts_first_byte_to_audio_sent_ms"] = round((t["t_first_audio_sent"] - t["t_first_tts_byte"]) * 1000, 1)
+        if "t_speech_end" in t and "t_first_audio_sent" in t:
+            gaps["speech_end_to_first_audio_ms"] = round((t["t_first_audio_sent"] - t["t_speech_end"]) * 1000, 1)
+        if "t_speech_end" in t and "t_ack_started" in t:
+            gaps["speech_end_to_ack_started_ms"] = round((t["t_ack_started"] - t["t_speech_end"]) * 1000, 1)
+        
+        log_entry = {
+            "turn_id": turn_id,
+            "timestamp": time.time(),
+            "timings": t,
+            "gaps": gaps,
+        }
+        with open(TIMING_LOG_PATH, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    except Exception as e:
+        logger.warning("Failed to write timing log: %s", e)
 
 
 async def check_voicechat_availability() -> bool:
@@ -127,9 +164,18 @@ async def _delayed_filler(seconds: float, filler_fn):
 
 
 async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEvent]:
+    turn_counter = 0
     async for text, is_utterance_end in asr.stream_transcripts(audio_in):
         if not is_utterance_end:
             continue  # interim result, not a finished turn — orb stays "listening"
+
+        turn_counter += 1
+        turn_id = f"turn_{turn_counter}"
+        timings: dict[str, float] = {}
+        
+        # t_speech_end: ASR utterance_end received
+        t_speech_end = time.time()
+        timings["t_speech_end"] = t_speech_end
 
         logger.info("User said: %s", text)
 
@@ -140,6 +186,8 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
         # Pre-rendered and cached (fillers.py), so this is genuinely
         # instant, not just fast.
         try:
+            t_ack_started = time.time()
+            timings["t_ack_started"] = t_ack_started
             yield VoiceEvent(kind="audio", audio=await fillers.get_ack_audio())
         except Exception as e:
             logger.warning("Ack filler unavailable, continuing without it: %s", e)
@@ -148,6 +196,11 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
         # Race the LLM call against delay thresholds. Once ANY fallback
         # fires, the turn is considered closed — late LLM responses are
         # discarded to avoid splicing stale audio into a new turn.
+        
+        # t_llm_request: LLM task created
+        t_llm_request = time.time()
+        timings["t_llm_request"] = t_llm_request
+        
         llm_task = asyncio.create_task(_llm_reply(text))
         mild_delay_task = asyncio.create_task(
             _delayed_filler(MILD_DELAY_THRESHOLD, fillers.get_mild_delay_audio)
@@ -170,13 +223,34 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
             # LLM won — normal path
             try:
                 reply_text = llm_task.result()
+                
+                # t_first_llm_token: LLM reply received
+                t_first_llm_token = time.time()
+                timings["t_first_llm_token"] = t_first_llm_token
+                
                 logger.info("Agent reply: %s", reply_text)
 
                 # thinking -> speaking
                 yield VoiceEvent(kind="state", state="speaking")
 
+                # t_first_tts_byte: first TTS audio chunk yielded
+                first_tts = True
                 async for audio_chunk in tts.stream_speech(reply_text):
+                    if first_tts:
+                        timings["t_first_tts_byte"] = time.time()
+                        first_tts = False
                     yield VoiceEvent(kind="audio", audio=audio_chunk)
+                    
+                    # t_first_audio_sent: first audio chunk actually yielded to browser
+                    if "t_first_audio_sent" not in timings:
+                        timings["t_first_audio_sent"] = time.time()
+                
+                # Log timing event
+                _write_timing_log(turn_id, timings)
+                event_log = get_event_log()
+                if event_log:
+                    event_log.log_timing(turn_id, timings)
+                    
             except Exception as e:
                 # LLM error (provider failure, guardrail violation, etc.)
                 # Treat as hard failure — play safe fallback

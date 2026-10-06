@@ -317,7 +317,6 @@ def _detect_consent_request(response_text: str, tier: str) -> tuple[str, str, st
     """
     text_lower = response_text.lower()
     
-    # Only check for consent in Yellow/Orange tiers
     if tier not in ("yellow", "orange"):
         return None
     
@@ -345,3 +344,47 @@ def _detect_consent_request(response_text: str, tier: str) -> tuple[str, str, st
             return (contact_name, relationship, match.group(0))
     
     return None
+
+
+def reset_pipeline() -> None:
+    """Reset all pipeline state for a clean scenario run.
+    
+    Reinitializes: session_notes, event_log, escalation_engine, consent_manager,
+    and clears module-level globals. Does NOT reload profile/memory_box/provider.
+    """
+    global session_notes, event_log, escalation_engine, consent_manager, alert_builder
+    global _last_sahaara_prompt_time, _unresponsive_enabled
+    
+    from events.event_log import init_event_log, set_event_log
+    from safety.escalation import EscalationEngine, EscalationConfig
+    from safety.consent import ConsentManager
+    from dashboard.alerts import AlertBuilder
+    from memory.session_notes import SessionNotes
+    
+    # Reset session notes
+    session_notes = SessionNotes(profile_id=profile.profile_id)
+    
+    # Reinitialize event log (clears in-memory events, starts fresh session)
+    event_log = init_event_log(profile, persist=True, demo_mode=True)
+    
+    # Reinitialize escalation engine
+    escalation_config = EscalationConfig(demo_mode=True, demo_multiplier=300.0)
+    escalation_engine = EscalationEngine(event_log, session_notes, escalation_config)
+    
+    # Reinitialize consent manager
+    consent_manager = ConsentManager(
+        event_log=event_log,
+        timeout_seconds=30.0,
+        demo_mode=True,
+        demo_multiplier=300.0,
+    )
+    
+    # Reinitialize alert builder
+    alert_builder = AlertBuilder(event_log, profile)
+    
+    # Clear module-level globals
+    _last_sahaara_prompt_time = 0.0
+    _unresponsive_enabled = False
+    
+    # Point global event log to new instance
+    set_event_log(event_log)
