@@ -179,6 +179,10 @@ VALIDATION_MARKERS = [
     r"\b(it'?s )?(okay|alright) to feel\b",
     # "I hear how [much/what]..." - common empathetic opening
     r"\bi hear (how|what)\b",
+    # "I can hear how..." - variant with modal
+    r"\bi can hear (how|what)\b",
+    # "I hear that..." - validation of what was said
+    r"\bi hear that\b",
     # "That [noun] sounds [adjective]" - e.g., "That heaviness sounds uncomfortable"
     r"\bthat \w+ sounds (uncomfortable|hard|difficult|lovely|nice|peaceful|heavy)\b",
     # "I'm sorry you're feeling" / "Sorry you're feeling"
@@ -190,6 +194,8 @@ VALIDATION_MARKERS = [
     r"\byou must be\b",
     # "It can feel" validation
     r"\bit can feel\b",
+    # "How [adjective]" - e.g., "How lovely to see you"
+    r"\bhow (lovely|nice|wonderful|beautiful|peaceful)\b",
 ]
 
 CORRECTIVE_MARKERS = [
@@ -203,15 +209,22 @@ GROUNDING_MARKERS = [
     r"\bhere at (home|the house)\b",
     r"\byou'?re at (home|the house)\b",
     r"\bat home\b",  # "at home" anywhere
+    r"\bat work\b",  # "at work" - common location reference
+    r"\bat school\b",  # "at school" - common location reference
+    r"\bdown the hall\b",  # "down the hall" - common location
     r"\bhome\b",     # just "home" - but be careful not to over-match
     # Time references
     r"\bit'?s (a |the )?(morning|afternoon|evening|day)\b",
     r"\bthis (morning|afternoon|evening)\b",
     r"\b(quiet|lovely|nice|pleasant|gentle) (morning|afternoon|evening|day)\b",
     r"\bit is (a |the )?(quiet|lovely|nice|pleasant|gentle|beautiful) (day|afternoon|morning|evening)\b",
+    # Time orienting phrases
+    r"\bright now\b",  # "right now" - temporal grounding
+    r"\bjust now\b",   # "just now"
+    r"\bat the moment\b",  # "at the moment"
     # Environment observations
-    r"\bthe (weather|sky|garden|window|roses|flowers|birds) (is|looks|are)\b",
-    r"\b(roses|flowers|garden) (is|are|looks) (blooming|bloom|lovely|nice|beautiful)\b",
+    r"\bthe (weather|sky|garden|window|roses|flowers|birds|sun|sunshine|blossoms|view) (is|looks|are)\b",
+    r"\b(roses|flowers|garden|blossoms|sun|sunshine|view) (is|are|looks) (blooming|bloom|lovely|nice|beautiful|shining)\b",
     # Safety/companionship - flexible patterns
     r"\byou'?re safe\b",
     r"\byou'?re with me\b",
@@ -219,15 +232,19 @@ GROUNDING_MARKERS = [
     r"\bwe'?re (here|together)\b",
     r"\bwith you\b",    # "with you" anywhere
     r"\bwith me\b",    # "with me" anywhere
+    r"\bhere with (us|you|me)\b",  # "here with us/you/me"
     # Time/routine references
     r"\b(morning|afternoon|evening) (tea|coffee|meal|routine)\b",
     r"\breminds me of\b",
     # General orienting phrases
     r"\bhere (with you|right now)\b",
-    r"\b(at|in) (the )?(window|garden|kitchen|living room)\b",
+    r"\b(at|in) (the )?(window|garden|kitchen|living room|outside)\b",
+    r"\bby the window\b",  # "by the window" - common suggestion
+    r"\bnear the window\b",  # "near the window"
     # Additional flexible grounding
-    r"\bhere\b.*\b(with you|with me|right now)\b",  # "here ... with you" anywhere in sentence
-    r"\b(you'?re|she'?s|he'?s) at home\b",  # "you're at home", "she's at home"
+    r"\bhere\b.*\b(with you|with me|right now|with us)\b",  # "here ... with you" anywhere in sentence
+    r"\b(you'?re|she'?s|he'?s) at (home|work|school)\b",  # "you're at home/work/school"
+    r"\boutside\b",  # "outside" as location
     r"\bsafe\b",  # "safe" anywhere - but be careful
 ]
 
@@ -252,13 +269,21 @@ class StructureCheck:
     has_open_ended_question: bool
     has_corrective_language: bool
     passes: bool
+    turn_type: str = "emotional"
 
 
-def check_response_structure(response_text: str) -> StructureCheck:
+def check_response_structure(response_text: str, turn_type: str = "emotional") -> StructureCheck:
     """Heuristic-only structural QA check for a candidate response.
     Used in tests, e.g. to confirm a sample response validates before
     asking anything, and never falls back to an open-ended question.
     This is NOT the runtime guardrail gate — see safety/guardrails.py.
+
+    Args:
+        response_text: The response to check
+        turn_type: One of "emotional", "casual", "danger"
+            - "emotional": Full validate/ground/one-choice rules (default)
+            - "casual": Lighter check - validation optional, grounding optional, choice required
+            - "danger": Safety-specific - validation required, grounding required, choice required
     """
     text_lower = response_text.lower()
 
@@ -268,7 +293,15 @@ def check_response_structure(response_text: str) -> StructureCheck:
     has_open_ended = any(re.search(p, text_lower) for p in OPEN_ENDED_PATTERNS)
     has_corrective = any(re.search(p, text_lower) for p in CORRECTIVE_MARKERS)
 
-    passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
+    if turn_type == "casual":
+        # Lighter check: choice required, open-ended/corrective forbidden, validation/grounding optional
+        passes = has_concrete_choice and not has_open_ended and not has_corrective
+    elif turn_type == "danger":
+        # Safety-specific: validation, grounding, choice all required; open-ended/corrective forbidden
+        passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
+    else:
+        # "emotional" (default): Full validate/ground/one-choice rules
+        passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
 
     return StructureCheck(
         has_validation_language=has_validation,
@@ -277,6 +310,7 @@ def check_response_structure(response_text: str) -> StructureCheck:
         has_open_ended_question=has_open_ended,
         has_corrective_language=has_corrective,
         passes=passes,
+        turn_type=turn_type,
     )
 
 

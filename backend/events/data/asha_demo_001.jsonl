@@ -1555,3 +1555,696 @@
 {"timestamp": 1791309087.216544, "timestamp_iso": "2026-10-06T23:21:27.216544", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
 {"timestamp": 1791309087.216746, "timestamp_iso": "2026-10-06T23:21:27.216746", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
 {"timestamp": 1791309087.216874, "timestamp_iso": "2026-10-06T23:21:27.216874", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310172.818002, "timestamp_iso": "2026-10-06T23:39:32.818002", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310172.81816, "timestamp_iso": "2026-10-06T23:39:32.818160", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310173.353763, "timestamp_iso": "2026-10-06T23:39:33.353763", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310173.353929, "timestamp_iso": "2026-10-06T23:39:33.353929", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310175.336617, "timestamp_iso": "2026-10-06T23:39:35.336617", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791310175.337357, "timestamp_iso": "2026-10-06T23:39:35.337357", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310175.9532459, "timestamp_iso": "2026-10-06T23:39:35.953246", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310175.953652, "timestamp_iso": "2026-10-06T23:39:35.953652", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310177.134506, "timestamp_iso": "2026-10-06T23:39:37.134506", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310177.13511, "timestamp_iso": "2026-10-06T23:39:37.135110", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310178.1991072, "timestamp_iso": "2026-10-06T23:39:38.199107", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310178.199489, "timestamp_iso": "2026-10-06T23:39:38.199489", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310180.036221, "timestamp_iso": "2026-10-06T23:39:40.036221", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310180.036747, "timestamp_iso": "2026-10-06T23:39:40.036747", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310182.221777, "timestamp_iso": "2026-10-06T23:39:42.221777", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310182.222361, "timestamp_iso": "2026-10-06T23:39:42.222361", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310182.222686, "timestamp_iso": "2026-10-06T23:39:42.222686", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791310182.222925, "timestamp_iso": "2026-10-06T23:39:42.222925", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310440.474228, "timestamp_iso": "2026-10-06T23:44:00.474228", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310440.4743848, "timestamp_iso": "2026-10-06T23:44:00.474385", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310440.985997, "timestamp_iso": "2026-10-06T23:44:00.985997", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310440.986206, "timestamp_iso": "2026-10-06T23:44:00.986206", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310442.1492648, "timestamp_iso": "2026-10-06T23:44:02.149265", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791310442.1502888, "timestamp_iso": "2026-10-06T23:44:02.150289", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310442.702463, "timestamp_iso": "2026-10-06T23:44:02.702463", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310442.702983, "timestamp_iso": "2026-10-06T23:44:02.702983", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310443.734928, "timestamp_iso": "2026-10-06T23:44:03.734928", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310443.735221, "timestamp_iso": "2026-10-06T23:44:03.735221", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310444.630812, "timestamp_iso": "2026-10-06T23:44:04.630812", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310444.6313741, "timestamp_iso": "2026-10-06T23:44:04.631374", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310446.904584, "timestamp_iso": "2026-10-06T23:44:06.904584", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310446.905117, "timestamp_iso": "2026-10-06T23:44:06.905117", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310448.950134, "timestamp_iso": "2026-10-06T23:44:08.950134", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310448.950437, "timestamp_iso": "2026-10-06T23:44:08.950437", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310448.9508731, "timestamp_iso": "2026-10-06T23:44:08.950873", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791310448.951005, "timestamp_iso": "2026-10-06T23:44:08.951005", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310587.520025, "timestamp_iso": "2026-10-06T23:46:27.520025", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310587.520191, "timestamp_iso": "2026-10-06T23:46:27.520191", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310588.0774531, "timestamp_iso": "2026-10-06T23:46:28.077453", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310588.077621, "timestamp_iso": "2026-10-06T23:46:28.077621", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310591.620533, "timestamp_iso": "2026-10-06T23:46:31.620533", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791310591.62104, "timestamp_iso": "2026-10-06T23:46:31.621040", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310592.5368378, "timestamp_iso": "2026-10-06T23:46:32.536838", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310592.5371, "timestamp_iso": "2026-10-06T23:46:32.537100", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310596.258176, "timestamp_iso": "2026-10-06T23:46:36.258176", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310596.258676, "timestamp_iso": "2026-10-06T23:46:36.258676", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310598.4236422, "timestamp_iso": "2026-10-06T23:46:38.423642", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310598.423979, "timestamp_iso": "2026-10-06T23:46:38.423979", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310604.5080278, "timestamp_iso": "2026-10-06T23:46:44.508028", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310604.508474, "timestamp_iso": "2026-10-06T23:46:44.508474", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310611.881242, "timestamp_iso": "2026-10-06T23:46:51.881242", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310611.8818188, "timestamp_iso": "2026-10-06T23:46:51.881819", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310611.882016, "timestamp_iso": "2026-10-06T23:46:51.882016", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791310611.882163, "timestamp_iso": "2026-10-06T23:46:51.882163", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310851.382404, "timestamp_iso": "2026-10-06T23:50:51.382404", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310851.382538, "timestamp_iso": "2026-10-06T23:50:51.382538", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310851.943412, "timestamp_iso": "2026-10-06T23:50:51.943412", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310851.9436018, "timestamp_iso": "2026-10-06T23:50:51.943602", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310853.223548, "timestamp_iso": "2026-10-06T23:50:53.223548", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791310853.2246091, "timestamp_iso": "2026-10-06T23:50:53.224609", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791310853.731002, "timestamp_iso": "2026-10-06T23:50:53.731002", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310853.731487, "timestamp_iso": "2026-10-06T23:50:53.731487", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310854.927216, "timestamp_iso": "2026-10-06T23:50:54.927216", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310854.927517, "timestamp_iso": "2026-10-06T23:50:54.927517", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310855.857001, "timestamp_iso": "2026-10-06T23:50:55.857001", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310855.857437, "timestamp_iso": "2026-10-06T23:50:55.857437", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310857.915797, "timestamp_iso": "2026-10-06T23:50:57.915797", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310857.91639, "timestamp_iso": "2026-10-06T23:50:57.916390", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310860.081395, "timestamp_iso": "2026-10-06T23:51:00.081395", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310860.081897, "timestamp_iso": "2026-10-06T23:51:00.081897", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791310860.0822651, "timestamp_iso": "2026-10-06T23:51:00.082265", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791310860.08246, "timestamp_iso": "2026-10-06T23:51:00.082460", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312040.463692, "timestamp_iso": "2026-10-07T00:10:40.463692", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312040.464011, "timestamp_iso": "2026-10-07T00:10:40.464011", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312041.0868711, "timestamp_iso": "2026-10-07T00:10:41.086871", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312041.087061, "timestamp_iso": "2026-10-07T00:10:41.087061", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312178.6019871, "timestamp_iso": "2026-10-07T00:12:58.601987", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312178.6022038, "timestamp_iso": "2026-10-07T00:12:58.602204", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312179.249114, "timestamp_iso": "2026-10-07T00:12:59.249114", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312179.249307, "timestamp_iso": "2026-10-07T00:12:59.249307", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312180.4828448, "timestamp_iso": "2026-10-07T00:13:00.482845", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312180.4836411, "timestamp_iso": "2026-10-07T00:13:00.483641", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312180.911614, "timestamp_iso": "2026-10-07T00:13:00.911614", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312180.912042, "timestamp_iso": "2026-10-07T00:13:00.912042", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312181.7706492, "timestamp_iso": "2026-10-07T00:13:01.770649", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312181.7712152, "timestamp_iso": "2026-10-07T00:13:01.771215", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312182.595343, "timestamp_iso": "2026-10-07T00:13:02.595343", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312182.596132, "timestamp_iso": "2026-10-07T00:13:02.596132", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312184.4056478, "timestamp_iso": "2026-10-07T00:13:04.405648", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312184.406114, "timestamp_iso": "2026-10-07T00:13:04.406114", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312186.1805198, "timestamp_iso": "2026-10-07T00:13:06.180520", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312186.1809962, "timestamp_iso": "2026-10-07T00:13:06.180996", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312186.1811898, "timestamp_iso": "2026-10-07T00:13:06.181190", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312186.181322, "timestamp_iso": "2026-10-07T00:13:06.181322", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312200.135423, "timestamp_iso": "2026-10-07T00:13:20.135423", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312200.1357372, "timestamp_iso": "2026-10-07T00:13:20.135737", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312200.69085, "timestamp_iso": "2026-10-07T00:13:20.690850", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312200.691075, "timestamp_iso": "2026-10-07T00:13:20.691075", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312202.0221, "timestamp_iso": "2026-10-07T00:13:22.022100", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312202.022666, "timestamp_iso": "2026-10-07T00:13:22.022666", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312202.462841, "timestamp_iso": "2026-10-07T00:13:22.462841", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312202.463445, "timestamp_iso": "2026-10-07T00:13:22.463445", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312203.3311481, "timestamp_iso": "2026-10-07T00:13:23.331148", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312203.3316638, "timestamp_iso": "2026-10-07T00:13:23.331664", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312203.757795, "timestamp_iso": "2026-10-07T00:13:23.757795", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312203.758338, "timestamp_iso": "2026-10-07T00:13:23.758338", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312204.798388, "timestamp_iso": "2026-10-07T00:13:24.798388", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312204.799532, "timestamp_iso": "2026-10-07T00:13:24.799532", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312205.216887, "timestamp_iso": "2026-10-07T00:13:25.216887", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312205.217676, "timestamp_iso": "2026-10-07T00:13:25.217676", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312206.145779, "timestamp_iso": "2026-10-07T00:13:26.145779", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312206.146338, "timestamp_iso": "2026-10-07T00:13:26.146338", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312206.5586932, "timestamp_iso": "2026-10-07T00:13:26.558693", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312206.5592399, "timestamp_iso": "2026-10-07T00:13:26.559240", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312207.6131861, "timestamp_iso": "2026-10-07T00:13:27.613186", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312207.613964, "timestamp_iso": "2026-10-07T00:13:27.613964", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312208.023563, "timestamp_iso": "2026-10-07T00:13:28.023563", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312208.0240588, "timestamp_iso": "2026-10-07T00:13:28.024059", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312208.905389, "timestamp_iso": "2026-10-07T00:13:28.905389", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312208.905959, "timestamp_iso": "2026-10-07T00:13:28.905959", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312209.8679738, "timestamp_iso": "2026-10-07T00:13:29.867974", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312209.868311, "timestamp_iso": "2026-10-07T00:13:29.868311", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312210.778541, "timestamp_iso": "2026-10-07T00:13:30.778541", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312210.779116, "timestamp_iso": "2026-10-07T00:13:30.779116", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312211.674051, "timestamp_iso": "2026-10-07T00:13:31.674051", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312211.674483, "timestamp_iso": "2026-10-07T00:13:31.674483", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312212.900046, "timestamp_iso": "2026-10-07T00:13:32.900046", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312212.900723, "timestamp_iso": "2026-10-07T00:13:32.900723", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312213.8863811, "timestamp_iso": "2026-10-07T00:13:33.886381", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312213.886791, "timestamp_iso": "2026-10-07T00:13:33.886791", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312214.861391, "timestamp_iso": "2026-10-07T00:13:34.861391", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312214.861869, "timestamp_iso": "2026-10-07T00:13:34.861869", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312215.819773, "timestamp_iso": "2026-10-07T00:13:35.819773", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312215.82032, "timestamp_iso": "2026-10-07T00:13:35.820320", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312216.756074, "timestamp_iso": "2026-10-07T00:13:36.756074", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312216.756963, "timestamp_iso": "2026-10-07T00:13:36.756963", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312217.7658932, "timestamp_iso": "2026-10-07T00:13:37.765893", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312217.766313, "timestamp_iso": "2026-10-07T00:13:37.766313", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312219.7854998, "timestamp_iso": "2026-10-07T00:13:39.785500", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312219.786056, "timestamp_iso": "2026-10-07T00:13:39.786056", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312221.884402, "timestamp_iso": "2026-10-07T00:13:41.884402", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312221.884762, "timestamp_iso": "2026-10-07T00:13:41.884762", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312224.138922, "timestamp_iso": "2026-10-07T00:13:44.138922", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312224.139601, "timestamp_iso": "2026-10-07T00:13:44.139601", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312226.119031, "timestamp_iso": "2026-10-07T00:13:46.119031", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312226.1193652, "timestamp_iso": "2026-10-07T00:13:46.119365", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312228.055883, "timestamp_iso": "2026-10-07T00:13:48.055883", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312228.056652, "timestamp_iso": "2026-10-07T00:13:48.056652", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312229.954272, "timestamp_iso": "2026-10-07T00:13:49.954272", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312229.954766, "timestamp_iso": "2026-10-07T00:13:49.954766", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312231.896799, "timestamp_iso": "2026-10-07T00:13:51.896799", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312231.897349, "timestamp_iso": "2026-10-07T00:13:51.897349", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312233.733668, "timestamp_iso": "2026-10-07T00:13:53.733668", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312233.734154, "timestamp_iso": "2026-10-07T00:13:53.734154", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312235.4099462, "timestamp_iso": "2026-10-07T00:13:55.409946", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312235.410337, "timestamp_iso": "2026-10-07T00:13:55.410337", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312237.2531672, "timestamp_iso": "2026-10-07T00:13:57.253167", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312237.253713, "timestamp_iso": "2026-10-07T00:13:57.253713", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312237.254143, "timestamp_iso": "2026-10-07T00:13:57.254143", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312237.254384, "timestamp_iso": "2026-10-07T00:13:57.254384", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312237.696449, "timestamp_iso": "2026-10-07T00:13:57.696449", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312237.6972969, "timestamp_iso": "2026-10-07T00:13:57.697297", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312237.697851, "timestamp_iso": "2026-10-07T00:13:57.697851", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312237.698087, "timestamp_iso": "2026-10-07T00:13:57.698087", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312238.3694358, "timestamp_iso": "2026-10-07T00:13:58.369436", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312238.369937, "timestamp_iso": "2026-10-07T00:13:58.369937", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312238.370463, "timestamp_iso": "2026-10-07T00:13:58.370463", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312238.371011, "timestamp_iso": "2026-10-07T00:13:58.371011", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312238.9799612, "timestamp_iso": "2026-10-07T00:13:58.979961", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312238.980427, "timestamp_iso": "2026-10-07T00:13:58.980427", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312238.9808798, "timestamp_iso": "2026-10-07T00:13:58.980880", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312238.9810681, "timestamp_iso": "2026-10-07T00:13:58.981068", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312239.452214, "timestamp_iso": "2026-10-07T00:13:59.452214", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312239.452755, "timestamp_iso": "2026-10-07T00:13:59.452755", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312239.453185, "timestamp_iso": "2026-10-07T00:13:59.453185", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312239.453432, "timestamp_iso": "2026-10-07T00:13:59.453432", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312247.402022, "timestamp_iso": "2026-10-07T00:14:07.402022", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312247.402365, "timestamp_iso": "2026-10-07T00:14:07.402365", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312247.940493, "timestamp_iso": "2026-10-07T00:14:07.940493", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312247.94072, "timestamp_iso": "2026-10-07T00:14:07.940720", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312247.94139, "timestamp_iso": "2026-10-07T00:14:07.941390", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312247.941488, "timestamp_iso": "2026-10-07T00:14:07.941488", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312261.361998, "timestamp_iso": "2026-10-07T00:14:21.361998", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312261.3622139, "timestamp_iso": "2026-10-07T00:14:21.362214", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312261.8934212, "timestamp_iso": "2026-10-07T00:14:21.893421", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312261.893597, "timestamp_iso": "2026-10-07T00:14:21.893597", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312261.894252, "timestamp_iso": "2026-10-07T00:14:21.894252", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312261.894337, "timestamp_iso": "2026-10-07T00:14:21.894337", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312262.759095, "timestamp_iso": "2026-10-07T00:14:22.759095", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312262.75947, "timestamp_iso": "2026-10-07T00:14:22.759470", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312262.7596328, "timestamp_iso": "2026-10-07T00:14:22.759633", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312262.759726, "timestamp_iso": "2026-10-07T00:14:22.759726", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312263.235353, "timestamp_iso": "2026-10-07T00:14:23.235353", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312263.236232, "timestamp_iso": "2026-10-07T00:14:23.236232", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312263.236753, "timestamp_iso": "2026-10-07T00:14:23.236753", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312263.2371268, "timestamp_iso": "2026-10-07T00:14:23.237127", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312271.847251, "timestamp_iso": "2026-10-07T00:14:31.847251", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312271.847411, "timestamp_iso": "2026-10-07T00:14:31.847411", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312272.438488, "timestamp_iso": "2026-10-07T00:14:32.438488", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312272.438679, "timestamp_iso": "2026-10-07T00:14:32.438679", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312272.43936, "timestamp_iso": "2026-10-07T00:14:32.439360", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312272.439459, "timestamp_iso": "2026-10-07T00:14:32.439459", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312273.292275, "timestamp_iso": "2026-10-07T00:14:33.292275", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312273.2928052, "timestamp_iso": "2026-10-07T00:14:33.292805", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312273.293382, "timestamp_iso": "2026-10-07T00:14:33.293382", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312273.293508, "timestamp_iso": "2026-10-07T00:14:33.293508", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312273.73909, "timestamp_iso": "2026-10-07T00:14:33.739090", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312273.739628, "timestamp_iso": "2026-10-07T00:14:33.739628", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312273.740043, "timestamp_iso": "2026-10-07T00:14:33.740043", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312273.740222, "timestamp_iso": "2026-10-07T00:14:33.740222", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312309.248974, "timestamp_iso": "2026-10-07T00:15:09.248974", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312309.249304, "timestamp_iso": "2026-10-07T00:15:09.249304", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312309.8178701, "timestamp_iso": "2026-10-07T00:15:09.817870", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312309.818042, "timestamp_iso": "2026-10-07T00:15:09.818042", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312309.818712, "timestamp_iso": "2026-10-07T00:15:09.818712", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312309.818819, "timestamp_iso": "2026-10-07T00:15:09.818819", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312310.721506, "timestamp_iso": "2026-10-07T00:15:10.721506", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312310.7219388, "timestamp_iso": "2026-10-07T00:15:10.721939", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312310.722153, "timestamp_iso": "2026-10-07T00:15:10.722153", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312310.722273, "timestamp_iso": "2026-10-07T00:15:10.722273", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312311.240889, "timestamp_iso": "2026-10-07T00:15:11.240889", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312311.241271, "timestamp_iso": "2026-10-07T00:15:11.241271", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312311.241406, "timestamp_iso": "2026-10-07T00:15:11.241406", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312311.2414799, "timestamp_iso": "2026-10-07T00:15:11.241480", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312311.68639, "timestamp_iso": "2026-10-07T00:15:11.686390", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312311.68679, "timestamp_iso": "2026-10-07T00:15:11.686790", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312311.68714, "timestamp_iso": "2026-10-07T00:15:11.687140", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312311.6873229, "timestamp_iso": "2026-10-07T00:15:11.687323", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312312.135265, "timestamp_iso": "2026-10-07T00:15:12.135265", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312312.135675, "timestamp_iso": "2026-10-07T00:15:12.135675", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312312.136024, "timestamp_iso": "2026-10-07T00:15:12.136024", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312312.136378, "timestamp_iso": "2026-10-07T00:15:12.136378", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312391.0054588, "timestamp_iso": "2026-10-07T00:16:31.005459", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312391.005599, "timestamp_iso": "2026-10-07T00:16:31.005599", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312391.5629818, "timestamp_iso": "2026-10-07T00:16:31.562982", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312391.563211, "timestamp_iso": "2026-10-07T00:16:31.563211", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312391.563869, "timestamp_iso": "2026-10-07T00:16:31.563869", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312391.56395, "timestamp_iso": "2026-10-07T00:16:31.563950", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312392.5611641, "timestamp_iso": "2026-10-07T00:16:32.561164", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312392.561515, "timestamp_iso": "2026-10-07T00:16:32.561515", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312392.561688, "timestamp_iso": "2026-10-07T00:16:32.561688", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312392.561781, "timestamp_iso": "2026-10-07T00:16:32.561781", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312393.012259, "timestamp_iso": "2026-10-07T00:16:33.012259", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312393.0128472, "timestamp_iso": "2026-10-07T00:16:33.012847", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312393.01311, "timestamp_iso": "2026-10-07T00:16:33.013110", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312393.013237, "timestamp_iso": "2026-10-07T00:16:33.013237", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312393.544245, "timestamp_iso": "2026-10-07T00:16:33.544245", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312393.544686, "timestamp_iso": "2026-10-07T00:16:33.544686", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312393.545033, "timestamp_iso": "2026-10-07T00:16:33.545033", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312393.5452118, "timestamp_iso": "2026-10-07T00:16:33.545212", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312394.1716821, "timestamp_iso": "2026-10-07T00:16:34.171682", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312394.1721852, "timestamp_iso": "2026-10-07T00:16:34.172185", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312394.1725922, "timestamp_iso": "2026-10-07T00:16:34.172592", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312394.17276, "timestamp_iso": "2026-10-07T00:16:34.172760", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312400.991839, "timestamp_iso": "2026-10-07T00:16:40.991839", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312400.992065, "timestamp_iso": "2026-10-07T00:16:40.992065", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312401.5302799, "timestamp_iso": "2026-10-07T00:16:41.530280", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312401.5305111, "timestamp_iso": "2026-10-07T00:16:41.530511", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312401.53119, "timestamp_iso": "2026-10-07T00:16:41.531190", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312401.5312839, "timestamp_iso": "2026-10-07T00:16:41.531284", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312402.5499892, "timestamp_iso": "2026-10-07T00:16:42.549989", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312402.550566, "timestamp_iso": "2026-10-07T00:16:42.550566", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312402.5510452, "timestamp_iso": "2026-10-07T00:16:42.551045", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312402.5514061, "timestamp_iso": "2026-10-07T00:16:42.551406", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312403.0172958, "timestamp_iso": "2026-10-07T00:16:43.017296", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312403.017799, "timestamp_iso": "2026-10-07T00:16:43.017799", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312403.018239, "timestamp_iso": "2026-10-07T00:16:43.018239", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312403.018555, "timestamp_iso": "2026-10-07T00:16:43.018555", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312515.6561852, "timestamp_iso": "2026-10-07T00:18:35.656185", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312515.6563962, "timestamp_iso": "2026-10-07T00:18:35.656396", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312516.221225, "timestamp_iso": "2026-10-07T00:18:36.221225", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312516.2214248, "timestamp_iso": "2026-10-07T00:18:36.221425", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312516.2221088, "timestamp_iso": "2026-10-07T00:18:36.222109", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312516.2222002, "timestamp_iso": "2026-10-07T00:18:36.222200", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312517.1276212, "timestamp_iso": "2026-10-07T00:18:37.127621", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312517.1284192, "timestamp_iso": "2026-10-07T00:18:37.128419", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312517.128636, "timestamp_iso": "2026-10-07T00:18:37.128636", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312517.1287649, "timestamp_iso": "2026-10-07T00:18:37.128765", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312517.576854, "timestamp_iso": "2026-10-07T00:18:37.576854", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312517.577491, "timestamp_iso": "2026-10-07T00:18:37.577491", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312517.577945, "timestamp_iso": "2026-10-07T00:18:37.577945", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312517.5780962, "timestamp_iso": "2026-10-07T00:18:37.578096", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312518.035816, "timestamp_iso": "2026-10-07T00:18:38.035816", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312518.0363789, "timestamp_iso": "2026-10-07T00:18:38.036379", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312518.0367281, "timestamp_iso": "2026-10-07T00:18:38.036728", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312518.036916, "timestamp_iso": "2026-10-07T00:18:38.036916", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312518.492735, "timestamp_iso": "2026-10-07T00:18:38.492735", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312518.493309, "timestamp_iso": "2026-10-07T00:18:38.493309", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312518.493784, "timestamp_iso": "2026-10-07T00:18:38.493784", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312518.4940412, "timestamp_iso": "2026-10-07T00:18:38.494041", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312530.450494, "timestamp_iso": "2026-10-07T00:18:50.450494", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312530.450666, "timestamp_iso": "2026-10-07T00:18:50.450666", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312530.9935381, "timestamp_iso": "2026-10-07T00:18:50.993538", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312530.9938319, "timestamp_iso": "2026-10-07T00:18:50.993832", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312530.994522, "timestamp_iso": "2026-10-07T00:18:50.994522", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312530.994611, "timestamp_iso": "2026-10-07T00:18:50.994611", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312531.92359, "timestamp_iso": "2026-10-07T00:18:51.923590", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312531.924188, "timestamp_iso": "2026-10-07T00:18:51.924188", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312531.924622, "timestamp_iso": "2026-10-07T00:18:51.924622", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312531.9248, "timestamp_iso": "2026-10-07T00:18:51.924800", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312532.364359, "timestamp_iso": "2026-10-07T00:18:52.364359", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312532.36479, "timestamp_iso": "2026-10-07T00:18:52.364790", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312532.3651998, "timestamp_iso": "2026-10-07T00:18:52.365200", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312532.365461, "timestamp_iso": "2026-10-07T00:18:52.365461", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312532.804659, "timestamp_iso": "2026-10-07T00:18:52.804659", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312532.805135, "timestamp_iso": "2026-10-07T00:18:52.805135", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312532.805653, "timestamp_iso": "2026-10-07T00:18:52.805653", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312532.805782, "timestamp_iso": "2026-10-07T00:18:52.805782", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312533.293401, "timestamp_iso": "2026-10-07T00:18:53.293401", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312533.294024, "timestamp_iso": "2026-10-07T00:18:53.294024", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312533.294453, "timestamp_iso": "2026-10-07T00:18:53.294453", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312533.294656, "timestamp_iso": "2026-10-07T00:18:53.294656", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312533.7832909, "timestamp_iso": "2026-10-07T00:18:53.783291", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312533.7838452, "timestamp_iso": "2026-10-07T00:18:53.783845", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312533.784283, "timestamp_iso": "2026-10-07T00:18:53.784283", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312533.784448, "timestamp_iso": "2026-10-07T00:18:53.784448", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312534.221146, "timestamp_iso": "2026-10-07T00:18:54.221146", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312534.2215161, "timestamp_iso": "2026-10-07T00:18:54.221516", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312534.2217221, "timestamp_iso": "2026-10-07T00:18:54.221722", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312534.2218099, "timestamp_iso": "2026-10-07T00:18:54.221810", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312534.7064571, "timestamp_iso": "2026-10-07T00:18:54.706457", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312534.706818, "timestamp_iso": "2026-10-07T00:18:54.706818", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312534.706963, "timestamp_iso": "2026-10-07T00:18:54.706963", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312534.7070541, "timestamp_iso": "2026-10-07T00:18:54.707054", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312535.186281, "timestamp_iso": "2026-10-07T00:18:55.186281", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312535.187316, "timestamp_iso": "2026-10-07T00:18:55.187316", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312535.1876218, "timestamp_iso": "2026-10-07T00:18:55.187622", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312535.1877701, "timestamp_iso": "2026-10-07T00:18:55.187770", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312535.668221, "timestamp_iso": "2026-10-07T00:18:55.668221", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312535.668807, "timestamp_iso": "2026-10-07T00:18:55.668807", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312535.6692321, "timestamp_iso": "2026-10-07T00:18:55.669232", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312535.669344, "timestamp_iso": "2026-10-07T00:18:55.669344", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312569.640815, "timestamp_iso": "2026-10-07T00:19:29.640815", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312569.641011, "timestamp_iso": "2026-10-07T00:19:29.641011", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312570.157871, "timestamp_iso": "2026-10-07T00:19:30.157871", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312570.158036, "timestamp_iso": "2026-10-07T00:19:30.158036", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312571.6583538, "timestamp_iso": "2026-10-07T00:19:31.658354", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312571.6591392, "timestamp_iso": "2026-10-07T00:19:31.659139", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312572.252835, "timestamp_iso": "2026-10-07T00:19:32.252835", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312572.2532558, "timestamp_iso": "2026-10-07T00:19:32.253256", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312573.2309859, "timestamp_iso": "2026-10-07T00:19:33.230986", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312573.231669, "timestamp_iso": "2026-10-07T00:19:33.231669", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312573.690864, "timestamp_iso": "2026-10-07T00:19:33.690864", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312573.69138, "timestamp_iso": "2026-10-07T00:19:33.691380", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312574.556237, "timestamp_iso": "2026-10-07T00:19:34.556237", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312574.556928, "timestamp_iso": "2026-10-07T00:19:34.556928", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312575.0421581, "timestamp_iso": "2026-10-07T00:19:35.042158", "type": "consent_asked", "profile_id": "asha_demo_001", "detail": {"question": "would you like me to call her", "contact_name": "Her", "tier": "yellow"}}
+{"timestamp": 1791312575.044605, "timestamp_iso": "2026-10-07T00:19:35.044605", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312575.044968, "timestamp_iso": "2026-10-07T00:19:35.044968", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312575.927574, "timestamp_iso": "2026-10-07T00:19:35.927574", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312575.928332, "timestamp_iso": "2026-10-07T00:19:35.928332", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312576.3817759, "timestamp_iso": "2026-10-07T00:19:36.381776", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312576.3821461, "timestamp_iso": "2026-10-07T00:19:36.382146", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312577.2791748, "timestamp_iso": "2026-10-07T00:19:37.279175", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791312577.2797, "timestamp_iso": "2026-10-07T00:19:37.279700", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312577.729729, "timestamp_iso": "2026-10-07T00:19:37.729729", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312577.730317, "timestamp_iso": "2026-10-07T00:19:37.730317", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312578.7190862, "timestamp_iso": "2026-10-07T00:19:38.719086", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312578.7194638, "timestamp_iso": "2026-10-07T00:19:38.719464", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312579.764432, "timestamp_iso": "2026-10-07T00:19:39.764432", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312579.7649841, "timestamp_iso": "2026-10-07T00:19:39.764984", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312580.704627, "timestamp_iso": "2026-10-07T00:19:40.704627", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312580.705117, "timestamp_iso": "2026-10-07T00:19:40.705117", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312581.6056378, "timestamp_iso": "2026-10-07T00:19:41.605638", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312581.606199, "timestamp_iso": "2026-10-07T00:19:41.606199", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312582.510836, "timestamp_iso": "2026-10-07T00:19:42.510836", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312582.5111501, "timestamp_iso": "2026-10-07T00:19:42.511150", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312583.41584, "timestamp_iso": "2026-10-07T00:19:43.415840", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312583.4161658, "timestamp_iso": "2026-10-07T00:19:43.416166", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312584.325693, "timestamp_iso": "2026-10-07T00:19:44.325693", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312584.326168, "timestamp_iso": "2026-10-07T00:19:44.326168", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312585.245975, "timestamp_iso": "2026-10-07T00:19:45.245975", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312585.246319, "timestamp_iso": "2026-10-07T00:19:45.246319", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312586.066439, "timestamp_iso": "2026-10-07T00:19:46.066439", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312586.0669389, "timestamp_iso": "2026-10-07T00:19:46.066939", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312586.901346, "timestamp_iso": "2026-10-07T00:19:46.901346", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312586.9018419, "timestamp_iso": "2026-10-07T00:19:46.901842", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312588.73481, "timestamp_iso": "2026-10-07T00:19:48.734810", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312588.735345, "timestamp_iso": "2026-10-07T00:19:48.735345", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312590.510576, "timestamp_iso": "2026-10-07T00:19:50.510576", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312590.511005, "timestamp_iso": "2026-10-07T00:19:50.511005", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312592.285866, "timestamp_iso": "2026-10-07T00:19:52.285866", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312592.2861598, "timestamp_iso": "2026-10-07T00:19:52.286160", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312594.1682189, "timestamp_iso": "2026-10-07T00:19:54.168219", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312594.168618, "timestamp_iso": "2026-10-07T00:19:54.168618", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312596.086071, "timestamp_iso": "2026-10-07T00:19:56.086071", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312596.086445, "timestamp_iso": "2026-10-07T00:19:56.086445", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312598.7204611, "timestamp_iso": "2026-10-07T00:19:58.720461", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312598.721038, "timestamp_iso": "2026-10-07T00:19:58.721038", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312600.6495192, "timestamp_iso": "2026-10-07T00:20:00.649519", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312600.64991, "timestamp_iso": "2026-10-07T00:20:00.649910", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312602.4940622, "timestamp_iso": "2026-10-07T00:20:02.494062", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312602.494642, "timestamp_iso": "2026-10-07T00:20:02.494642", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312604.472949, "timestamp_iso": "2026-10-07T00:20:04.472949", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312604.473471, "timestamp_iso": "2026-10-07T00:20:04.473471", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312606.1944818, "timestamp_iso": "2026-10-07T00:20:06.194482", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312606.195016, "timestamp_iso": "2026-10-07T00:20:06.195016", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312606.195373, "timestamp_iso": "2026-10-07T00:20:06.195373", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312606.1956532, "timestamp_iso": "2026-10-07T00:20:06.195653", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312606.635662, "timestamp_iso": "2026-10-07T00:20:06.635662", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312606.636055, "timestamp_iso": "2026-10-07T00:20:06.636055", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312606.636252, "timestamp_iso": "2026-10-07T00:20:06.636252", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312606.636409, "timestamp_iso": "2026-10-07T00:20:06.636409", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312607.196427, "timestamp_iso": "2026-10-07T00:20:07.196427", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312607.197056, "timestamp_iso": "2026-10-07T00:20:07.197056", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312607.197373, "timestamp_iso": "2026-10-07T00:20:07.197373", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312607.1975412, "timestamp_iso": "2026-10-07T00:20:07.197541", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312607.7910259, "timestamp_iso": "2026-10-07T00:20:07.791026", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312607.791677, "timestamp_iso": "2026-10-07T00:20:07.791677", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312607.7920902, "timestamp_iso": "2026-10-07T00:20:07.792090", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312607.792217, "timestamp_iso": "2026-10-07T00:20:07.792217", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791312608.2332318, "timestamp_iso": "2026-10-07T00:20:08.233232", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312608.233742, "timestamp_iso": "2026-10-07T00:20:08.233742", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791312608.2339551, "timestamp_iso": "2026-10-07T00:20:08.233955", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791312608.234088, "timestamp_iso": "2026-10-07T00:20:08.234088", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313095.94725, "timestamp_iso": "2026-10-07T00:28:15.947250", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313095.947836, "timestamp_iso": "2026-10-07T00:28:15.947836", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313096.495778, "timestamp_iso": "2026-10-07T00:28:16.495778", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313096.496014, "timestamp_iso": "2026-10-07T00:28:16.496014", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313097.810088, "timestamp_iso": "2026-10-07T00:28:17.810088", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313097.810803, "timestamp_iso": "2026-10-07T00:28:17.810803", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313098.356061, "timestamp_iso": "2026-10-07T00:28:18.356061", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313098.356693, "timestamp_iso": "2026-10-07T00:28:18.356693", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313099.358847, "timestamp_iso": "2026-10-07T00:28:19.358847", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313099.3594072, "timestamp_iso": "2026-10-07T00:28:19.359407", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313100.25371, "timestamp_iso": "2026-10-07T00:28:20.253710", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313100.254064, "timestamp_iso": "2026-10-07T00:28:20.254064", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313102.161938, "timestamp_iso": "2026-10-07T00:28:22.161938", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313102.162239, "timestamp_iso": "2026-10-07T00:28:22.162239", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313104.054233, "timestamp_iso": "2026-10-07T00:28:24.054233", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313104.0547688, "timestamp_iso": "2026-10-07T00:28:24.054769", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313104.055135, "timestamp_iso": "2026-10-07T00:28:24.055135", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313104.0553641, "timestamp_iso": "2026-10-07T00:28:24.055364", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313368.6892421, "timestamp_iso": "2026-10-07T00:32:48.689242", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313368.689703, "timestamp_iso": "2026-10-07T00:32:48.689703", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313369.457228, "timestamp_iso": "2026-10-07T00:32:49.457228", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313369.457792, "timestamp_iso": "2026-10-07T00:32:49.457792", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313370.9835122, "timestamp_iso": "2026-10-07T00:32:50.983512", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313370.984509, "timestamp_iso": "2026-10-07T00:32:50.984509", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313371.403405, "timestamp_iso": "2026-10-07T00:32:51.403405", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313371.4038641, "timestamp_iso": "2026-10-07T00:32:51.403864", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313372.312416, "timestamp_iso": "2026-10-07T00:32:52.312416", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313372.3129768, "timestamp_iso": "2026-10-07T00:32:52.312977", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313372.750491, "timestamp_iso": "2026-10-07T00:32:52.750491", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313372.7509382, "timestamp_iso": "2026-10-07T00:32:52.750938", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313373.5302489, "timestamp_iso": "2026-10-07T00:32:53.530249", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313373.53108, "timestamp_iso": "2026-10-07T00:32:53.531080", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313374.002072, "timestamp_iso": "2026-10-07T00:32:54.002072", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313374.002698, "timestamp_iso": "2026-10-07T00:32:54.002698", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313374.918825, "timestamp_iso": "2026-10-07T00:32:54.918825", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313374.919499, "timestamp_iso": "2026-10-07T00:32:54.919499", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313375.38576, "timestamp_iso": "2026-10-07T00:32:55.385760", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313375.3861902, "timestamp_iso": "2026-10-07T00:32:55.386190", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313376.3271658, "timestamp_iso": "2026-10-07T00:32:56.327166", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791313376.327682, "timestamp_iso": "2026-10-07T00:32:56.327682", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313376.806057, "timestamp_iso": "2026-10-07T00:32:56.806057", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313376.806581, "timestamp_iso": "2026-10-07T00:32:56.806581", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313377.7694001, "timestamp_iso": "2026-10-07T00:32:57.769400", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313377.769878, "timestamp_iso": "2026-10-07T00:32:57.769878", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313378.843369, "timestamp_iso": "2026-10-07T00:32:58.843369", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313378.844047, "timestamp_iso": "2026-10-07T00:32:58.844047", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313379.716031, "timestamp_iso": "2026-10-07T00:32:59.716031", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313379.716613, "timestamp_iso": "2026-10-07T00:32:59.716613", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313380.943703, "timestamp_iso": "2026-10-07T00:33:00.943703", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313380.9441621, "timestamp_iso": "2026-10-07T00:33:00.944162", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313382.007293, "timestamp_iso": "2026-10-07T00:33:02.007293", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313382.008081, "timestamp_iso": "2026-10-07T00:33:02.008081", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313382.890186, "timestamp_iso": "2026-10-07T00:33:02.890186", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313382.890626, "timestamp_iso": "2026-10-07T00:33:02.890626", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313383.7389371, "timestamp_iso": "2026-10-07T00:33:03.738937", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313383.739438, "timestamp_iso": "2026-10-07T00:33:03.739438", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313384.639039, "timestamp_iso": "2026-10-07T00:33:04.639039", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313384.639591, "timestamp_iso": "2026-10-07T00:33:04.639591", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313385.543345, "timestamp_iso": "2026-10-07T00:33:05.543345", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313385.543829, "timestamp_iso": "2026-10-07T00:33:05.543829", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313386.3432782, "timestamp_iso": "2026-10-07T00:33:06.343278", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313386.3437362, "timestamp_iso": "2026-10-07T00:33:06.343736", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313388.049518, "timestamp_iso": "2026-10-07T00:33:08.049518", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313388.050252, "timestamp_iso": "2026-10-07T00:33:08.050252", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313390.012835, "timestamp_iso": "2026-10-07T00:33:10.012835", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313390.013265, "timestamp_iso": "2026-10-07T00:33:10.013265", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313391.788967, "timestamp_iso": "2026-10-07T00:33:11.788967", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313391.7893078, "timestamp_iso": "2026-10-07T00:33:11.789308", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313393.60571, "timestamp_iso": "2026-10-07T00:33:13.605710", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313393.606333, "timestamp_iso": "2026-10-07T00:33:13.606333", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313395.622111, "timestamp_iso": "2026-10-07T00:33:15.622111", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313395.6223621, "timestamp_iso": "2026-10-07T00:33:15.622362", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313397.328325, "timestamp_iso": "2026-10-07T00:33:17.328325", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313397.328979, "timestamp_iso": "2026-10-07T00:33:17.328979", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313399.0465448, "timestamp_iso": "2026-10-07T00:33:19.046545", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313399.0470169, "timestamp_iso": "2026-10-07T00:33:19.047017", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313400.7045188, "timestamp_iso": "2026-10-07T00:33:20.704519", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313400.7052422, "timestamp_iso": "2026-10-07T00:33:20.705242", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313402.348465, "timestamp_iso": "2026-10-07T00:33:22.348465", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313402.34913, "timestamp_iso": "2026-10-07T00:33:22.349130", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313403.876528, "timestamp_iso": "2026-10-07T00:33:23.876528", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313403.877141, "timestamp_iso": "2026-10-07T00:33:23.877141", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313403.877719, "timestamp_iso": "2026-10-07T00:33:23.877719", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313403.87791, "timestamp_iso": "2026-10-07T00:33:23.877910", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313404.404375, "timestamp_iso": "2026-10-07T00:33:24.404375", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313404.404735, "timestamp_iso": "2026-10-07T00:33:24.404735", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313404.4050791, "timestamp_iso": "2026-10-07T00:33:24.405079", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313404.405202, "timestamp_iso": "2026-10-07T00:33:24.405202", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313404.9825559, "timestamp_iso": "2026-10-07T00:33:24.982556", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313404.983128, "timestamp_iso": "2026-10-07T00:33:24.983128", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313404.9835148, "timestamp_iso": "2026-10-07T00:33:24.983515", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313404.9837492, "timestamp_iso": "2026-10-07T00:33:24.983749", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313405.4936519, "timestamp_iso": "2026-10-07T00:33:25.493652", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313405.494284, "timestamp_iso": "2026-10-07T00:33:25.494284", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313405.494661, "timestamp_iso": "2026-10-07T00:33:25.494661", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313405.495032, "timestamp_iso": "2026-10-07T00:33:25.495032", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791313405.9694011, "timestamp_iso": "2026-10-07T00:33:25.969401", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313405.970011, "timestamp_iso": "2026-10-07T00:33:25.970011", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791313405.97067, "timestamp_iso": "2026-10-07T00:33:25.970670", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791313405.9709089, "timestamp_iso": "2026-10-07T00:33:25.970909", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791314314.430067, "timestamp_iso": "2026-10-07T00:48:34.430067", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314314.4307368, "timestamp_iso": "2026-10-07T00:48:34.430737", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314315.001885, "timestamp_iso": "2026-10-07T00:48:35.001885", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314315.002151, "timestamp_iso": "2026-10-07T00:48:35.002151", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314317.654221, "timestamp_iso": "2026-10-07T00:48:37.654221", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791314317.655144, "timestamp_iso": "2026-10-07T00:48:37.655144", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791314318.123179, "timestamp_iso": "2026-10-07T00:48:38.123179", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314318.123725, "timestamp_iso": "2026-10-07T00:48:38.123725", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314319.166673, "timestamp_iso": "2026-10-07T00:48:39.166673", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314319.167299, "timestamp_iso": "2026-10-07T00:48:39.167299", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314320.100618, "timestamp_iso": "2026-10-07T00:48:40.100618", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314320.101428, "timestamp_iso": "2026-10-07T00:48:40.101428", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314322.306957, "timestamp_iso": "2026-10-07T00:48:42.306957", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314322.307466, "timestamp_iso": "2026-10-07T00:48:42.307466", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314324.8254669, "timestamp_iso": "2026-10-07T00:48:44.825467", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314324.825998, "timestamp_iso": "2026-10-07T00:48:44.825998", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791314324.826391, "timestamp_iso": "2026-10-07T00:48:44.826391", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791314324.82657, "timestamp_iso": "2026-10-07T00:48:44.826570", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316716.0624871, "timestamp_iso": "2026-10-07T01:28:36.062487", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316716.062944, "timestamp_iso": "2026-10-07T01:28:36.062944", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316716.6130939, "timestamp_iso": "2026-10-07T01:28:36.613094", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316716.613313, "timestamp_iso": "2026-10-07T01:28:36.613313", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316717.808918, "timestamp_iso": "2026-10-07T01:28:37.808918", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316717.8097432, "timestamp_iso": "2026-10-07T01:28:37.809743", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316718.291719, "timestamp_iso": "2026-10-07T01:28:38.291719", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316718.292316, "timestamp_iso": "2026-10-07T01:28:38.292316", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316719.1437771, "timestamp_iso": "2026-10-07T01:28:39.143777", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316719.144615, "timestamp_iso": "2026-10-07T01:28:39.144615", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316719.634261, "timestamp_iso": "2026-10-07T01:28:39.634261", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316719.634921, "timestamp_iso": "2026-10-07T01:28:39.634921", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316720.424227, "timestamp_iso": "2026-10-07T01:28:40.424227", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316720.4249878, "timestamp_iso": "2026-10-07T01:28:40.424988", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316720.828507, "timestamp_iso": "2026-10-07T01:28:40.828507", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316720.829195, "timestamp_iso": "2026-10-07T01:28:40.829195", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316721.5783832, "timestamp_iso": "2026-10-07T01:28:41.578383", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316721.579236, "timestamp_iso": "2026-10-07T01:28:41.579236", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316721.990077, "timestamp_iso": "2026-10-07T01:28:41.990077", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316721.990622, "timestamp_iso": "2026-10-07T01:28:41.990622", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316722.718455, "timestamp_iso": "2026-10-07T01:28:42.718455", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316722.719396, "timestamp_iso": "2026-10-07T01:28:42.719396", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316783.46334, "timestamp_iso": "2026-10-07T01:29:43.463340", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316783.4636211, "timestamp_iso": "2026-10-07T01:29:43.463621", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316784.018744, "timestamp_iso": "2026-10-07T01:29:44.018744", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316784.018986, "timestamp_iso": "2026-10-07T01:29:44.018986", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316785.169291, "timestamp_iso": "2026-10-07T01:29:45.169291", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316785.169856, "timestamp_iso": "2026-10-07T01:29:45.169856", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316785.6226938, "timestamp_iso": "2026-10-07T01:29:45.622694", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316785.622985, "timestamp_iso": "2026-10-07T01:29:45.622985", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316786.2961228, "timestamp_iso": "2026-10-07T01:29:46.296123", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316786.2968042, "timestamp_iso": "2026-10-07T01:29:46.296804", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316786.690515, "timestamp_iso": "2026-10-07T01:29:46.690515", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316786.6910248, "timestamp_iso": "2026-10-07T01:29:46.691025", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316787.4142451, "timestamp_iso": "2026-10-07T01:29:47.414245", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316787.415045, "timestamp_iso": "2026-10-07T01:29:47.415045", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316787.8560839, "timestamp_iso": "2026-10-07T01:29:47.856084", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316787.856637, "timestamp_iso": "2026-10-07T01:29:47.856637", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316788.6530728, "timestamp_iso": "2026-10-07T01:29:48.653073", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316788.653924, "timestamp_iso": "2026-10-07T01:29:48.653924", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316789.107837, "timestamp_iso": "2026-10-07T01:29:49.107837", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316789.1082828, "timestamp_iso": "2026-10-07T01:29:49.108283", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316789.852424, "timestamp_iso": "2026-10-07T01:29:49.852424", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316789.853293, "timestamp_iso": "2026-10-07T01:29:49.853293", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316823.72574, "timestamp_iso": "2026-10-07T01:30:23.725740", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316823.726051, "timestamp_iso": "2026-10-07T01:30:23.726051", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316824.266051, "timestamp_iso": "2026-10-07T01:30:24.266051", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316824.26628, "timestamp_iso": "2026-10-07T01:30:24.266280", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316825.568991, "timestamp_iso": "2026-10-07T01:30:25.568991", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316825.5702121, "timestamp_iso": "2026-10-07T01:30:25.570212", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316826.021632, "timestamp_iso": "2026-10-07T01:30:26.021632", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316826.02223, "timestamp_iso": "2026-10-07T01:30:26.022230", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316826.970129, "timestamp_iso": "2026-10-07T01:30:26.970129", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316826.970767, "timestamp_iso": "2026-10-07T01:30:26.970767", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316827.309154, "timestamp_iso": "2026-10-07T01:30:27.309154", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316827.309522, "timestamp_iso": "2026-10-07T01:30:27.309522", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316828.162667, "timestamp_iso": "2026-10-07T01:30:28.162667", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316828.163739, "timestamp_iso": "2026-10-07T01:30:28.163739", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316828.526208, "timestamp_iso": "2026-10-07T01:30:28.526208", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316828.526877, "timestamp_iso": "2026-10-07T01:30:28.526877", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316829.297905, "timestamp_iso": "2026-10-07T01:30:29.297905", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316829.2986639, "timestamp_iso": "2026-10-07T01:30:29.298664", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316829.6621509, "timestamp_iso": "2026-10-07T01:30:29.662151", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316829.66272, "timestamp_iso": "2026-10-07T01:30:29.662720", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316830.459368, "timestamp_iso": "2026-10-07T01:30:30.459368", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "Where is my daughter?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791316830.460085, "timestamp_iso": "2026-10-07T01:30:30.460085", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316830.853483, "timestamp_iso": "2026-10-07T01:30:30.853483", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316830.853749, "timestamp_iso": "2026-10-07T01:30:30.853749", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316831.673286, "timestamp_iso": "2026-10-07T01:30:31.673286", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316831.674028, "timestamp_iso": "2026-10-07T01:30:31.674028", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316832.5118878, "timestamp_iso": "2026-10-07T01:30:32.511888", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316832.512349, "timestamp_iso": "2026-10-07T01:30:32.512349", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316833.303649, "timestamp_iso": "2026-10-07T01:30:33.303649", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316833.304182, "timestamp_iso": "2026-10-07T01:30:33.304182", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316834.230429, "timestamp_iso": "2026-10-07T01:30:34.230429", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316834.2308638, "timestamp_iso": "2026-10-07T01:30:34.230864", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316835.043967, "timestamp_iso": "2026-10-07T01:30:35.043967", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316835.044338, "timestamp_iso": "2026-10-07T01:30:35.044338", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316835.792304, "timestamp_iso": "2026-10-07T01:30:35.792304", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316835.79265, "timestamp_iso": "2026-10-07T01:30:35.792650", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316836.6358452, "timestamp_iso": "2026-10-07T01:30:36.635845", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316836.636235, "timestamp_iso": "2026-10-07T01:30:36.636235", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316837.4295292, "timestamp_iso": "2026-10-07T01:30:37.429529", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316837.430134, "timestamp_iso": "2026-10-07T01:30:37.430134", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316838.201843, "timestamp_iso": "2026-10-07T01:30:38.201843", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316838.2024, "timestamp_iso": "2026-10-07T01:30:38.202400", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316839.016056, "timestamp_iso": "2026-10-07T01:30:39.016056", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316839.016629, "timestamp_iso": "2026-10-07T01:30:39.016629", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316840.71892, "timestamp_iso": "2026-10-07T01:30:40.718920", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316840.7193651, "timestamp_iso": "2026-10-07T01:30:40.719365", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316842.49958, "timestamp_iso": "2026-10-07T01:30:42.499580", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316842.499947, "timestamp_iso": "2026-10-07T01:30:42.499947", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316844.2135098, "timestamp_iso": "2026-10-07T01:30:44.213510", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316844.213883, "timestamp_iso": "2026-10-07T01:30:44.213883", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316846.137866, "timestamp_iso": "2026-10-07T01:30:46.137866", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316846.138314, "timestamp_iso": "2026-10-07T01:30:46.138314", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316847.845784, "timestamp_iso": "2026-10-07T01:30:47.845784", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316847.846286, "timestamp_iso": "2026-10-07T01:30:47.846286", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316849.446194, "timestamp_iso": "2026-10-07T01:30:49.446194", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316849.446618, "timestamp_iso": "2026-10-07T01:30:49.446618", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316851.1740642, "timestamp_iso": "2026-10-07T01:30:51.174064", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316851.174619, "timestamp_iso": "2026-10-07T01:30:51.174619", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316852.765104, "timestamp_iso": "2026-10-07T01:30:52.765104", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316852.7657459, "timestamp_iso": "2026-10-07T01:30:52.765746", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316854.3219311, "timestamp_iso": "2026-10-07T01:30:54.321931", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316854.322436, "timestamp_iso": "2026-10-07T01:30:54.322436", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.044063, "timestamp_iso": "2026-10-07T01:30:56.044063", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.044317, "timestamp_iso": "2026-10-07T01:30:56.044317", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.04443, "timestamp_iso": "2026-10-07T01:30:56.044430", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791316856.044502, "timestamp_iso": "2026-10-07T01:30:56.044502", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316856.442542, "timestamp_iso": "2026-10-07T01:30:56.442542", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.442962, "timestamp_iso": "2026-10-07T01:30:56.442962", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.443286, "timestamp_iso": "2026-10-07T01:30:56.443286", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791316856.443414, "timestamp_iso": "2026-10-07T01:30:56.443414", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316856.915601, "timestamp_iso": "2026-10-07T01:30:56.915601", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.9160168, "timestamp_iso": "2026-10-07T01:30:56.916017", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316856.916331, "timestamp_iso": "2026-10-07T01:30:56.916331", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791316856.916489, "timestamp_iso": "2026-10-07T01:30:56.916489", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316857.320207, "timestamp_iso": "2026-10-07T01:30:57.320207", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316857.320639, "timestamp_iso": "2026-10-07T01:30:57.320639", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316857.320972, "timestamp_iso": "2026-10-07T01:30:57.320972", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791316857.3211122, "timestamp_iso": "2026-10-07T01:30:57.321112", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791316857.7147908, "timestamp_iso": "2026-10-07T01:30:57.714791", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316857.715182, "timestamp_iso": "2026-10-07T01:30:57.715182", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791316857.7155268, "timestamp_iso": "2026-10-07T01:30:57.715527", "type": "danger_statement", "profile_id": "asha_demo_001", "detail": {"phrase": "I want to die.", "matched_pattern": "danger_pattern"}}
+{"timestamp": 1791316857.715689, "timestamp_iso": "2026-10-07T01:30:57.715689", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "red", "reason": "danger_statement", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791317795.4030201, "timestamp_iso": "2026-10-07T01:46:35.403020", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791317795.4034078, "timestamp_iso": "2026-10-07T01:46:35.403408", "type": "session_start", "profile_id": "asha_demo_001", "detail": {}}
+{"timestamp": 1791441206.4019468, "timestamp_iso": "2026-10-08T12:03:26.401947", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_1", "timings": {"t_speech_end": 1791441203.681579, "t_ack_started": 1791441203.6817951, "t_llm_request": 1791441203.684851, "t_first_llm_token": 1791441204.5877461, "t_first_tts_byte": 1791441205.20996, "t_first_audio_sent": 1791441205.210389}}}
+{"timestamp": 1791441218.609396, "timestamp_iso": "2026-10-08T12:03:38.609396", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_2", "timings": {"t_speech_end": 1791441214.854391, "t_ack_started": 1791441214.854452, "t_llm_request": 1791441214.855664, "t_first_llm_token": 1791441215.605654, "t_first_tts_byte": 1791441215.772056, "t_first_audio_sent": 1791441215.772489}}}
+{"timestamp": 1791441237.6875882, "timestamp_iso": "2026-10-08T12:03:57.687588", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_3", "timings": {"t_speech_end": 1791441234.230966, "t_ack_started": 1791441234.231133, "t_llm_request": 1791441234.233054, "t_first_llm_token": 1791441234.996161, "t_first_tts_byte": 1791441235.171648, "t_first_audio_sent": 1791441235.172041}}}
+{"timestamp": 1791441257.171836, "timestamp_iso": "2026-10-08T12:04:17.171836", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_4", "timings": {"t_speech_end": 1791441254.201525, "t_ack_started": 1791441254.2016408, "t_llm_request": 1791441254.2029839, "t_first_llm_token": 1791441255.050612, "t_first_tts_byte": 1791441255.217563, "t_first_audio_sent": 1791441255.217948}}}
+{"timestamp": 1791441266.077467, "timestamp_iso": "2026-10-08T12:04:26.077467", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_5", "timings": {"t_speech_end": 1791441264.264066, "t_ack_started": 1791441264.264191, "t_llm_request": 1791441264.2655969, "t_first_llm_token": 1791441264.911915, "t_first_tts_byte": 1791441265.102418, "t_first_audio_sent": 1791441265.1028202}}}
+{"timestamp": 1791441270.583167, "timestamp_iso": "2026-10-08T12:04:30.583167", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_6", "timings": {"t_speech_end": 1791441267.865626, "t_ack_started": 1791441267.865695, "t_llm_request": 1791441267.866882, "t_first_llm_token": 1791441268.2921689, "t_first_tts_byte": 1791441268.458242, "t_first_audio_sent": 1791441268.458845}}}
+{"timestamp": 1791441276.2664819, "timestamp_iso": "2026-10-08T12:04:36.266482", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_7", "timings": {"t_speech_end": 1791441273.999156, "t_ack_started": 1791441273.999226, "t_llm_request": 1791441274.000431, "t_first_llm_token": 1791441274.6733592, "t_first_tts_byte": 1791441274.85779, "t_first_audio_sent": 1791441274.8582559}}}
+{"timestamp": 1791441663.683407, "timestamp_iso": "2026-10-08T12:11:03.683407", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_8", "timings": {"t_speech_end": 1791441661.514056, "t_ack_started": 1791441661.514101, "t_llm_request": 1791441661.515287, "t_first_llm_token": 1791441662.162854, "t_first_tts_byte": 1791441662.434377, "t_first_audio_sent": 1791441662.434746}}}
+{"timestamp": 1791441751.62049, "timestamp_iso": "2026-10-08T12:12:31.620490", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_9", "timings": {"t_speech_end": 1791441749.6643589, "t_ack_started": 1791441749.664434, "t_llm_request": 1791441749.665639, "t_first_llm_token": 1791441750.343858, "t_first_tts_byte": 1791441750.554464, "t_first_audio_sent": 1791441750.554842}}}
+{"timestamp": 1791441810.7403479, "timestamp_iso": "2026-10-08T12:13:30.740348", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_10", "timings": {"t_speech_end": 1791441807.944057, "t_ack_started": 1791441807.944128, "t_llm_request": 1791441807.945364, "t_first_llm_token": 1791441808.722493, "t_first_tts_byte": 1791441808.9056818, "t_first_audio_sent": 1791441808.906073}}}
+{"timestamp": 1791442243.574571, "timestamp_iso": "2026-10-08T12:20:43.574571", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_11", "timings": {"t_speech_end": 1791442241.429447, "t_ack_started": 1791442241.4296262, "t_llm_request": 1791442241.431314, "t_first_llm_token": 1791442242.153996, "t_first_tts_byte": 1791442242.356871, "t_first_audio_sent": 1791442242.3573241}}}
+{"timestamp": 1791442246.404916, "timestamp_iso": "2026-10-08T12:20:46.404916", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_12", "timings": {"t_speech_end": 1791442244.203907, "t_ack_started": 1791442244.204007, "t_llm_request": 1791442244.205206, "t_first_llm_token": 1791442244.654837, "t_first_tts_byte": 1791442245.0755332, "t_first_audio_sent": 1791442245.076038}}}
+{"timestamp": 1791442248.341974, "timestamp_iso": "2026-10-08T12:20:48.341974", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_13", "timings": {"t_speech_end": 1791442246.4051561, "t_ack_started": 1791442246.405183, "t_llm_request": 1791442246.406338, "t_first_llm_token": 1791442246.834734, "t_first_tts_byte": 1791442247.010515, "t_first_audio_sent": 1791442247.0110369}}}
+{"timestamp": 1791472588.1021519, "timestamp_iso": "2026-10-08T20:46:28.102152", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_1", "timings": {"t_speech_end": 1791472584.809875, "t_ack_started": 1791472584.8099892, "t_llm_request": 1791472584.811239, "t_first_llm_token": 1791472586.602442, "t_first_tts_byte": 1791472586.8821518, "t_first_audio_sent": 1791472586.8825421}}}
+{"timestamp": 1791472601.64221, "timestamp_iso": "2026-10-08T20:46:41.642210", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_2", "timings": {"t_speech_end": 1791472599.247506, "t_ack_started": 1791472599.247574, "t_llm_request": 1791472599.248769, "t_first_llm_token": 1791472599.915199, "t_first_tts_byte": 1791472600.176569, "t_first_audio_sent": 1791472600.1770098}}}
+{"timestamp": 1791472610.7725608, "timestamp_iso": "2026-10-08T20:46:50.772561", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_3", "timings": {"t_speech_end": 1791472609.353964, "t_ack_started": 1791472609.3540359, "t_llm_request": 1791472609.355249, "t_first_llm_token": 1791472610.202415, "t_first_tts_byte": 1791472610.382859, "t_first_audio_sent": 1791472610.3832362}}}
+{"timestamp": 1791472618.165143, "timestamp_iso": "2026-10-08T20:46:58.165143", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_4", "timings": {"t_speech_end": 1791472615.343334, "t_ack_started": 1791472615.343406, "t_llm_request": 1791472615.3446028, "t_first_llm_token": 1791472616.459048, "t_first_tts_byte": 1791472616.754236, "t_first_audio_sent": 1791472616.755146}}}
+{"timestamp": 1791472627.4651892, "timestamp_iso": "2026-10-08T20:47:07.465189", "type": "repeat", "profile_id": "asha_demo_001", "detail": {"question": "What is my name?", "count": 2, "is_repeated": true}}
+{"timestamp": 1791472627.466877, "timestamp_iso": "2026-10-08T20:47:07.466877", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "green", "new_tier": "yellow", "reason": "repeat_threshold", "context": {"repeat_count": 3, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791472631.380909, "timestamp_iso": "2026-10-08T20:47:11.380909", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_5", "timings": {"t_speech_end": 1791472627.4619038, "t_ack_started": 1791472627.462079, "t_llm_request": 1791472627.464255, "t_first_llm_token": 1791472628.3305862, "t_first_tts_byte": 1791472629.660031, "t_first_audio_sent": 1791472629.6604218}}}
+{"timestamp": 1791472645.0714, "timestamp_iso": "2026-10-08T20:47:25.071400", "type": "tier_change", "profile_id": "asha_demo_001", "detail": {"old_tier": "yellow", "new_tier": "green", "reason": "step_down", "context": {"repeat_count": 0, "sustained_distress": false, "time_in_previous_tier": 0.0}}}
+{"timestamp": 1791472647.559253, "timestamp_iso": "2026-10-08T20:47:27.559253", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_6", "timings": {"t_speech_end": 1791472645.069221, "t_ack_started": 1791472645.069279, "t_llm_request": 1791472645.070478, "t_first_llm_token": 1791472645.847928, "t_first_tts_byte": 1791472646.258543, "t_first_audio_sent": 1791472646.258923}}}
+{"timestamp": 1791472664.776841, "timestamp_iso": "2026-10-08T20:47:44.776841", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_7", "timings": {"t_speech_end": 1791472662.585751, "t_ack_started": 1791472662.585805, "t_llm_request": 1791472662.586977, "t_first_llm_token": 1791472663.617172, "t_first_tts_byte": 1791472663.802664, "t_first_audio_sent": 1791472663.80303}}}
+{"timestamp": 1791472678.760919, "timestamp_iso": "2026-10-08T20:47:58.760919", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_8", "timings": {"t_speech_end": 1791472675.8883111, "t_ack_started": 1791472675.888384, "t_llm_request": 1791472675.88959, "t_first_llm_token": 1791472676.670805, "t_first_tts_byte": 1791472676.9087942, "t_first_audio_sent": 1791472676.9092}}}
+{"timestamp": 1791472710.163865, "timestamp_iso": "2026-10-08T20:48:30.163865", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_9", "timings": {"t_speech_end": 1791472692.241111, "t_ack_started": 1791472692.241171, "t_llm_request": 1791472692.242374, "t_first_llm_token": 1791472693.997705, "t_first_tts_byte": 1791472695.369808, "t_first_audio_sent": 1791472695.370168}}}
+{"timestamp": 1791472785.842612, "timestamp_iso": "2026-10-08T20:49:45.842612", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_1", "timings": {"t_speech_end": 1791472783.853576, "t_ack_started": 1791472783.853647, "t_llm_request": 1791472783.854815, "t_first_llm_token": 1791472784.4848, "t_first_tts_byte": 1791472784.7138188, "t_first_audio_sent": 1791472784.714894}}}
+{"timestamp": 1791472803.160774, "timestamp_iso": "2026-10-08T20:50:03.160774", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_2", "timings": {"t_speech_end": 1791472800.9282281, "t_ack_started": 1791472800.928386, "t_llm_request": 1791472800.9296079, "t_first_llm_token": 1791472801.720542, "t_first_tts_byte": 1791472801.930548, "t_first_audio_sent": 1791472801.930959}}}
+{"timestamp": 1791472816.68153, "timestamp_iso": "2026-10-08T20:50:16.681530", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_3", "timings": {"t_speech_end": 1791472813.8412, "t_ack_started": 1791472813.841256, "t_llm_request": 1791472813.842438, "t_first_llm_token": 1791472814.614356, "t_first_tts_byte": 1791472814.771826, "t_first_audio_sent": 1791472814.7722821}}}
+{"timestamp": 1791472850.049747, "timestamp_iso": "2026-10-08T20:50:50.049747", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_1", "timings": {"t_speech_end": 1791472844.254217, "t_ack_started": 1791472844.254286, "t_llm_request": 1791472844.255454, "t_first_llm_token": 1791472845.0974221, "t_first_tts_byte": 1791472845.534794, "t_first_audio_sent": 1791472845.535167}}}
+{"timestamp": 1791472873.53355, "timestamp_iso": "2026-10-08T20:51:13.533550", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_2", "timings": {"t_speech_end": 1791472870.824032, "t_ack_started": 1791472870.824219, "t_llm_request": 1791472870.825788, "t_first_llm_token": 1791472871.5529459, "t_first_tts_byte": 1791472871.754121, "t_first_audio_sent": 1791472871.754503}}}
+{"timestamp": 1791472890.778296, "timestamp_iso": "2026-10-08T20:51:30.778296", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_3", "timings": {"t_speech_end": 1791472886.6827781, "t_ack_started": 1791472886.682944, "t_llm_request": 1791472886.684253, "t_first_llm_token": 1791472887.508571, "t_first_tts_byte": 1791472888.130653, "t_first_audio_sent": 1791472888.131071}}}
+{"timestamp": 1791472904.902303, "timestamp_iso": "2026-10-08T20:51:44.902303", "type": "timing", "profile_id": "asha_demo_001", "detail": {"turn_id": "turn_4", "timings": {"t_speech_end": 1791472902.206941, "t_ack_started": 1791472902.206996, "t_llm_request": 1791472902.208199, "t_first_llm_token": 1791472902.982538, "t_first_tts_byte": 1791472903.1580591, "t_first_audio_sent": 1791472903.158454}}}
