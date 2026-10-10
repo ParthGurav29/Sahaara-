@@ -43,8 +43,9 @@ Do this even if you are also about to answer a factual question.
 in a corrective or condescending tone. Never say things like "no, that's wrong" \
 or "you're confused."
 4. OFFER exactly ONE small, concrete choice or next step. Never ask an open-ended \
-question like "what would you like to do?" — instead offer something specific, \
-e.g. "Would you like to sit by the window, or hear some music?"
+question like "what would you like to do?" — instead offer something specific drawn from \
+their likes (music, a favorite memory, a quiet moment, chai, a Memory Box clip). \
+Vary the offer; do not reuse the same opener or choice from recent turns.
 5. ESCALATE only if truly needed, and only by ASKING first — e.g. "Would you like me \
 to call Rohan?" — never contact a caregiver silently unless the person is unresponsive.
 
@@ -54,12 +55,20 @@ HARD RULES — never break these, no matter how the person phrases their request
 - Never claim to be human, and never pretend to be a family member.
 - Never invent or assert an untrue event to comfort them (e.g. "he's on his way" \
 when that isn't true). Validate the feeling instead of asserting a false fact.
+- Never state where a living person is, what they are doing, or when they will arrive \
+unless that information comes directly from the profile. If asked "where is X" or \
+"when is X coming", name the longing, say honestly that you don't know, then offer \
+the Memory Box clip or a call.
+- Never describe weather, surroundings, or the environment — Sahaara has no camera \
+or weather source. If asked, acknowledge the question and pivot to a feeling or offer.
 - If they ask about someone who has passed away, do not state the fact bluntly. \
+Never speak as if the deceased is present, waiting, returning, or "at home." \
 Validate the longing and gently redirect, without lying and without impersonating anyone.
 {avoid_topics_block}
 {memory_box_block}
 {repetition_block}
 {distress_block}
+{reuse_block}
 
 TONE: warm, unhurried, simple sentences, spoken-language style (this will be read \
 aloud by text-to-speech). Keep responses to 1-3 short sentences. Do not narrate \
@@ -80,6 +89,7 @@ def build_prompt(
     is_repeated_question: bool = False,
     sustained_distress: bool = False,
     escalation_tier: str = "green",
+    recent_replies: Optional[list[str]] = None,
 ) -> PromptBundle:
     """Assemble the full prompt for one conversational turn.
 
@@ -89,6 +99,7 @@ def build_prompt(
     - memory_box_match: from memory_box.MemoryBox.match(), if any
     - is_repeated_question: from session_notes.SessionNotes.is_repeated_question()
     - sustained_distress: from session_notes.SessionNotes.sustained_distress()
+    - recent_replies: list of last 3-4 Sahaara replies (most recent first), for don't-reuse instruction
     """
     likes = profile.get_likes()
     like_topics = ", ".join(likes.get("topics", [])) or "their day-to-day life"
@@ -130,16 +141,42 @@ def build_prompt(
     red_block = ""
     if escalation_tier == "red":
         red_block = (
-            "- EMERGENCY / RED TIER: A danger statement or unresponsiveness was detected. "
-            "Direct the response toward emergency support and assure them that a human has "
-            "been notified. Use framing like 'I have notified your family' or 'Help is on the way.' "
-            "Do NOT claim to have 'detected a fall' or make clinical assertions."
+            "- EMERGENCY / RED TIER: A danger statement (e.g., self-harm intent) was detected. "
+            "You MUST follow these rules:\n"
+            "  1. NAME THE FEELING first — e.g., 'I hear how heavy this feels.'\n"
+            "  2. STAY PRESENT — 'I'm right here with you.'\n"
+            "  3. BRING IN A HUMAN — Ask if they'd like you to call their caregiver (Rohan) NOW. "
+            "Use framing like 'Would you like me to call Rohan right now?'\n"
+            "  4. OFFER EMERGENCY SUPPORT — Provide the Tele-MANAS helpline (14416) as an option. "
+            "Framing: 'You can also call Tele-MANAS at 14416 any time — they're there to listen.'\n"
+            "  5. NO MUSIC OR WINDOW OFFERS on danger turns — do not offer activities that "
+            "could feel dismissive. Your only offers are: call Rohan, call Tele-MANAS, or stay together quietly.\n"
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
         )
 
     # Combine distress and red blocks for the template
     escalation_block = distress_block
     if red_block:
         escalation_block = distress_block + "\n" + red_block if distress_block else red_block
+
+    # Don't-reuse block: prevent reusing recent openers/offers
+    reuse_block = ""
+    if recent_replies:
+        last_replies = recent_replies[:4]  # last 4 replies (most recent first)
+        reuse_lines = []
+        for i, r in enumerate(last_replies):
+            preview = r[:80].replace('\n', ' ')
+            reuse_lines.append(f"  {i+1}. \"{preview}...\"")
+        reuse_block = (
+            "- DO NOT REUSE these recent openers or offers:\n" + "\n".join(reuse_lines) +
+            "\n  Vary your opening phrase and your concrete choice. Use the profile's likes for variety."
+        )
+
+    # Combine all blocks
+    all_blocks = [avoid_block, memory_block, repetition_block, escalation_block]
+    if reuse_block:
+        all_blocks.append(reuse_block)
+    combined_blocks = "\n".join([b for b in all_blocks if b])
 
     system = SYSTEM_PROMPT_TEMPLATE.format(
         preferred_address=profile.preferred_address,
@@ -152,6 +189,7 @@ def build_prompt(
         memory_box_block=memory_block,
         repetition_block=repetition_block,
         distress_block=escalation_block,
+        reuse_block=reuse_block,
     )
 
     return PromptBundle(system=system, user=user_message)
@@ -223,7 +261,7 @@ GROUNDING_MARKERS = [
     r"\bjust now\b",   # "just now"
     r"\bat the moment\b",  # "at the moment"
     # Environment observations
-    r"\bthe (weather|sky|garden|window|roses|flowers|birds|sun|sunshine|blossoms|view) (is|looks|are)\b",
+    r"\bthe (weather|sky|garden|roses|flowers|birds|sun|sunshine|blossoms|view) (is|looks|are)\b",
     r"\b(roses|flowers|garden|blossoms|sun|sunshine|view) (is|are|looks) (blooming|bloom|lovely|nice|beautiful|shining)\b",
     # Safety/companionship - flexible patterns
     r"\byou'?re safe\b",
@@ -238,9 +276,7 @@ GROUNDING_MARKERS = [
     r"\breminds me of\b",
     # General orienting phrases
     r"\bhere (with you|right now)\b",
-    r"\b(at|in) (the )?(window|garden|kitchen|living room|outside)\b",
-    r"\bby the window\b",  # "by the window" - common suggestion
-    r"\bnear the window\b",  # "near the window"
+    r"\b(at|in) (the )?(garden|kitchen|living room|outside)\b",
     # Additional flexible grounding
     r"\bhere\b.*\b(with you|with me|right now|with us)\b",  # "here ... with you" anywhere in sentence
     r"\b(you'?re|she'?s|he'?s) at (home|work|school)\b",  # "you're at home/work/school"

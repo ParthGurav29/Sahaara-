@@ -59,6 +59,68 @@ IMMINENT_EVENT_PATTERNS = [
     r"\bwill call (you )?(tonight|today|soon)\b",
 ]
 
+# Fabricated whereabouts patterns — Sahaara cannot know where living
+# people are unless it comes from the profile. These are false claims
+# about living people's locations/activities.
+FABRICATED_WHEREABOUTS_PATTERNS = [
+    r"\bwaiting (for you )?(at|in) (home|the house)\b",
+    r"\bwaiting at home\b",
+    r"\bstepped out\b",
+    r"\bjust stepped out\b",
+    r"\bback soon\b",
+    r"\bhome soon\b",
+    r"\bcoming soon\b",
+    r"\bshould be home\b",
+    r"\bwill be home\b",
+    r"\bis at home\b",
+    r"\bhe'?s at home\b",
+    r"\bshe'?s at home\b",
+    r"\bthey'?re at home\b",
+    r"\bat home with\b",
+    # Pronoun-based patterns (common fabrications)
+    r"\bhe'?s (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)\b",
+    r"\bshe'?s (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)\b",
+    r"\bthey'?re (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)\b",
+    # More flexible pronoun patterns
+    r"\bhe'?s (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)",
+    r"\bshe'?s (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)",
+    r"\bthey'?re (waiting|at home|stepped out|just stepped out|back soon|home soon|coming soon)",
+]
+
+# Fabricated schedule patterns — Sahaara cannot know when someone
+# will visit unless it comes from the profile.
+FABRICATED_SCHEDULE_PATTERNS = [
+    r"\bplanning to come\b",
+    r"\bscheduled to (come|arrive|visit)\b",
+    r"\bon (her|his|their) way\b",
+    r"\bwill (arrive|come|visit) (tomorrow|today|this week)\b",
+    r"\bcoming (tomorrow|today|next week)\b",
+    r"\bvisit (tomorrow|today|next week)\b",
+]
+
+# Fabricated weather/surroundings patterns — Sahaara has no camera
+# or weather source.
+FABRICATED_WEATHER_PATTERNS = [
+    r"\blovely (sunny|warm|gentle|beautiful) day\b",
+    r"\bgorgeous day\b",
+    r"\bsunny day (here|today)\b",
+    r"\bgentle day\b",
+    r"\bit'?s (a |the )?lovely day\b",
+    r"\bit'?s (a |the )?gentle day\b",
+    r"\bit'?s (a |the )?sunny day\b",
+    r"\bit'?s (a |the )?warm day\b",
+    r"\bit'?s (a |the )?pleasant day\b",
+    r"\bit'?s (a |the )?beautiful day\b",
+]
+
+# Fabricated surroundings patterns — Sahaara has no camera
+FABRICATED_SURROUNDINGS_PATTERNS = [
+    r"\bgarden (looks|is) (lovely|nice|beautiful|peaceful|gorgeous)\b",
+    r"\bflowers (are|look) (blooming|lovely|beautiful|gorgeous)\b",
+    r"\bthe view (is|looks) (lovely|nice|beautiful|peaceful|gorgeous)\b",
+    r"\bview (is|looks) (lovely|nice|beautiful|peaceful|gorgeous)\b",
+]
+
 
 @dataclass
 class GuardrailResult:
@@ -80,6 +142,65 @@ def _is_deceased(member: dict) -> bool:
     profile schema; a production version would use an explicit field.
     """
     return "late" in member.get("relationship", "").lower()
+
+
+def _check_fabricated_whereabouts(text_lower: str, profile: Optional[Profile]) -> list[str]:
+    """Flags fabricated claims about where living people are.
+    Applies to ALL family members, not just deceased.
+    """
+    if profile is None:
+        return []
+    
+    # Check if any family member is mentioned (not just deceased)
+    family_names = [m["name"].lower() for m in profile.get_family()]
+    family_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family()]
+    
+    mentioned_family = any(name in text_lower for name in family_names) or \
+                       any(rel in text_lower for rel in family_relationships)
+    
+    # Also check for gendered pronouns that likely refer to family members
+    # (she/her for female family members, he/him for male)
+    mentioned_pronoun = any(p in text_lower for p in ["she's", "she is", "he's", "he is", "they're", "they are"])
+    
+    if not (mentioned_family or mentioned_pronoun):
+        return []
+    
+    hits = _find_matches(text_lower, FABRICATED_WHEREABOUTS_PATTERNS)
+    return [f"fabricated_whereabouts: {hit}" for hit in hits]
+
+
+def _check_fabricated_schedule(text_lower: str, profile: Optional[Profile]) -> list[str]:
+    """Flags fabricated claims about when someone will visit/arrive.
+    Applies to ALL family members.
+    """
+    if profile is None:
+        return []
+    
+    family_names = [m["name"].lower() for m in profile.get_family()]
+    family_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family()]
+    
+    mentioned_family = any(name in text_lower for name in family_names) or \
+                       any(rel in text_lower for rel in family_relationships)
+    
+    mentioned_pronoun = any(p in text_lower for p in ["she's", "she is", "he's", "he is", "they're", "they are"])
+    
+    if not (mentioned_family or mentioned_pronoun):
+        return []
+    
+    hits = _find_matches(text_lower, FABRICATED_SCHEDULE_PATTERNS)
+    return [f"fabricated_schedule: {hit}" for hit in hits]
+
+
+def _check_fabricated_weather(text_lower: str) -> list[str]:
+    """Flags fabricated weather claims. Sahaara has no weather source."""
+    hits = _find_matches(text_lower, FABRICATED_WEATHER_PATTERNS)
+    return [f"fabricated_weather: {hit}" for hit in hits]
+
+
+def _check_fabricated_surroundings(text_lower: str) -> list[str]:
+    """Flags fabricated surroundings claims. Sahaara has no camera."""
+    hits = _find_matches(text_lower, FABRICATED_SURROUNDINGS_PATTERNS)
+    return [f"fabricated_surroundings: {hit}" for hit in hits]
 
 
 def _check_fabricated_reassurance(text_lower: str, profile: Optional[Profile]) -> list[str]:
@@ -127,6 +248,10 @@ def check_guardrails(response_text: str, profile: Optional[Profile] = None) -> G
     violations += [f"dosing_advice: {p}" for p in _find_matches(text_lower, DOSING_ADVICE_PATTERNS)]
     violations += [f"impersonation: {p}" for p in _find_matches(text_lower, IMPERSONATION_PATTERNS)]
     violations += _check_fabricated_reassurance(text_lower, profile)
+    violations += _check_fabricated_whereabouts(text_lower, profile)
+    violations += _check_fabricated_schedule(text_lower, profile)
+    violations += _check_fabricated_weather(text_lower)
+    violations += _check_fabricated_surroundings(text_lower)
 
     return GuardrailResult(text=response_text, violations=violations)
 
@@ -150,6 +275,10 @@ if __name__ == "__main__":
         "I'm Priya, I'm right here with you.",
         "Don't worry, Vikram is on his way home now.",
         "Your lunch is on its way, it'll be ready soon.",  # not risky, no deceased mention
+        "She's waiting at home for you.",
+        "She's just stepped out.",
+        "It's a lovely sunny day today.",
+        "The garden looks lovely today.",
     ]
     for s in samples:
         result = check_guardrails(s, profile)

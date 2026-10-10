@@ -31,6 +31,7 @@ class Turn:
     text: str
     emotion: Optional[str]  # e.g. "anxious", "calm", "distressed" — set by intent_emotion.py
     timestamp: float = field(default_factory=time.time)
+    speaker: str = "user"  # "user" or "sahaara"
 
 
 class SessionNotes:
@@ -46,10 +47,15 @@ class SessionNotes:
 
     # ---- Recording -------------------------------------------------
 
-    def record_turn(self, text: str, emotion: Optional[str] = None) -> Turn:
-        turn = Turn(text=_normalize(text), emotion=emotion)
+    def record_turn(self, text: str, emotion: Optional[str] = None, speaker: str = "user") -> Turn:
+        turn = Turn(text=_normalize(text), emotion=emotion, speaker=speaker)
         self.turns.append(turn)
         return turn
+
+    def get_recent_sahaara_replies(self, n: int = 4) -> list[str]:
+        """Get the last n Sahaara replies (most recent first)."""
+        sahaara_turns = [t.text for t in self.turns if t.speaker == "sahaara"]
+        return sahaara_turns[-n:][::-1]  # most recent first
 
     # ---- Repetition detection ----------------------------------------
 

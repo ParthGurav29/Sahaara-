@@ -238,6 +238,7 @@ def process_turn(user_message: str) -> dict:
             # dashboard endpoints will fetch it
 
     # ---- 2. Build the prompt (Listen/Validate/Ground/Offer policy) ----
+    recent_replies = session_notes.get_recent_sahaara_replies(4)
     bundle = build_prompt(
         profile,
         user_message,
@@ -246,6 +247,7 @@ def process_turn(user_message: str) -> dict:
         is_repeated_question=is_repeat,
         sustained_distress=sustained,
         escalation_tier=current_tier,
+        recent_replies=recent_replies,
     )
 
     # ---- 3. Call the LLM ----
@@ -285,7 +287,8 @@ def process_turn(user_message: str) -> dict:
         )
 
     # ---- 6. Update session state for future turns ----
-    session_notes.record_turn(user_message, emotion=intent.emotion)
+    session_notes.record_turn(user_message, emotion=intent.emotion, speaker="user")
+    session_notes.record_turn(response_text, emotion=intent.emotion, speaker="sahaara")
     _last_sahaara_prompt_time = time.time()
 
     return {
