@@ -42,6 +42,7 @@ class EventType(str, Enum):
     SESSION_START = "session_start"
     SESSION_END = "session_end"
     TIMING = "timing"
+    PHYSICAL_SYMPTOM = "physical_symptom"
 
 
 class EscalationTier(str, Enum):
@@ -271,6 +272,42 @@ class EventLog:
             detail={
                 "fallback_type": fallback_type.value,
                 **(detail or {}),
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_danger_statement(self, phrase: str, matched_pattern: str) -> Event:
+        """Log a detected danger statement."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.DANGER_STATEMENT,
+            profile_id=self.profile_id,
+            detail={
+                "phrase": phrase,
+                "matched_pattern": matched_pattern,
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_physical_symptom(
+        self,
+        phrase: str,
+        matched_pattern: str,
+        urgency: str,  # "urgent" or "general"
+        tier_escalated_to: str,  # "red" or "orange"
+    ) -> Event:
+        """Log a detected physical symptom that triggered immediate escalation."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.PHYSICAL_SYMPTOM,
+            profile_id=self.profile_id,
+            detail={
+                "phrase": phrase,
+                "matched_pattern": matched_pattern,
+                "urgency": urgency,
+                "tier_escalated_to": tier_escalated_to,
             },
         )
         self.append(event)

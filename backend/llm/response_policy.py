@@ -138,6 +138,37 @@ def build_prompt(
             "contact — but always ASK first, per the escalation rule above."
         )
 
+    # Physical distress blocks (new - for immediate physical symptom escalation)
+    physical_urgent_block = ""
+    physical_general_block = ""
+    if intent and intent.is_physical_urgent:
+        physical_urgent_block = (
+            "- PHYSICAL URGENT SYMPTOM / RED TIER: A potentially urgent physical symptom was "
+            "detected (e.g., 'can't breathe', 'chest pain', 'I fell'). "
+            "You MUST follow these rules:\n"
+            "  1. NAME THE FEELING first — e.g., 'I hear this is scary, I'm right here.'\n"
+            "  2. STAY PRESENT — 'I'm right here with you.'\n"
+            "  3. URGE HUMAN HELP IMMEDIATELY — 'Please get Rohan right now' or "
+            "'If you're alone, please call 112 (emergency services) right now.'\n"
+            "  4. NO MEDICAL ADVICE — Do NOT say 'it's probably nothing,' 'just breathe,' "
+            "'you'll be fine,' or give any medical assessment.\n"
+            "  5. NO MUSIC OR WINDOW OFFERS — Do not offer activities that could feel dismissive.\n"
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
+        )
+    elif intent and intent.is_physical_general:
+        physical_general_block = (
+            "- PHYSICAL UNWELLNESS / ORANGE TIER: A general physical symptom was detected "
+            "(e.g., 'not feeling well', 'dizzy', 'stomach hurts'). "
+            "You MUST follow these rules:\n"
+            "  1. NAME THE FEELING first — e.g., 'I hear you're not feeling well, I'm here.'\n"
+            "  2. STAY PRESENT — 'I'm right here with you.'\n"
+            "  3. OFFER TO CALL CAREGIVER — 'Would you like me to call Rohan?' (ask, don't assume).\n"
+            "  4. NO MEDICAL ADVICE — Do NOT diagnose, minimize ('it's probably nothing'), "
+            "or give medical reassurance.\n"
+            "  5. OFFER COMFORT CHOICE — One concrete choice from their likes (music, Memory Box, etc.).\n"
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
+        )
+
     red_block = ""
     if escalation_tier == "red":
         red_block = (
@@ -154,10 +185,15 @@ def build_prompt(
             "  6. Do NOT claim a human has already been notified unless it is verifiably true."
         )
 
-    # Combine distress and red blocks for the template
-    escalation_block = distress_block
-    if red_block:
-        escalation_block = distress_block + "\n" + red_block if distress_block else red_block
+    # Combine all escalation blocks
+    escalation_blocks = [distress_block]
+    if physical_urgent_block:
+        escalation_blocks.append(physical_urgent_block)
+    elif physical_general_block:
+        escalation_blocks.append(physical_general_block)
+    elif red_block:
+        escalation_blocks.append(red_block)
+    escalation_block = "\n".join([b for b in escalation_blocks if b])
 
     # Don't-reuse block: prevent reusing recent openers/offers
     reuse_block = ""

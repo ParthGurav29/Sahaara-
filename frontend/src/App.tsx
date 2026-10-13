@@ -10,6 +10,7 @@ function App() {
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"live" | "summary">("live");
+  const [showChat, setShowChat] = useState(false);
 
   async function sendMessage() {
     if (!message.trim()) return;
@@ -20,12 +21,8 @@ function App() {
     try {
       const res = await fetch("http://127.0.0.1:8000/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
       });
 
       const data = await res.json();
@@ -53,60 +50,64 @@ function App() {
       <nav className="app-tabs">
         <button
           className={`tab ${view === "live" ? "active" : ""}`}
-          onClick={() => setView("live")}
+          onClick={() => { setView("live"); setShowChat(false); }}
         >
           Live Session
         </button>
         <button
           className={`tab ${view === "summary" ? "active" : ""}`}
-          onClick={() => setView("summary")}
+          onClick={() => { setView("summary"); setShowChat(false); }}
         >
           Daily Summary
         </button>
       </nav>
 
       {view === "live" && (
-        <>
-          <div className="app-main">
-            {/* Asha's view - Voice Orb */}
-            <section className="asha-view">
-              <h2 className="view-title">Asha's View</h2>
-              <VoiceOrb />
-            </section>
+        <div className="app-main">
+          {/* Asha's view - Voice Orb */}
+          <section className="asha-view">
+            <h2 className="view-title">Asha's View</h2>
+            <VoiceOrb />
+          </section>
 
-            {/* Rohan's view - Escalation Ladder */}
-            <section className="caregiver-view">
-              <h2 className="view-title">Rohan's View (Caregiver)</h2>
-              <EscalationLadder />
-            </section>
-          </div>
-
-          {/* Text chat fallback */}
-          <div className="chat-fallback">
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  sendMessage();
-                }
-              }}
-              placeholder="Talk to Sahaara (text)..."
-            />
-            <button onClick={sendMessage} disabled={loading}>
-              {loading ? "Thinking..." : "Send"}
-            </button>
-            {response && (
-              <p className="chat-response">
-                <strong>Sahaara:</strong> {response}
-              </p>
-            )}
-          </div>
-        </>
+          {/* Rohan's view - Escalation Ladder */}
+          <section className="caregiver-view">
+            <h2 className="view-title">Rohan's View</h2>
+            <EscalationLadder />
+          </section>
+        </div>
       )}
 
       {view === "summary" && (
         <DailySummaryScreen />
+      )}
+
+      {/* Collapsible chat fallback */}
+      <button
+        className="chat-toggle"
+        onClick={() => setShowChat(!showChat)}
+        aria-expanded={showChat}
+      >
+        {showChat ? "Hide Chat" : "Show Chat"} Fallback
+      </button>
+
+      {showChat && (
+        <div className="chat-fallback">
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+            placeholder="Talk to Sahaara (text)..."
+          />
+          <button onClick={sendMessage} disabled={loading}>
+            {loading ? "Thinking..." : "Send"}
+          </button>
+          {response && (
+            <p className="chat-response">
+              <strong>Sahaara:</strong> {response}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

@@ -52,6 +52,76 @@ FACTUAL_MARKERS = [
     r"\bhow do i\b", r"\bcan you turn\b", r"\bwhat'?s the weather\b",
 ]
 
+# ---- Physical distress patterns ----------------------------------------
+# Two levels: Urgent (Red) and General (Orange)
+# These are PHYSICAL symptoms, not emotional distress.
+# They trigger immediate escalation on FIRST mention - no pattern building needed.
+
+# Urgent symptoms -> RED tier immediately
+PHYSICAL_URGENT_PATTERNS = [
+    # Breathing difficulties
+    r"\bcan'?t breathe\b", r"\bcannot breathe\b", r"\btrouble breathing\b",
+    r"\bdifficulty breathing\b", r"\bshort of breath\b", r"\bout of breath\b",
+    r"\bcan'?t catch (my )?breath\b",
+    # ASR variants for breathing
+    r"\bcant breathe\b", r"\bi cant breathe\b", r"\bi cant breath\b",
+    # Chest pain / cardiac
+    r"\bchest pain\b", r"\bchest hurts\b", r"\bchest (is )?hurting\b",
+    r"\bheart (hurts|pain)\b", r"\btight (in|across) (my )?chest\b",
+    r"\bchest (feels )?tight\b", r"\bpressure (in|on) (my )?chest\b",
+    # ASR variants for chest pain
+    r"\bchest pane\b", r"\bchest paint\b",
+    # Fall / mobility
+    r"\bi fell\b", r"\bi'?ve fallen\b", r"\bfell down\b",
+    r"\bcan'?t get up\b", r"\bcannot get up\b", r"\bcan'?t move\b",
+    r"\bcannot move\b", r"\bunable to move\b", r"\bcan'?t stand\b",
+    # ASR variants for fall/mobility
+    r"\bi fel down\b", r"\bi fell down\b", r"\bi cant get up\b",
+    r"\bi cant move\b", r"\bi cant stand\b",
+    # Fainting / consciousness
+    r"\bfeel faint\b", r"\bfeeling faint\b", r"\babout to faint\b",
+    r"\bpassing out\b", r"\bpass out\b", r"\bblacking out\b",
+    r"\bfeel like (i'?m )?(passing out|fainting)\b",
+    # ASR variants for fainting
+    r"\bfeel fint\b", r"\bpassin out\b",
+    # Severe dizziness
+    r"\bvery dizzy\b", r"\bextremely dizzy\b", r"\bso dizzy\b",
+    r"\broom (is )?spinning\b", r"\bworld (is )?spinning\b",
+    # ASR variants for dizziness
+    r"\bverry dizzy\b",
+    # Stroke signs (FAST)
+    r"\bface droop\b", r"\barm (weak|numb)\b", r"\bspeech (slurred|strange)\b",
+]
+
+# General unwellness -> ORANGE tier immediately
+PHYSICAL_GENERAL_PATTERNS = [
+    # General unwellness
+    r"\bnot feeling well\b", r"\bfeel unwell\b", r"\bfeeling unwell\b",
+    r"\bdon'?t feel well\b", r"\bdon'?t feel good\b", r"\bfeel terrible\b",
+    r"\bfeel awful\b", r"\bfeel horrible\b", r"\bfeel sick\b",
+    r"\bfeeling sick\b", r"\bfeel ill\b", r"\bfeeling ill\b",
+    # ASR variants for general unwellness
+    r"\bnot feelin well\b", r"\bnot feelin good\b",
+    # Specific symptoms
+    r"\b(dizzy|dizziness)\b", r"\b(dizzy|lightheaded)\b",
+    r"\bnausea\b", r"\bnauseous\b", r"\bwant to (throw up|vomit)\b",
+    r"\bstomach (hurts|pain|ache)\b", r"\btummy (hurts|pain|ache)\b",
+    r"\bheadache\b", r"\bhead hurts\b", r"\bhead (is )?hurting\b",
+    r"\bback (hurts|pain|ache)\b",
+    r"\b(in )?pain\b", r"\bhurts (all over|everywhere)\b",
+    r"\bachy\b", r"\bache\b",
+    # ASR variants for specific symptoms
+    r"\bdizzie\b", r"\bstomak hurts\b", r"\bhedache\b",
+    # Temperature
+    r"\bfever\b", r"\b(have a )?temperature\b", r"\bfeel (hot|burning up)\b",
+    r"\bchills\b", r"\bshivering\b",
+    # ASR variants for temperature
+    r"\bfevor\b",
+    # Fatigue/weakness
+    r"\bweak\b", r"\bweakness\b", r"\bno energy\b",
+    r"\bexhausted\b", r"\bcan'?t stay awake\b",
+]
+
 DANGER_PATTERNS = [
     r"\bi want to die\b", r"\bkill myself\b", r"\bend it all\b",
     r"\bdon'?t want to live\b", r"\bno reason to live\b",
@@ -70,6 +140,10 @@ class IntentResult:
     is_factual_ask: bool               # does it also carry a literal factual question?
     is_danger_statement: bool          # Red tier trigger
     matched_emotion_keywords: list[str] = field(default_factory=list)
+    # Physical distress flags (new)
+    is_physical_urgent: bool = False   # Urgent physical symptom -> RED
+    is_physical_general: bool = False  # General physical unwellness -> ORANGE
+    matched_physical_keywords: list[str] = field(default_factory=list)
 
 
 def classify_intent(text: str) -> IntentResult:
@@ -90,6 +164,13 @@ def classify_intent(text: str) -> IntentResult:
             if matched_emotion is None:
                 matched_emotion = emotion
 
+    # Check physical distress patterns
+    physical_urgent_hits = [p for p in PHYSICAL_URGENT_PATTERNS if re.search(p, text_lower)]
+    physical_general_hits = [p for p in PHYSICAL_GENERAL_PATTERNS if re.search(p, text_lower)]
+    is_physical_urgent = len(physical_urgent_hits) > 0
+    is_physical_general = len(physical_general_hits) > 0
+    matched_physical = physical_urgent_hits + physical_general_hits
+
     is_danger = any(re.search(p, text_lower) for p in DANGER_PATTERNS)
     is_factual = any(re.search(p, text_lower) for p in FACTUAL_MARKERS)
     is_emotional = matched_emotion is not None and matched_emotion != "content"
@@ -103,6 +184,9 @@ def classify_intent(text: str) -> IntentResult:
         is_factual_ask=is_factual,
         is_danger_statement=is_danger,
         matched_emotion_keywords=matched_keywords,
+        is_physical_urgent=is_physical_urgent,
+        is_physical_general=is_physical_general,
+        matched_physical_keywords=matched_physical,
     )
 
 
@@ -131,8 +215,17 @@ def classify_with_llm(text: str, llm_call: Callable[[str], str]) -> IntentResult
         elif line.lower().startswith("emotional_need:"):
             is_emotional_need = line.split(":", 1)[1].strip().lower() == "true"
 
-    is_danger = any(re.search(p, text.lower()) for p in DANGER_PATTERNS)
-    is_factual = any(re.search(p, text.lower()) for p in FACTUAL_MARKERS)
+    # Check physical distress patterns even for LLM path
+    text_lower = text.lower()
+    physical_urgent_hits = [p for p in PHYSICAL_URGENT_PATTERNS if re.search(p, text_lower)]
+    physical_general_hits = [p for p in PHYSICAL_GENERAL_PATTERNS if re.search(p, text_lower)]
+    is_physical_urgent = len(physical_urgent_hits) > 0
+    is_physical_general = len(physical_general_hits) > 0
+    matched_physical = physical_urgent_hits + physical_general_hits
+
+    is_danger = any(re.search(p, text_lower) for p in DANGER_PATTERNS)
+    is_factual = any(re.search(p, text_lower) for p in FACTUAL_MARKERS)
+
     return IntentResult(
         text=text,
         emotion=emotion,
@@ -140,6 +233,9 @@ def classify_with_llm(text: str, llm_call: Callable[[str], str]) -> IntentResult
         is_factual_ask=is_factual,
         is_danger_statement=is_danger,
         matched_emotion_keywords=[],
+        is_physical_urgent=is_physical_urgent,
+        is_physical_general=is_physical_general,
+        matched_physical_keywords=matched_physical,
     )
 
 

@@ -219,9 +219,29 @@ def process_turn(user_message: str) -> dict:
 
     # Evaluate escalation tier
     prev_tier = escalation_engine.current_tier
-    escalation_engine.evaluate(user_message)
+    escalation_engine.evaluate(user_message, intent)
     current_tier_enum = escalation_engine.current_tier
     current_tier = current_tier_enum.value
+    
+    # Log physical symptom if it triggered escalation
+    if intent and (intent.is_physical_urgent or intent.is_physical_general):
+        urgency = "urgent" if intent.is_physical_urgent else "general"
+        tier_escalated_to = "red" if intent.is_physical_urgent else "orange"
+        # Get the first matched pattern
+        matched_pattern = intent.matched_physical_keywords[0] if intent.matched_physical_keywords else "unknown"
+        event_log.log_physical_symptom(
+            phrase=user_message,
+            matched_pattern=matched_pattern,
+            urgency=urgency,
+            tier_escalated_to="red" if intent.is_physical_urgent else "orange",
+        )
+        # Build physical symptom alert
+        physical_alert = alert_builder.build_physical_symptom_alert(
+            phrase=user_message,
+            matched_pattern=matched_pattern,
+            urgency=urgency,
+            tier_escalated_to=tier_escalated_to,
+        )
     
     # Trigger alert on tier change
     if prev_tier != current_tier_enum:

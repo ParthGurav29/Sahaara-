@@ -29,6 +29,8 @@ class EscalationReason(str, Enum):
     MANUAL_OVERRIDE = "manual_override"
     STEP_DOWN = "step_down"
     SESSION_START = "session_start"
+    PHYSICAL_URGENT = "physical_urgent"
+    PHYSICAL_GENERAL = "physical_general"
 
 
 @dataclass
@@ -123,12 +125,25 @@ class EscalationEngine:
     def time_in_current_tier(self) -> float:
         return time.time() - self.state.tier_since
     
-    def evaluate(self, user_message: str) -> EscalationTier:
+    def evaluate(self, user_message: str, intent=None) -> EscalationTier:
         """
         Evaluate current state and transition tiers if needed.
         Called on every turn.
+        
+        Args:
+            user_message: The user's message
+            intent: Optional IntentResult from classify_intent for physical distress detection
         """
         now = time.time()
+        
+        # Check physical distress FIRST - these bypass minimum hold time
+        if intent:
+            if intent.is_physical_urgent:
+                self._transition_to(EscalationTier.RED, EscalationReason.PHYSICAL_URGENT, now)
+                return self.state.tier
+            if intent.is_physical_general:
+                self._transition_to(EscalationTier.ORANGE, EscalationReason.PHYSICAL_GENERAL, now)
+                return self.state.tier
         
         # Check if minimum hold time has passed for current tier
         if self.time_in_current_tier < self.config.effective_min_hold():
@@ -154,7 +169,7 @@ class EscalationEngine:
         
         # Evaluate transitions based on current tier
         if self.state.tier == EscalationTier.GREEN:
-            self._evaluate_green(now, effective_repeat_count, is_repeated, sustained_distress)
+            self._evaluate_green(now, effective_repeat_count, is_repeated, sustained_distress, intent)
         elif self.state.tier == EscalationTier.YELLOW:
             self._evaluate_yellow(now, sustained_distress)
         elif self.state.tier == EscalationTier.ORANGE:
@@ -170,6 +185,7 @@ class EscalationEngine:
         repeat_count: int,
         is_repeated: bool,
         sustained_distress: bool,
+        intent=None,
     ) -> None:
         """Evaluate transitions from GREEN."""
         

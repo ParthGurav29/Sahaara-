@@ -316,6 +316,82 @@ class AlertBuilder:
             detail=detail,
         )
 
+    def build_fallback_alert(self, fallback_type: str, detail: dict) -> Alert:
+        """Build an alert for a fallback trigger."""
+        now = datetime.now().timestamp()
+        
+        if fallback_type == "guardrail":
+            message = (
+                f"Sahaara's response was adjusted for safety. "
+                f"The original response contained content that didn't meet our guidelines "
+                f"and was replaced with a safe, supportive message."
+            )
+        elif fallback_type.startswith("standby_"):
+            message = (
+                f"Sahaara used a standby response because the AI was taking longer than expected. "
+                f"The conversation continued smoothly."
+            )
+        else:
+            message = f"System fallback triggered: {fallback_type}."
+        
+        safe_message = self._build_guardrail_safe_message(message)
+        
+        return Alert(
+            timestamp=now,
+            tier_from=EscalationTier.GREEN,
+            tier_to=EscalationTier.GREEN,
+            reason=fallback_type,
+            profile_id=self.profile.profile_id,
+            message=safe_message,
+            detail=detail,
+        )
+
+    def build_physical_symptom_alert(
+        self,
+        phrase: str,
+        matched_pattern: str,
+        urgency: str,  # "urgent" or "general"
+        tier_escalated_to: str,  # "red" or "orange"
+    ) -> Alert:
+        """Build an alert for a detected physical symptom."""
+        now = datetime.now().timestamp()
+        
+        contact_name = self._get_contact_name(
+            EscalationTier.RED if urgency == "urgent" else EscalationTier.ORANGE,
+            "physical_symptom",
+            {},
+        )
+        
+        if urgency == "urgent":
+            message = (
+                f"URGENT: {self.profile.preferred_address} said: \"{phrase}\". "
+                f"Please check on them now. "
+                f"Sahaara has urged them to get help immediately and call 112 if alone."
+            )
+        else:
+            message = (
+                f"{self.profile.preferred_address} said they're not feeling well: \"{phrase}\". "
+                f"Sahaara has offered to call {contact_name or 'a caregiver'} and stay with them. "
+                f"A check-in is recommended."
+            )
+        
+        safe_message = self._build_guardrail_safe_message(message)
+        
+        return Alert(
+            timestamp=now,
+            tier_from=EscalationTier.GREEN,
+            tier_to=EscalationTier.RED if urgency == "urgent" else EscalationTier.ORANGE,
+            reason=f"physical_symptom_{urgency}",
+            profile_id=self.profile.profile_id,
+            message=safe_message,
+            detail={
+                "phrase": phrase,
+                "matched_pattern": matched_pattern,
+                "urgency": urgency,
+                "contact_name": contact_name,
+            },
+        )
+
 
 if __name__ == "__main__":
     # Quick manual test

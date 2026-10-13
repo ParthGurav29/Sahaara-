@@ -118,278 +118,177 @@ function getEventDetailText(event: Event): string {
   }
 }
 
+function TierRow({ tier, isActive, status }: { tier: EscalationTier; isActive: boolean; status: EscalationStatus }) {
+  const tierIndex = TIER_ORDER.indexOf(tier);
+  return (
+    <div
+      className={`tier-row ${tier} ${isActive ? "active" : ""}`}
+      style={{ "--tier-color": getTierColor(tier) } as React.CSSProperties}
+    >
+      <span className="tier-num">{tierIndex + 1}</span>
+      <span className="tier-dot" />
+      <span className="tier-label">{TIER_LABELS[tier]}</span>
+      {isActive && status.yellow_reason && (
+        <span className="tier-reason">{TIER_REASONS[status.yellow_reason] || status.yellow_reason}</span>
+      )}
+      {isActive && status.yellow_duration_seconds && (
+        <span className="tier-duration">{formatDuration(status.yellow_duration_seconds)}</span>
+      )}
+    </div>
+  );
+}
+
+function getTierColor(tier: EscalationTier): string {
+  switch (tier) {
+    case "green": return "#7C93A8";
+    case "yellow": return "#E8A85C";
+    case "orange": return "#D47B2E";
+    case "red": return "#C2716B";
+  }
+}
+
+function StatusCard({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="status-card">
+      <span className="status-label">{label}</span>
+      <span className="status-value" style={{ color: color || "#2d2a26" }}>{value}</span>
+    </div>
+  );
+}
+
+function EventItem({ event, isAlert = false }: { event: Event | Alert; isAlert?: boolean }) {
+  const e = event as Event;
+  const bgColor = isAlert ? "#fef2f2" : EVENT_TYPE_COLORS[e.type] || "#faf9f6";
+  const textColor = isAlert ? "#991b1b" : EVENT_TYPE_TEXT_COLORS[e.type] || "#4a4642";
+  const time = formatTime(isAlert ? (event as Alert).timestamp_iso : e.timestamp_iso);
+  const typeLabel = isAlert ? "ALERT" : e.type.toUpperCase();
+  const detail = isAlert ? (event as Alert).message : getEventDetailText(e);
+  
+  return (
+    <div className="event-item-compact" style={{ background: bgColor, borderLeftColor: textColor }}>
+      <span className="event-time">{time}</span>
+      <span className="event-type-compact" style={{ background: bgColor, color: textColor }}>{typeLabel}</span>
+      <span className="event-detail-compact" style={{ color: textColor }}>{detail}</span>
+    </div>
+  );
+}
+
 export default function EscalationLadder() {
   const [status, setStatus] = useState<EscalationStatus | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch initial data
   const fetchData = async () => {
     try {
       const [statusRes, eventsRes] = await Promise.all([
         fetch("http://127.0.0.1:8000/escalation/status"),
-        fetch("http://127.0.0.1:8000/escalation/events?limit=50"),
+        fetch("http://127.0.0.1:8000/escalation/events?limit=20"),
       ]);
       const statusData = await statusRes.json();
       const eventsData = await eventsRes.json();
       setStatus(statusData);
-      setEvents(eventsData.events.reverse()); // newest first
+      setEvents(eventsData.events.reverse());
     } catch (err) {
       console.error("Failed to fetch escalation data:", err);
     }
   };
 
-  // Connect to SSE for real-time updates
   useEffect(() => {
     fetchData();
 
-    // Connect to SSE endpoint
     const es = new EventSource("http://127.0.0.1:8000/stream/events");
     esRef.current = es;
 
     es.onopen = () => setSseConnected(true);
     es.onerror = () => setSseConnected(false);
 
-    es.addEventListener("status", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setStatus(data);
-      } catch {}
-    });
+    const handlers: Record<string, (e: MessageEvent) => void> = {
+      status: (e) => { try { setStatus(JSON.parse(e.data)); } catch {} },
+      tier_change: (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          setEvents((prev) => [{ ...data, type: "tier_change" }, ...prev].slice(0, 20));
+          setStatus((prev) => prev ? { ...prev, tier: data.new_tier as EscalationTier } : null);
+        } catch {}
+      },
+      alert: (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          setAlerts((prev) => [data, ...prev].slice(0, 10));
+          setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 20));
+        } catch {}
+      },
+      consent_asked: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_asked" }, ...prev].slice(0, 20)); } catch {} },
+      consent_resolved: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_resolved" }, ...prev].slice(0, 20)); } catch {} },
+      repeat: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "repeat" }, ...prev].slice(0, 20)); } catch {} },
+      distress: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "distress" }, ...prev].slice(0, 20)); } catch {} },
+      system_health: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "system_health" }, ...prev].slice(0, 20)); } catch {} },
+      danger_statement: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "danger_statement" }, ...prev].slice(0, 20)); } catch {} },
+      fallback: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "fallback" }, ...prev].slice(0, 20)); } catch {} },
+    };
 
-    es.addEventListener("tier_change", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "tier_change" }, ...prev].slice(0, 50));
-        // Also update status from tier_change
-        setStatus((prev) => prev ? { ...prev, tier: data.new_tier as EscalationTier } : null);
-      } catch {}
-    });
-
-    es.addEventListener("alert", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setAlerts((prev) => [data, ...prev].slice(0, 20));
-        setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("consent_asked", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "consent_asked" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("consent_resolved", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "consent_resolved" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("repeat", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "repeat" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("distress", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "distress" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("system_health", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "system_health" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("danger_statement", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "danger_statement" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    es.addEventListener("fallback", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setEvents((prev) => [{ ...data, type: "fallback" }, ...prev].slice(0, 50));
-      } catch {}
-    });
-
-    // Initial fetch
-    fetchData();
+    Object.entries(handlers).forEach(([type, handler]) => es.addEventListener(type, handler));
 
     return () => {
+      Object.entries(handlers).forEach(([type, handler]) => es.removeEventListener(type, handler));
       es.close();
-      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
 
   if (!status) {
     return (
-      <div className="escalation-ladder">
-        <div className="ladder-tier" style={{ opacity: 0.5 }}>
-          <div className="tier-indicator">?</div>
-          <div className="tier-info">
-            <div className="tier-name">Loading...</div>
-          </div>
-        </div>
+      <div className="escalation-ladder-minimal">
+        <div className="tier-row loading">Loading...</div>
       </div>
     );
   }
 
+  const recentEvents = events.slice(0, 5);
+  const recentAlerts = alerts.slice(0, 3);
+
   return (
-    <div className="dashboard">
-      <div className="dashboard-header">
+    <div className="escalation-ladder-minimal">
+      {/* Header */}
+      <div className="dashboard-header-minimal">
         <div>
-          <h1 className="dashboard-title">Caregiver Dashboard</h1>
-          <p className="dashboard-subtitle">Rohan's view — Asha's session</p>
+          <h1 className="dashboard-title-minimal">Caregiver Dashboard</h1>
+          <p className="dashboard-subtitle-minimal">Asha's session</p>
         </div>
-        <div className="connection-status">
-          <span className={`connection-dot ${sseConnected ? "connected" : ""}`} />
-          <span>{sseConnected ? "Live (SSE)" : "Connecting..."}</span>
+        <div className="connection-status-minimal">
+          <span className={`connection-dot-minimal ${sseConnected ? "connected" : ""}`} />
+          <span>{sseConnected ? "Live" : "Connecting"}</span>
         </div>
       </div>
 
       {/* Status Cards */}
-      <div className="status-panel">
-        <div className="status-card">
-          <div className="status-label">Current Tier</div>
-          <div className={`status-value tier-${status.tier}`}>
-            {TIER_LABELS[status.tier]}
-          </div>
-        </div>
-        <div className="status-card">
-          <div className="status-label">Time in Tier</div>
-          <div className="status-value">{formatDuration(status.tier_duration_seconds)}</div>
-        </div>
-        <div className="status-card">
-          <div className="status-label">Repeat Count</div>
-          <div className="status-value">
-            {status.last_repeat_count} / {status.repeat_threshold}
-          </div>
-        </div>
-        <div className="status-card">
-          <div className="status-label">Distress Duration</div>
-          <div className="status-value">
-            {formatDuration(status.distress_duration_seconds)}
-          </div>
-        </div>
+      <div className="status-panel-minimal">
+        <StatusCard label="Tier" value={formatDuration(status.tier_duration_seconds)} color={getTierColor(status.tier)} />
+        <StatusCard label="Repeats" value={`${status.last_repeat_count} / ${status.repeat_threshold}`} />
+        <StatusCard label="Distress" value={formatDuration(status.distress_duration_seconds)} />
       </div>
 
-      {/* Escalation Ladder */}
-      <div className="escalation-ladder">
+      {/* Tier Ladder - compact */}
+      <div className="tier-ladder-minimal">
         {TIER_ORDER.map((tier) => (
-          <div
-            key={tier}
-            className={`ladder-tier ${tier} ${status.tier === tier ? "active" : ""}`}
-          >
-            <div className="tier-indicator">
-              {TIER_ORDER.indexOf(tier) + 1}
-            </div>
-            <div className="tier-pulse" />
-            <div className="tier-info">
-              <div className="tier-name">{TIER_LABELS[tier]}</div>
-              {status.tier === tier && status.yellow_reason && (
-                <div className="tier-reason">
-                  Reason: {TIER_REASONS[status.yellow_reason] || status.yellow_reason}
-                </div>
-              )}
-              {status.tier === tier && status.yellow_duration_seconds && (
-                <div className="tier-duration">
-                  Tier held: {formatDuration(status.yellow_duration_seconds)}
-                </div>
-              )}
-            </div>
-          </div>
+          <TierRow key={tier} tier={tier} isActive={status.tier === tier} status={status} />
         ))}
       </div>
 
-      {/* Alert Feed */}
-      <div style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#2d2a26" }}>
-          Alerts ({alerts.length})
-        </h3>
-        <div className="event-feed" style={{ maxHeight: 200 }}>
-          {alerts.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#999" }}>
-              No alerts yet
-            </div>
-          ) : (
-            alerts.map((alert, idx) => (
-              <div key={idx} className="event-item" style={{ borderLeft: "4px solid #E8A85C" }}>
-                <span className="event-time">{formatTime(alert.timestamp_iso)}</span>
-                <span className="event-type" style={{ background: "#fef2f2", color: "#991b1b" }}>
-                  ALERT
-                </span>
-                <span className="event-detail" style={{ fontWeight: 500 }}>
-                  {alert.message}
-                </span>
-              </div>
-            ))
+      {/* Alerts & Events - combined, limited, no scroll */}
+      <div className="feed-section-minimal">
+        <h3 className="feed-title">Recent Activity</h3>
+        <div className="feed-list-minimal">
+          {recentAlerts.length > 0 && recentAlerts.map((alert, idx) => (
+            <EventItem key={idx} event={alert} isAlert />
+          ))}
+          {recentEvents.length > 0 && recentEvents.map((event, idx) => (
+            <EventItem key={idx} event={event} />
+          ))}
+          {recentAlerts.length === 0 && recentEvents.length === 0 && (
+            <div className="feed-empty">No events yet</div>
           )}
-        </div>
-      </div>
-
-      {/* Event Feed */}
-      <div style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#2d2a26" }}>
-          Session Events ({events.length})
-        </h3>
-        <div className="event-feed">
-          {events.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: "#999" }}>
-              No events yet
-            </div>
-          ) : (
-            events.map((event, idx) => {
-              const bgColor = EVENT_TYPE_COLORS[event.type] || "#faf9f6";
-              const textColor = EVENT_TYPE_TEXT_COLORS[event.type] || "#4a4642";
-              return (
-                <div key={idx} className="event-item" style={{ background: bgColor, borderLeft: `4px solid ${textColor}` }}>
-                  <span className="event-time">{formatTime(event.timestamp_iso)}</span>
-                  <span className="event-type" style={{ background: bgColor, color: textColor }}>
-                    {event.type.toUpperCase()}
-                  </span>
-                  <span className="event-detail" style={{ color: textColor }}>
-                    {getEventDetailText(event)}
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* System Health */}
-      <div style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#2d2a26" }}>
-          System Health
-        </h3>
-        <div className="event-feed" style={{ maxHeight: 150 }}>
-          {events
-            .filter(e => e.type === "fallback" || e.type === "system_health")
-            .map((event, idx) => (
-              <div key={idx} className="event-item" style={{ background: "#e0e7ff", borderLeft: "4px solid #3730a3" }}>
-                <span className="event-time">{formatTime(event.timestamp_iso)}</span>
-                <span className="event-type" style={{ background: "#e0e7ff", color: "#3730a3" }}>
-                  {event.type.toUpperCase()}
-                </span>
-                <span className="event-detail" style={{ color: "#3730a3" }}>
-                  {getEventDetailText(event)}
-                </span>
-              </div>
-            ))}
         </div>
       </div>
     </div>
