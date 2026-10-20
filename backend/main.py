@@ -504,6 +504,7 @@ def list_profiles():
 @app.get("/profile/current")
 def get_current_profile():
     """Get the active profile's data."""
+    import conversation
     s = conversation._get_session()
     return {"profile_id": s.profile_id, "data": s.profile._data}
 
@@ -512,6 +513,7 @@ def get_current_profile():
 def update_profile(profile_id: str, body: dict):
     """Update a profile's data."""
     import database
+    import conversation
     data = body.get("data", body)
     database.save_profile(profile_id, data)
     # Refresh active session if it's the same profile

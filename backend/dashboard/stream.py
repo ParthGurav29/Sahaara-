@@ -16,7 +16,6 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
-from conversation import event_log, escalation_engine, consent_manager, alert_builder
 from events.event_log import EventType, EscalationTier
 from safety.escalation import EscalationTier
 
@@ -78,6 +77,12 @@ async def stream_events(request: Request):
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _sse_subscribers.append(queue)
     
+    # Resolve session state
+    import conversation
+    s = conversation._get_session()
+    _esc_engine = s.escalation_engine
+    _event_log = s.event_log
+    
     # Send initial status
     await queue.put({
         "type": "status",
@@ -87,11 +92,11 @@ async def stream_events(request: Request):
     async def event_generator():
         try:
             # Send initial events
-            for event in event_log.get_all()[-20:]:
+            for event in _event_log.get_all()[-20:]:
                 yield _format_sse(event.type.value, event.to_dict())
             
             # Send current status
-            yield _format_sse("status", escalation_engine.get_status())
+            yield _format_sse("status", _esc_engine.get_status())
             
             while True:
                 if await request.is_disconnected():
@@ -103,7 +108,7 @@ async def stream_events(request: Request):
                     yield _format_sse(message["type"], message["data"])
                 except asyncio.TimeoutError:
                     # Send periodic status update
-                    yield _format_sse("status", escalation_engine.get_status())
+                    yield _format_sse("status", _esc_engine.get_status())
                     
         except Exception as e:
             yield _format_sse("error", {"message": str(e)})
