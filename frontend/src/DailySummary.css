@@ -181,3 +181,124 @@
     grid-template-columns: 1fr;
   }
 }
+/* Suggested Facts */
+.suggestions-loading {
+  padding: 20px;
+  color: #8a847c;
+  text-align: center;
+}
+
+.suggestions-empty {
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.suggestions-empty p {
+  color: #5c5650;
+  margin: 0 0 8px;
+}
+
+.suggestions-hint {
+  font-size: 13px;
+  color: #8a847c !important;
+  max-width: 420px;
+  margin: 12px auto 0 !important;
+  line-height: 1.5;
+}
+
+.suggestions-list {
+  padding: 12px 0;
+}
+
+.suggestions-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2d2a26;
+  margin: 0 0 4px;
+}
+
+.suggestions-subtitle {
+  font-size: 12px;
+  color: #8a847c;
+  margin: 0 0 16px;
+}
+
+.suggestion-card {
+  background: #faf9f6;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.suggestion-card__meta {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.suggestion-card__type {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.suggestion-card__type--like { background: #dcfce7; color: #166534; }
+.suggestion-card__type--preference { background: #e0e7ff; color: #3730a3; }
+.suggestion-card__type--memory { background: #fef3c7; color: #b45309; }
+.suggestion-card__type--routine { background: #fce7f3; color: #be185d; }
+.suggestion-card__type--person { background: #d4e6f1; color: #2c6fad; }
+
+.suggestion-card__field {
+  color: #8a847c;
+}
+
+.suggestion-card__value {
+  font-size: 14px;
+  color: #2d2a26;
+  margin: 0 0 6px;
+}
+
+.suggestion-card__source {
+  font-size: 12px;
+  color: #8a847c;
+  font-style: italic;
+  margin: 0 0 12px;
+}
+
+.suggestion-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.suggestion-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.suggestion-btn--approve {
+  background: #166534;
+  color: #fff;
+}
+
+.suggestion-btn--approve:hover {
+  background: #14532d;
+}
+
+.suggestion-btn--reject {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.suggestion-btn--reject:hover {
+  background: #fee2e2;
+}

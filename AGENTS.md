@@ -322,6 +322,12 @@ Multiple prompt/guardrail changes applied together:
 - **`memory/data/memory_box/README.txt`:** Added clip labeling — `priya_hello.mp3` is a 0-byte placeholder
 - **Note:** No playback endpoint exists yet (`/memory-box/clip/{filename}` was reported as working but is not in the codebase). `pydub` + `ffmpeg` needed when playback is added.
 
+### 2026-10-20 — Phase 2: Persistent memory (F2.1-F2.3)
+- **F2.1:** `memory/summarizer.py` — generates 2-3 sentence summaries from event log. Saved to `session_summaries.json` on reset. `{session_context_block}` in system prompt provides "yesterday" context.
+- **F2.2:** `memory/suggestions.py` — detects music, memories, routines, food from conversation. `SuggestionQueue` holds pending items. "Suggested Facts" tab in dashboard with approve/reject. Writes to profile JSON on approve. Nothing auto-added.
+- **F2.3:** Context trace in every Sahaara CONVERSATION_TURN. `GET /turn/context` returns human-readable explanation. "Why did Sahaara say this?" panel auto-updates in dashboard.
+- **Harness:** Guardrail 1.000, struct stable.
+
 ### 2026-10-20 — Phase 1: Caregiver dashboard depth (F1.1-F1.5)
 - **F1.2 Conversation turns:** Added `CONVERSATION_TURN` event type + `log_conversation_turn()` method. Wireed into `conversation.py` — both user messages and Sahaara replies are persisted to event log. Frontend SSE handlers + feed display added.
 - **F1.1 Alert center:** Added `AlertStore` (in-memory alert store with ack/unread tracking). Added `status`, `acknowledged_at`, `acknowledged_note` to `Alert` dataclass. `ALERT_ACKNOWLEDGED` event type logged on ack. `POST /alerts/{id}/acknowledge` + `GET /alerts` endpoints. `AlertCenter.tsx` component — bell icon with unread badge, alert dropdown with tier color, timestamp, reason, ack button. Red alerts flash via CSS animation. "Seen by Rohan" shown only after acknowledged.

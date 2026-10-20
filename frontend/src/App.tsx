@@ -3,6 +3,7 @@ import { Component, useState } from "react";
 import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
+import SuggestedFacts from "./SuggestedFacts";
 import "./App.css";
 
 class ErrorBoundary extends Component<
@@ -36,7 +37,7 @@ function App() {
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<"live" | "summary">("live");
+  const [view, setView] = useState<"live" | "summary" | "suggestions">("live");
   const [showChat, setShowChat] = useState(false);
 
   async function sendMessage() {
@@ -87,6 +88,12 @@ function App() {
         >
           Daily Summary
         </button>
+        <button
+          className={`tab ${view === "suggestions" ? "active" : ""}`}
+          onClick={() => { setView("suggestions"); setShowChat(false); }}
+        >
+          Suggested Facts
+        </button>
       </nav>
 
       {view === "live" && (
@@ -111,6 +118,13 @@ function App() {
 
       {view === "summary" && (
         <DailySummaryScreen />
+      )}
+
+      {view === "suggestions" && (
+        <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
+          <h2 className="view-title">Suggested Facts</h2>
+          <SuggestedFacts />
+        </div>
       )}
 
       {/* Collapsible chat fallback */}

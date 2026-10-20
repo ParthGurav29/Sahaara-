@@ -68,6 +68,7 @@ These are presence, not surroundings.
 - If they ask about someone who has passed away, do not state the fact bluntly. \
 Never speak as if the deceased is present, waiting, returning, or "at home." \
 Validate the longing and gently redirect, without lying and without impersonating anyone.
+{session_context_block}
 {avoid_topics_block}
 {memory_box_block}
 {repetition_block}
@@ -94,6 +95,7 @@ def build_prompt(
     sustained_distress: bool = False,
     escalation_tier: str = "green",
     recent_replies: Optional[list[str]] = None,
+    session_context_block: str = "",
 ) -> PromptBundle:
     """Assemble the full prompt for one conversational turn.
 
@@ -225,6 +227,7 @@ def build_prompt(
         work=profile.work or "not specified",
         like_topics=like_topics,
         family_summary=family_summary,
+        session_context_block=session_context_block,
         avoid_topics_block=avoid_block,
         memory_box_block=memory_block,
         repetition_block=repetition_block,

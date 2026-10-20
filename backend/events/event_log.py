@@ -355,17 +355,21 @@ class EventLog:
         speaker: str,  # "user" or "sahaara"
         text: str,
         emotion: str = "neutral",
+        context_trace: Optional[dict] = None,
     ) -> Event:
         """Log a full conversation turn."""
+        detail = {
+            "speaker": speaker,
+            "text": text,
+            "emotion": emotion,
+        }
+        if context_trace:
+            detail["context_trace"] = context_trace
         event = Event(
             timestamp=time.time(),
             type=EventType.CONVERSATION_TURN,
             profile_id=self.profile_id,
-            detail={
-                "speaker": speaker,
-                "text": text,
-                "emotion": emotion,
-            },
+            detail=detail,
         )
         self.append(event)
         return event

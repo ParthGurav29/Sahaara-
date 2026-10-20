@@ -68,6 +68,15 @@ consent_manager = ConsentManager(
 alert_store = AlertStore()
 alert_builder = AlertBuilder(event_log, profile, alert_store=alert_store)
 
+# Load previous session summaries for context injection
+from memory.summarizer import load_recent_summaries, build_session_context_block
+_session_summaries = load_recent_summaries()
+_session_context_block = build_session_context_block(_session_summaries, profile.preferred_address)
+
+# Initialize suggestion queue for caregiver-approved profile facts
+from memory.suggestions import SuggestionQueue, detect_suggestions
+suggestion_queue = SuggestionQueue()
+
 # Unresponsive detection: track when Sahaara last spoke
 UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
 _last_sahaara_prompt_time: float = 0.0
@@ -278,6 +287,7 @@ def process_turn(user_message: str) -> dict:
         sustained_distress=sustained,
         escalation_tier=current_tier,
         recent_replies=recent_replies,
+        session_context_block=_session_context_block,
     )
 
     # ---- 3. Call the LLM ----
@@ -303,7 +313,35 @@ def process_turn(user_message: str) -> dict:
             detail={"violations": guardrail.violations},
         )
 
-    # ---- 5. Detect consent request in response ----
+    # ---- 5. Build context trace for explainability ----
+    context_trace = {
+        "profile_facts_used": {
+            "preferred_address": profile.preferred_address,
+            "hometown": profile.hometown,
+            "work": profile.work,
+        },
+        "intent": {
+            "emotion": intent.emotion,
+            "is_emotional_need": intent.is_emotional_need,
+            "is_danger_statement": intent.is_danger_statement,
+            "is_physical_urgent": intent.is_physical_urgent,
+            "is_physical_general": intent.is_physical_general,
+        },
+        "memory_box": {
+            "matched": memory_match is not None,
+            "family_member": memory_match.family_member_name if memory_match else None,
+            "clip": memory_match.clip_filename if memory_match else None,
+        },
+        "escalation": {
+            "tier": current_tier,
+            "is_repeated_question": is_repeat,
+            "sustained_distress": sustained,
+        },
+        "recent_replies_count": len(recent_replies) if recent_replies else 0,
+        "used_fallback": used_fallback,
+    }
+
+    # ---- 6. Detect consent request in response ----
     # If Sahaara asks "Would you like me to call [Name]?", start consent flow
     consent_triggered = _detect_consent_request(response_text, current_tier)
     if consent_triggered:
@@ -323,7 +361,13 @@ def process_turn(user_message: str) -> dict:
     
     # Log conversation turns to event log for dashboard timeline
     event_log.log_conversation_turn(speaker="user", text=user_message, emotion=intent.emotion)
-    event_log.log_conversation_turn(speaker="sahaara", text=response_text, emotion=intent.emotion)
+    event_log.log_conversation_turn(speaker="sahaara", text=response_text, emotion=intent.emotion,
+                                     context_trace=context_trace)
+    
+    # Detect potential profile facts from user message
+    detected = detect_suggestions(user_message, profile.get_likes(), profile.get_family())
+    for s in detected:
+        suggestion_queue.add(s)
     _last_sahaara_prompt_time = time.time()
 
     return {
@@ -391,7 +435,18 @@ def reset_pipeline() -> None:
     memory_box, and clears module-level globals. Does NOT reload profile/provider.
     """
     global session_notes, event_log, escalation_engine, consent_manager, alert_builder, alert_store
-    global _last_sahaara_prompt_time, _unresponsive_enabled
+    global _last_sahaara_prompt_time, _unresponsive_enabled, _session_context_block
+    
+    # Save session summary before clearing events
+    from memory.summarizer import generate_summary_from_events, save_summary, load_recent_summaries, build_session_context_block
+    if event_log and event_log.get_all():
+        summary = generate_summary_from_events(event_log.get_all(), profile.preferred_address)
+        save_summary(summary)
+    
+    # Clear suggestion queue
+    from memory.suggestions import SuggestionQueue
+    global suggestion_queue
+    suggestion_queue.clear()
     
     from events.event_log import init_event_log, set_event_log
     from safety.escalation import EscalationEngine, EscalationConfig
@@ -430,3 +485,7 @@ def reset_pipeline() -> None:
     
     # Point global event log to new instance
     set_event_log(event_log)
+    
+    # Reload previous session summaries for the new session's context
+    _session_summaries = load_recent_summaries()
+    _session_context_block = build_session_context_block(_session_summaries, profile.preferred_address)

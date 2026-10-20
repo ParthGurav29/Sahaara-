@@ -129,20 +129,32 @@ def daily_summary():
 def demo_reset():
     """Reset all demo state for a clean re-run."""
     from conversation import (
-        event_log, session_notes, escalation_engine, consent_manager, memory_box, alert_store,
-        _last_sahaara_prompt_time, _unresponsive_enabled
+        event_log, session_notes, escalation_engine, consent_manager, memory_box, alert_store, suggestion_queue,
+        _last_sahaara_prompt_time, _unresponsive_enabled, profile
     )
+    
+    # Save session summary before clearing events
+    from memory.summarizer import generate_summary_from_events, save_summary, load_recent_summaries, build_session_context_block
+    if event_log and event_log.get_all():
+        summary = generate_summary_from_events(event_log.get_all(), profile.preferred_address)
+        save_summary(summary)
+    
     event_log.clear()
     session_notes.reset()
     escalation_engine.reset()
     consent_manager.reset()
     memory_box.reset()
     alert_store.clear()
+    suggestion_queue.clear()
     
     # Reset module-level globals
     import conversation
     conversation._last_sahaara_prompt_time = 0.0
     conversation._unresponsive_enabled = False
+    
+    # Reload session context for the new session
+    summaries = load_recent_summaries()
+    conversation._session_context_block = build_session_context_block(summaries, profile.preferred_address)
     
     # Re-initialize event log with session_start
     event_log.log_session_start()
@@ -236,6 +248,145 @@ def alert_context(alert_id: str, turns: int = 10):
         "tier_path": tier_path,
         "recommended_action": alert.message,
     }
+
+
+@app.get("/suggestions")
+def get_suggestions():
+    """Get pending profile fact suggestions for caregiver review."""
+    from conversation import suggestion_queue
+    return {
+        "suggestions": [s.to_dict() for s in suggestion_queue.get_all()],
+        "total": len(suggestion_queue.get_all()),
+    }
+
+
+@app.post("/suggestions/{suggestion_id}/approve")
+def approve_suggestion(suggestion_id: str):
+    """Approve a suggested fact and apply it to the profile."""
+    from conversation import suggestion_queue, profile, event_log
+    from events.event_log import EventType
+    import time
+    
+    suggestion = suggestion_queue.get_by_id(suggestion_id)
+    if suggestion is None:
+        return {"error": "Suggestion not found"}
+    
+    # Apply to profile
+    field = suggestion.suggested_field
+    value = suggestion.suggested_value
+    
+    if field == "likes.music":
+        if value not in profile.get_likes().get("music", []):
+            profile._data.setdefault("likes", {}).setdefault("music", []).append(value)
+    elif field == "likes.topics":
+        if value not in profile.get_likes().get("topics", []):
+            profile._data.setdefault("likes", {}).setdefault("topics", []).append(value)
+    elif field == "likes.food":
+        if value not in profile.get_likes().get("food", []):
+            profile._data.setdefault("likes", {}).setdefault("food", []).append(value)
+    elif field == "key_events":
+        profile._data.setdefault("life_story", {}).setdefault("key_events", []).append(value)
+    elif field == "daily_routine":
+        profile._data.setdefault("daily_routine", {}).setdefault("notes", []).append(value)
+    elif field == "family":
+        profile._data.setdefault("family", []).append({
+            "name": value, "relationship": "mentioned", "notes": "Suggested by Sahaara, approved by caregiver"
+        })
+    
+    # Remove from queue
+    suggestion_queue.remove(suggestion_id)
+    
+    # Log event
+    from events.event_log import Event as Evt
+    event = Evt(
+        timestamp=time.time(),
+        type=EventType.SYSTEM_HEALTH,
+        profile_id=profile.profile_id,
+        detail={
+            "message": f"Suggestion approved: {value} -> {field}",
+            "severity": "info",
+        },
+    )
+    event_log.append(event)
+    
+    return {"status": "ok", "applied_field": field, "applied_value": value}
+
+
+@app.post("/suggestions/{suggestion_id}/reject")
+def reject_suggestion(suggestion_id: str):
+    """Reject a suggested fact."""
+    from conversation import suggestion_queue
+    
+    suggestion = suggestion_queue.get_by_id(suggestion_id)
+    if suggestion is None:
+        return {"error": "Suggestion not found"}
+    
+    suggestion_queue.remove(suggestion_id)
+    return {"status": "ok", "rejected": suggestion.suggested_value}
+
+
+@app.get("/turn/context")
+def turn_context(turn_index: int = -1):
+    """Get the explainability context for a Sahaara turn."""
+    from conversation import event_log
+    from events.event_log import EventType
+    
+    turns = event_log.get_events(EventType.CONVERSATION_TURN)
+    sahaara_turns = [t for t in turns if t.detail.get("speaker") == "sahaara"]
+    if not sahaara_turns:
+        return {"error": "No Sahaara turns found", "explanation": "No responses yet."}
+    
+    if turn_index < 0 or turn_index >= len(sahaara_turns):
+        turn_index = len(sahaara_turns) - 1
+    
+    turn = sahaara_turns[turn_index]
+    context = turn.detail.get("context_trace", {})
+    
+    return {
+        "turn_text": turn.detail.get("text", "")[:150],
+        "context_trace": context,
+        "explanation": _build_explanation_text(context),
+    }
+
+
+def _build_explanation_text(context: dict) -> str:
+    """Build a human-readable explanation from context trace."""
+    parts = []
+    profile = context.get("profile_facts_used", {})
+    intent = context.get("intent", {})
+    memory = context.get("memory_box", {})
+    esc = context.get("escalation", {})
+    
+    if profile.get("preferred_address"):
+        parts.append(f"Sahaara knows {profile['preferred_address']} is from {profile.get('hometown', 'home')} and was {profile.get('work', 'a teacher')}")
+    
+    emotion = intent.get("emotion", "neutral")
+    if emotion in ("anxious", "distressed", "sad"):
+        parts.append(f"detected {emotion} feeling in her words")
+    
+    if memory.get("matched"):
+        parts.append(f"offered Memory Box clip from {memory.get('family_member')}")
+    
+    if esc.get("is_repeated_question"):
+        parts.append("noticed repeated question, kept same warmth")
+    
+    if esc.get("sustained_distress"):
+        parts.append("noted sustained distress, adjusted approach")
+    
+    tier = esc.get("tier", "green")
+    if tier != "green":
+        parts.append(f"escalation at {tier} tier")
+    
+    if context.get("recent_replies_count", 0) > 0:
+        parts.append(f"aware of {context.get('recent_replies_count')} recent replies to vary response")
+    
+    if context.get("used_fallback"):
+        parts.append("used safe fallback response")
+    
+    if not parts:
+        return "Sahaara responded based on Asha's profile and the current conversation."
+    
+    return ". ".join(parts) + "."
 
 
 @app.post("/monitoring/pause")

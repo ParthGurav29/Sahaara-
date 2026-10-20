@@ -187,7 +187,18 @@ export default function EscalationLadder() {
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
+  const [whyExplanation, setWhyExplanation] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
+
+  const fetchWhyContext = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/turn/context");
+      const data = await res.json();
+      if (data.explanation) {
+        setWhyExplanation(data.explanation);
+      }
+    } catch {}
+  };
 
   const fetchData = async () => {
     try {
@@ -236,7 +247,15 @@ export default function EscalationLadder() {
       system_health: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "system_health" }, ...prev].slice(0, 40)); } catch {} },
       danger_statement: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "danger_statement" }, ...prev].slice(0, 40)); } catch {} },
       fallback: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "fallback" }, ...prev].slice(0, 40)); } catch {} },
-      conversation_turn: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "conversation_turn" }, ...prev].slice(0, 40)); } catch {} },
+      conversation_turn: (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          setEvents((prev) => [{ ...data, type: "conversation_turn" }, ...prev].slice(0, 40));
+          if (data.detail?.speaker === "sahaara") {
+            fetchWhyContext();
+          }
+        } catch {}
+      },
       memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
     };
 
@@ -321,6 +340,14 @@ export default function EscalationLadder() {
           )}
         </div>
       </div>
+
+      {/* Why did Sahaara say this? */}
+      {whyExplanation && (
+        <div className="why-panel-minimal">
+          <h4 className="why-panel__title">Why did Sahaara say this?</h4>
+          <p className="why-panel__text">{whyExplanation}</p>
+        </div>
+      )}
     </div>
   );
 }
