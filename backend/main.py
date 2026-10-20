@@ -23,7 +23,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from conversation import process_turn, provider, escalation_engine, event_log, alert_builder
+from conversation import process_turn, provider, _get_session
 from dashboard.stream import router as stream_router, set_main_loop
 from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
@@ -117,7 +117,8 @@ def health():
 @app.get("/escalation/status")
 def escalation_status():
     """Current escalation tier and status for dashboard."""
-    return escalation_engine.get_status()
+    import conversation
+    return conversation._get_session().escalation_engine.get_status()
 
 
 @app.get("/escalation/events")
@@ -127,11 +128,15 @@ def escalation_events(
     limit: int = 100,
 ):
     """Get recent events from the event log."""
+    import conversation
+    s = conversation._get_session()
+    event_log = s.event_log
+    from events.event_log import EventType
+    
     events = event_log.get_all()
     
     # Filter by type
     if event_type:
-        from events.event_log import EventType
         try:
             et = EventType(event_type)
             events = [e for e in events if e.type == et]
@@ -154,24 +159,32 @@ def escalation_events(
 @app.get("/escalation/summary")
 def escalation_summary():
     """Session summary for daily summary screen."""
-    return event_log.summary()
+    import conversation
+    return conversation._get_session().event_log.summary()
 
 
 @app.get("/daily-summary")
 def daily_summary():
     """Generate daily summary from event log for caregiver dashboard."""
-    from conversation import profile
-    summary = generate_daily_summary(event_log, profile)
+    import conversation
+    s = conversation._get_session()
+    summary = generate_daily_summary(s.event_log, s.profile)
     return summary.__dict__
 
 
 @app.post("/demo/reset")
 def demo_reset():
     """Reset all demo state for a clean re-run."""
-    from conversation import (
-        event_log, session_notes, escalation_engine, consent_manager, memory_box, alert_store, suggestion_queue,
-        _last_sahaara_prompt_time, _unresponsive_enabled, profile
-    )
+    import conversation
+    s = conversation._get_session()
+    event_log = s.event_log
+    session_notes = s.session_notes
+    escalation_engine = s.escalation_engine
+    consent_manager = s.consent_manager
+    memory_box = s.memory_box
+    alert_store = s.alert_store
+    suggestion_queue = s.suggestion_queue
+    profile = s.profile
     
     # Save session summary before clearing events
     from memory.summarizer import generate_summary_from_events, save_summary, load_recent_summaries, build_session_context_block
@@ -187,14 +200,13 @@ def demo_reset():
     alert_store.clear()
     suggestion_queue.clear()
     
-    # Reset module-level globals
-    import conversation
-    conversation._last_sahaara_prompt_time = 0.0
-    conversation._unresponsive_enabled = False
+    # Reset session-level state
+    s._last_sahaara_prompt_time = 0.0
+    s._unresponsive_enabled = False
     
     # Reload session context for the new session
     summaries = load_recent_summaries()
-    conversation._session_context_block = build_session_context_block(summaries, profile.preferred_address)
+    s.session_context_block = build_session_context_block(summaries, s.profile.preferred_address)
     
     # Re-initialize event log with session_start
     event_log.log_session_start()
@@ -208,7 +220,8 @@ def get_alerts(
     limit: int = 50,
 ):
     """Get alerts for the dashboard. Now backed by AlertStore."""
-    from conversation import alert_store
+    import conversation
+    alert_store = conversation._get_session().alert_store
     alerts = alert_store.get_all(status=status)
     return {
         "alerts": [a.to_dict() for a in alerts[-limit:]],
@@ -219,7 +232,10 @@ def get_alerts(
 @app.post("/alerts/{alert_id}/acknowledge")
 def acknowledge_alert(alert_id: str, body: dict = None):
     """Acknowledge an alert with an optional note."""
-    from conversation import alert_store, event_log
+    import conversation
+    s = conversation._get_session()
+    alert_store = s.alert_store
+    event_log = s.event_log
     
     note = (body or {}).get("note", "")
     alert = alert_store.acknowledge(alert_id, note)
@@ -233,7 +249,11 @@ def acknowledge_alert(alert_id: str, body: dict = None):
 @app.get("/alerts/test")
 def test_alert():
     """Test endpoint to build a sample alert."""
-    from conversation import alert_builder, alert_store, escalation_engine
+    import conversation
+    s = conversation._get_session()
+    alert_builder = s.alert_builder
+    alert_store = s.alert_store
+    escalation_engine = s.escalation_engine
     from safety.escalation import EscalationTier
     
     # Clear any existing test alerts
@@ -251,7 +271,10 @@ def test_alert():
 @app.get("/alerts/{alert_id}/context")
 def alert_context(alert_id: str, turns: int = 10):
     """Get an alert with surrounding conversation turns for detail view."""
-    from conversation import alert_store, event_log
+    import conversation
+    s = conversation._get_session()
+    alert_store = s.alert_store
+    event_log = s.event_log
     from events.event_log import EventType
     
     alert = alert_store.get_by_id(alert_id)
@@ -293,7 +316,8 @@ def alert_context(alert_id: str, turns: int = 10):
 @app.get("/suggestions")
 def get_suggestions():
     """Get pending profile fact suggestions for caregiver review."""
-    from conversation import suggestion_queue
+    import conversation
+    suggestion_queue = conversation._get_session().suggestion_queue
     return {
         "suggestions": [s.to_dict() for s in suggestion_queue.get_all()],
         "total": len(suggestion_queue.get_all()),
@@ -303,7 +327,11 @@ def get_suggestions():
 @app.post("/suggestions/{suggestion_id}/approve")
 def approve_suggestion(suggestion_id: str):
     """Approve a suggested fact and apply it to the profile."""
-    from conversation import suggestion_queue, profile, event_log
+    import conversation
+    s = conversation._get_session()
+    suggestion_queue = s.suggestion_queue
+    profile = s.profile
+    event_log = s.event_log
     from events.event_log import EventType
     import time
     
@@ -355,7 +383,8 @@ def approve_suggestion(suggestion_id: str):
 @app.post("/suggestions/{suggestion_id}/reject")
 def reject_suggestion(suggestion_id: str):
     """Reject a suggested fact."""
-    from conversation import suggestion_queue
+    import conversation
+    suggestion_queue = conversation._get_session().suggestion_queue
     
     suggestion = suggestion_queue.get_by_id(suggestion_id)
     if suggestion is None:
@@ -368,7 +397,8 @@ def reject_suggestion(suggestion_id: str):
 @app.get("/turn/context")
 def turn_context(turn_index: int = -1):
     """Get the explainability context for a Sahaara turn."""
-    from conversation import event_log
+    import conversation
+    event_log = conversation._get_session().event_log
     from events.event_log import EventType
     
     turns = event_log.get_events(EventType.CONVERSATION_TURN)
@@ -432,16 +462,16 @@ def _build_explanation_text(context: dict) -> str:
 @app.post("/monitoring/pause")
 def pause_monitoring():
     """Pause escalation monitoring."""
-    from conversation import escalation_engine
-    escalation_engine.config.demo_mode = False  # effectively pauses
+    import conversation
+    conversation._get_session().escalation_engine.config.demo_mode = False  # effectively pauses
     return {"status": "ok", "monitoring": "paused"}
 
 
 @app.post("/monitoring/resume")
 def resume_monitoring():
     """Resume escalation monitoring."""
-    from conversation import escalation_engine
-    escalation_engine.config.demo_mode = True
+    import conversation
+    conversation._get_session().escalation_engine.config.demo_mode = True
     return {"status": "ok", "monitoring": "active"}
 
 

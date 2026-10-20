@@ -277,36 +277,16 @@ def reset_pipeline() -> None:
 
 # ---- Module-level accessors for main.py compatibility ----
 
-@property
-def _profile(self=None):
-    s = _get_session()
-    return s.profile
-
-# For main.py access
 def get_session_manager():
     return _session_manager
 
-# Convenience: expose common state for main.py endpoints
-# These are lazy — they resolve from the active session each call
-
-def _get_attr(name):
-    s = _get_session()
-    return getattr(s, name)
-
-# Don't break existing imports from main.py
-# main.py imports: event_log, session_notes, escalation_engine, consent_manager,
-# memory_box, alert_store, suggestion_queue, profile
-
-class _LazyAttr:
-    def __getattr__(self, name):
-        s = _get_session()
-        return getattr(s, name)
-
-# Create lazy proxy for main.py compatibility
-# This allows `from conversation import event_log` to work
-import sys
-_lazy = _LazyAttr()
-_mod = sys.modules[__name__]
-for _attr_name in ['event_log', 'session_notes', 'escalation_engine', 'consent_manager',
-                    'memory_box', 'alert_store', 'alert_builder', 'suggestion_queue', 'profile']:
-    setattr(_mod, _attr_name, property(lambda self, n=_attr_name: getattr(_get_session(), n)))
+# Module-level exports — set to None, real values resolved via _get_session()
+event_log = None
+session_notes = None
+escalation_engine = None
+consent_manager = None
+memory_box = None
+alert_store = None
+alert_builder = None
+suggestion_queue = None
+profile = None

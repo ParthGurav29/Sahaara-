@@ -81,7 +81,7 @@ async def stream_events(request: Request):
     # Send initial status
     await queue.put({
         "type": "status",
-        "data": escalation_engine.get_status(),
+        "data": _esc_engine.get_status(),
     })
     
     async def event_generator():
@@ -140,19 +140,25 @@ async def websocket_events(websocket: WebSocket):
     """
     await websocket.accept()
     
+    # Resolve session state
+    import conversation
+    s = conversation._get_session()
+    _event_log = s.event_log
+    _esc_engine = s.escalation_engine
+    
     # Send initial status
     await websocket.send_json({
         "type": "status",
-        "data": escalation_engine.get_status(),
+        "data": _esc_engine.get_status(),
     })
     
     # Track last event index for this connection
-    last_event_index = len(event_log.get_all())
+    last_event_index = len(_event_log.get_all())
     
     try:
         while True:
             # Check for new events
-            current_events = event_log.get_all()
+            current_events = _event_log.get_all()
             if len(current_events) > last_event_index:
                 new_events = current_events[last_event_index:]
                 for event in new_events:
@@ -169,11 +175,11 @@ async def websocket_events(websocket: WebSocket):
                 if message.get("action") == "get_status":
                     await websocket.send_json({
                         "type": "status",
-                        "data": escalation_engine.get_status(),
+                        "data": _esc_engine.get_status(),
                     })
                 elif message.get("action") == "get_events":
                     limit = message.get("limit", 50)
-                    events = event_log.get_all()[-limit:]
+                    events = _event_log.get_all()[-limit:]
                     await websocket.send_json({
                         "type": "events",
                         "data": [e.to_dict() for e in events],
@@ -188,7 +194,7 @@ async def websocket_events(websocket: WebSocket):
             await asyncio.sleep(2.0)
             await websocket.send_json({
                 "type": "status",
-                "data": escalation_engine.get_status(),
+                "data": _esc_engine.get_status(),
             })
             
     except WebSocketDisconnect:
@@ -231,7 +237,14 @@ async def _broadcast_event(event_type: str, data: dict):
 def setup_stream_hooks():
     """Setup hooks on conversation state for SSE broadcasting.
     Must be called at app startup when a session is active."""
-    from conversation import event_log, escalation_engine, consent_manager, alert_builder
+    import conversation
+    from safety.consent import ConsentState as CS
+    
+    s = conversation._get_session()
+    event_log = s.event_log
+    escalation_engine = s.escalation_engine
+    consent_manager = s.consent_manager
+    alert_builder = s.alert_builder
     
     # Hook into event_log to broadcast new events
     _original_append = event_log.append
@@ -262,7 +275,7 @@ def setup_stream_hooks():
     def _broadcast_interpret(user_message):
         state_before = consent_manager.state
         result = _original_interpret(user_message)
-        if state_before == consent_manager.ConsentState.PENDING and result != state_before:
+        if state_before == CS.PENDING and result != state_before:
             contact = consent_manager.context.contact_name if consent_manager.context else None
             if contact:
                 _schedule_broadcast("consent_resolved", {
