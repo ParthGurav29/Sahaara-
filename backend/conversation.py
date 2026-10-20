@@ -77,6 +77,9 @@ _session_context_block = build_session_context_block(_session_summaries, profile
 from memory.suggestions import SuggestionQueue, detect_suggestions
 suggestion_queue = SuggestionQueue()
 
+# Scheduler reference — set by main.py at startup
+_scheduler = None
+
 # Unresponsive detection: track when Sahaara last spoke
 UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
 _last_sahaara_prompt_time: float = 0.0
@@ -211,6 +214,36 @@ def process_turn(user_message: str) -> dict:
             escalation_engine.force_tier(EscalationTier.RED, "unresponsive")
 
     # ---- 1. Memory / context gathering ----
+    
+    # Check for safe task actions before memory match
+    from actions import detect_action, tell_time, play_song, set_reminder
+    action_result = detect_action(user_message)
+    action_context = ""
+    if action_result:
+        atype = action_result["action_type"]
+        params = action_result.get("params", {})
+        if atype == "tell_time":
+            result = tell_time()
+            if result.success:
+                action_context = f"[FACT: {result.result_text}]"
+        elif atype == "play_song":
+            result = play_song(params.get("song_name", ""))
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
+        elif atype == "set_reminder":
+            # Use module-level scheduler reference
+            result = set_reminder(params.get("text", ""), params.get("minutes", 5), scheduler=_scheduler)
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
+    
+    # Inject action context into user message
+    if action_context:
+        user_message_with_action = f"{action_context}\n\nUser said: {user_message}"
+    else:
+        user_message_with_action = user_message
+    
     memory_match = memory_box.match(user_message)
     
     # Log Memory Box play event
@@ -280,7 +313,7 @@ def process_turn(user_message: str) -> dict:
     recent_replies = session_notes.get_recent_sahaara_replies(4)
     bundle = build_prompt(
         profile,
-        user_message,
+        user_message_with_action,
         intent,
         memory_box_match=memory_match,
         is_repeated_question=is_repeat,

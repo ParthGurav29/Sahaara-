@@ -67,6 +67,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   system_health: "#e0e7ff",
   conversation_turn: "#f5f2ed",
   memory_box_played: "#e8f5e9",
+  sahaara_initiative: "#e8f0fe",
 };
 
 const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
@@ -82,6 +83,7 @@ const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
   system_health: "#3730a3",
   conversation_turn: "#5c5650",
   memory_box_played: "#2e7d32",
+  sahaara_initiative: "#1a56db",
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -122,6 +124,8 @@ function getEventDetailText(event: Event): string {
       return `${d.speaker === "user" ? "Asha" : "Sahaara"}: ${(d.text || "").slice(0, 80)}`;
     case "memory_box_played":
       return `Played: ${d.clip_filename} (${d.triggered_by})`;
+    case "sahaara_initiative":
+      return `${d.text?.slice(0, 80) || ""}`;
     default:
       return JSON.stringify(d).slice(0, 100);
   }
@@ -188,6 +192,7 @@ export default function EscalationLadder() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
   const [whyExplanation, setWhyExplanation] = useState<string | null>(null);
+  const [schedulerPaused, setSchedulerPaused] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   const fetchWhyContext = async () => {
@@ -257,6 +262,7 @@ export default function EscalationLadder() {
         } catch {}
       },
       memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
+      sahaara_initiative: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "sahaara_initiative" }, ...prev].slice(0, 40)); } catch {} },
     };
 
     Object.entries(handlers).forEach(([type, handler]) => es.addEventListener(type, handler));
@@ -322,6 +328,19 @@ export default function EscalationLadder() {
           title="Reset demo state"
         >
           ↺ Reset Demo
+        </button>
+        <button
+          className={`control-btn ${schedulerPaused ? "control-btn--paused" : "control-btn--active"}`}
+          onClick={async () => {
+            try {
+              const res = await fetch("http://127.0.0.1:8000/scheduler/toggle", { method: "POST" });
+              const data = await res.json();
+              setSchedulerPaused(data.paused);
+            } catch {}
+          }}
+          title={schedulerPaused ? "Reminders paused" : "Reminders active"}
+        >
+          {schedulerPaused ? "▶ Reminders Off" : "⏸ Reminders On"}
         </button>
       </div>
 

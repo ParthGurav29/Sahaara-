@@ -353,3 +353,19 @@
   line-height: 1.45;
   margin: 0;
 }
+
+.control-btn--active {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #dcfce7;
+}
+
+.control-btn--active:hover {
+  background: #bbf7d0;
+}
+
+.control-btn--paused {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
+}

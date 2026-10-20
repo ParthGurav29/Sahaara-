@@ -39,6 +39,41 @@ app.include_router(stream_router)
 async def startup_event():
     """Capture the main event loop for thread-safe broadcasting."""
     set_main_loop(asyncio.get_running_loop())
+    
+    # Start proactive scheduler
+    from conversation import profile
+    from scheduler import Scheduler, make_llm_caller
+    global scheduler
+    scheduler = Scheduler(profile)
+    llm_call = make_llm_caller()
+    await scheduler.start(llm_call=llm_call)
+    
+    # Wire scheduler into conversation module for set_reminder action
+    import conversation as conv
+    conv._scheduler = scheduler
+    
+    # Background task to push scheduler initiatives into SSE
+    asyncio.create_task(_broadcast_scheduler_initiatives())
+
+
+async def _broadcast_scheduler_initiatives():
+    """Push scheduler initiative messages into SSE broadcast."""
+    from dashboard.stream import _broadcast_to_queues
+    while True:
+        try:
+            initiative = await scheduler.get_initiative()
+            if initiative:
+                _broadcast_to_queues("sahaara_initiative", initiative["data"])
+        except Exception:
+            pass
+        await asyncio.sleep(1)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global scheduler
+    if scheduler:
+        await scheduler.stop()
 
 
 app.add_middleware(
@@ -403,6 +438,25 @@ def resume_monitoring():
     from conversation import escalation_engine
     escalation_engine.config.demo_mode = True
     return {"status": "ok", "monitoring": "active"}
+
+
+@app.post("/scheduler/toggle")
+def toggle_scheduler():
+    """Pause or resume proactive reminders."""
+    global scheduler
+    if scheduler:
+        paused = scheduler.toggle()
+        return {"status": "ok", "paused": paused}
+    return {"error": "Scheduler not initialized"}
+
+
+@app.get("/scheduler/status")
+def scheduler_status():
+    """Get scheduler status for dashboard."""
+    global scheduler
+    if scheduler:
+        return scheduler.get_status()
+    return {"error": "Scheduler not initialized"}
 
 
 @app.websocket("/ws/alerts")

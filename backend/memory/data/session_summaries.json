@@ -2186,5 +2186,720 @@
     "memory_box_plays": 0,
     "repeat_count": 0,
     "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496480",
+    "date": "2026-10-20T17:11:20.787990",
+    "summary_text": "Asha had a brief session.",
+    "key_themes": [],
+    "emotion_summary": "neutral",
+    "turn_count": 0,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496482",
+    "date": "2026-10-20T17:11:22.772776",
+    "summary_text": "Asha seemed anxious or worried. she talked about her daughter, memory box. escalation reached yellow. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box"
+    ],
+    "emotion_summary": "anxious",
+    "turn_count": 6,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 1,
+    "repeat_count": 1,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496485",
+    "date": "2026-10-20T17:11:25.078252",
+    "summary_text": "Asha seemed anxious or worried. she talked about her daughter, memory box. escalation reached yellow. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box"
+    ],
+    "emotion_summary": "anxious",
+    "turn_count": 6,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 1,
+    "repeat_count": 1,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496486",
+    "date": "2026-10-20T17:11:26.846904",
+    "summary_text": "Asha seemed anxious or worried. she talked about her daughter, memory box. escalation reached yellow. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box"
+    ],
+    "emotion_summary": "anxious",
+    "turn_count": 6,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 1,
+    "repeat_count": 1,
+    "consent_asks": 1
+  },
+  {
+    "session_id": "session_1792496488",
+    "date": "2026-10-20T17:11:28.506113",
+    "summary_text": "Asha seemed anxious or worried. she talked about her daughter, memory box. escalation reached yellow. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box"
+    ],
+    "emotion_summary": "anxious",
+    "turn_count": 6,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 1,
+    "repeat_count": 1,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496490",
+    "date": "2026-10-20T17:11:30.037456",
+    "summary_text": "Asha seemed anxious or worried. she talked about her daughter, memory box. escalation reached yellow. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box"
+    ],
+    "emotion_summary": "anxious",
+    "turn_count": 6,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 1,
+    "repeat_count": 1,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496490",
+    "date": "2026-10-20T17:11:30.963973",
+    "summary_text": "Asha had a calm session. she talked about her husband, vikram.",
+    "key_themes": [
+      "her husband",
+      "vikram"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496491",
+    "date": "2026-10-20T17:11:31.916786",
+    "summary_text": "Asha had a calm session. she talked about her husband, vikram.",
+    "key_themes": [
+      "her husband",
+      "vikram"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496492",
+    "date": "2026-10-20T17:11:32.792203",
+    "summary_text": "Asha had a calm session. she talked about her husband, vikram.",
+    "key_themes": [
+      "her husband",
+      "vikram"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496493",
+    "date": "2026-10-20T17:11:33.638365",
+    "summary_text": "Asha had a calm session. she talked about her husband, vikram.",
+    "key_themes": [
+      "her husband",
+      "vikram"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496494",
+    "date": "2026-10-20T17:11:34.894280",
+    "summary_text": "Asha had a calm session. she talked about her husband, vikram.",
+    "key_themes": [
+      "her husband",
+      "vikram"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496496",
+    "date": "2026-10-20T17:11:36.230943",
+    "summary_text": "Asha was feeling sad. she talked about her daughter, memory box, priya. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box",
+      "priya"
+    ],
+    "emotion_summary": "sad",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 1,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496497",
+    "date": "2026-10-20T17:11:37.134490",
+    "summary_text": "Asha was feeling sad. she talked about her daughter, memory box, priya. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box",
+      "priya"
+    ],
+    "emotion_summary": "sad",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 1,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496498",
+    "date": "2026-10-20T17:11:38.380845",
+    "summary_text": "Asha was feeling sad. she talked about her daughter, memory box, priya. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box",
+      "priya"
+    ],
+    "emotion_summary": "sad",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 1,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496499",
+    "date": "2026-10-20T17:11:39.999052",
+    "summary_text": "Asha was feeling sad. she talked about her daughter, memory box, priya. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box",
+      "priya"
+    ],
+    "emotion_summary": "sad",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 1,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496501",
+    "date": "2026-10-20T17:11:41.669944",
+    "summary_text": "Asha was feeling sad. she talked about her daughter, memory box, priya. listened to Memory Box clip.",
+    "key_themes": [
+      "her daughter",
+      "memory box",
+      "priya"
+    ],
+    "emotion_summary": "sad",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 1,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496504",
+    "date": "2026-10-20T17:11:44.915851",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496508",
+    "date": "2026-10-20T17:11:48.407520",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496510",
+    "date": "2026-10-20T17:11:50.883463",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496513",
+    "date": "2026-10-20T17:11:53.393009",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496515",
+    "date": "2026-10-20T17:11:55.657850",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496517",
+    "date": "2026-10-20T17:11:57.930904",
+    "summary_text": "Asha had a calm session. she talked about her garden, tea.",
+    "key_themes": [
+      "her garden",
+      "tea"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496520",
+    "date": "2026-10-20T17:12:00.314332",
+    "summary_text": "Asha had a calm session. she talked about her garden, tea.",
+    "key_themes": [
+      "her garden",
+      "tea"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496522",
+    "date": "2026-10-20T17:12:02.270622",
+    "summary_text": "Asha had a calm session. she talked about her garden, tea.",
+    "key_themes": [
+      "her garden",
+      "tea"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496524",
+    "date": "2026-10-20T17:12:04.462395",
+    "summary_text": "Asha had a calm session. she talked about her garden, tea.",
+    "key_themes": [
+      "her garden",
+      "tea"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496526",
+    "date": "2026-10-20T17:12:06.771779",
+    "summary_text": "Asha had a calm session. she talked about her garden, tea.",
+    "key_themes": [
+      "her garden",
+      "tea"
+    ],
+    "emotion_summary": "calm",
+    "turn_count": 8,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496527",
+    "date": "2026-10-20T17:12:07.346506",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496528",
+    "date": "2026-10-20T17:12:08.039587",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496528",
+    "date": "2026-10-20T17:12:08.992698",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496529",
+    "date": "2026-10-20T17:12:09.641992",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496530",
+    "date": "2026-10-20T17:12:10.229087",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496530",
+    "date": "2026-10-20T17:12:10.837471",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496531",
+    "date": "2026-10-20T17:12:11.447617",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496531",
+    "date": "2026-10-20T17:12:11.967343",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496532",
+    "date": "2026-10-20T17:12:12.498355",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496533",
+    "date": "2026-10-20T17:12:13.063569",
+    "summary_text": "Asha had a calm session. escalation reached red.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "red",
+    "tier_label": "urgent (red)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496533",
+    "date": "2026-10-20T17:12:13.639781",
+    "summary_text": "Asha had a calm session. escalation reached orange.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "orange",
+    "tier_label": "concerning (orange)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 1
+  },
+  {
+    "session_id": "session_1792496534",
+    "date": "2026-10-20T17:12:14.051661",
+    "summary_text": "Asha had a calm session. escalation reached orange.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "orange",
+    "tier_label": "concerning (orange)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 1
+  },
+  {
+    "session_id": "session_1792496535",
+    "date": "2026-10-20T17:12:15.544607",
+    "summary_text": "Asha had a calm session. escalation reached orange.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "orange",
+    "tier_label": "concerning (orange)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496536",
+    "date": "2026-10-20T17:12:16.054175",
+    "summary_text": "Asha had a calm session. escalation reached orange.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "orange",
+    "tier_label": "concerning (orange)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 1
+  },
+  {
+    "session_id": "session_1792496536",
+    "date": "2026-10-20T17:12:16.477559",
+    "summary_text": "Asha had a calm session. escalation reached orange.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 2,
+    "highest_tier": "orange",
+    "tier_label": "concerning (orange)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 1
+  },
+  {
+    "session_id": "session_1792496537",
+    "date": "2026-10-20T17:12:17.790257",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496539",
+    "date": "2026-10-20T17:12:19.038978",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496540",
+    "date": "2026-10-20T17:12:20.232162",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496541",
+    "date": "2026-10-20T17:12:21.398480",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496542",
+    "date": "2026-10-20T17:12:22.584432",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496543",
+    "date": "2026-10-20T17:12:23.584867",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496544",
+    "date": "2026-10-20T17:12:24.608635",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496545",
+    "date": "2026-10-20T17:12:25.775948",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792496547",
+    "date": "2026-10-20T17:12:27.017056",
+    "summary_text": "Asha had a calm session.",
+    "key_themes": [],
+    "emotion_summary": "calm",
+    "turn_count": 4,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
   }
 ]

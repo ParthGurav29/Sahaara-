@@ -322,7 +322,11 @@ Multiple prompt/guardrail changes applied together:
 - **`memory/data/memory_box/README.txt`:** Added clip labeling — `priya_hello.mp3` is a 0-byte placeholder
 - **Note:** No playback endpoint exists yet (`/memory-box/clip/{filename}` was reported as working but is not in the codebase). `pydub` + `ffmpeg` needed when playback is added.
 
-### 2026-10-20 — Phase 2: Persistent memory (F2.1-F2.3)
+### 2026-10-20 — Phase 3: Proactive & useful (F3.1-F3.3)
+- **F3.1+F3.2 Scheduler:** `scheduler.py` — background task reads profile routines, fires reminders within 15-min windows. Morning greeting at wake_time, evening check-in at restless_window, medication reminders (no dosing), meal nudges. LLM-generated for variety, template fallback. Dedup per day+category. Expires after 2x window. Caregiver toggle via `/scheduler/toggle`. SSE `sahaara_initiative` event pushed to dashboard.
+- **F3.3 Safe actions:** `actions.py` — `tell_time()` returns gentle clock reading. `play_song()` searches local music files with fuzzy match. `set_reminder()` adds one-time reminder to scheduler. Action results injected into prompt as facts. Sahaara only claims actions that succeeded. Music directory at `voice/assets/music/`.
+- **Integration:** Actions detected in `conversation.py` before memory match. Scheduler started in `main.py` startup, stopped on shutdown. Frontend shows `sahaara_initiative` in Day Timeline with "Sahaara:" label. Reminders toggle button in dashboard header.
+- **Harness:** Guardrail 1.000, struct stable.
 - **F2.1:** `memory/summarizer.py` — generates 2-3 sentence summaries from event log. Saved to `session_summaries.json` on reset. `{session_context_block}` in system prompt provides "yesterday" context.
 - **F2.2:** `memory/suggestions.py` — detects music, memories, routines, food from conversation. `SuggestionQueue` holds pending items. "Suggested Facts" tab in dashboard with approve/reject. Writes to profile JSON on approve. Nothing auto-added.
 - **F2.3:** Context trace in every Sahaara CONVERSATION_TURN. `GET /turn/context` returns human-readable explanation. "Why did Sahaara say this?" panel auto-updates in dashboard.
