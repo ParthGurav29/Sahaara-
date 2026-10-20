@@ -4,6 +4,7 @@ import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import SuggestedFacts from "./SuggestedFacts";
+import ProfileForm from "./ProfileForm";
 import "./App.css";
 
 class ErrorBoundary extends Component<
@@ -37,7 +38,7 @@ function App() {
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<"live" | "summary" | "suggestions">("live");
+  const [view, setView] = useState<"live" | "summary" | "suggestions" | "profile">("live");
   const [showChat, setShowChat] = useState(false);
 
   async function sendMessage() {
@@ -94,6 +95,12 @@ function App() {
         >
           Suggested Facts
         </button>
+        <button
+          className={`tab ${view === "profile" ? "active" : ""}`}
+          onClick={() => { setView("profile"); setShowChat(false); }}
+        >
+          Profile
+        </button>
       </nav>
 
       {view === "live" && (
@@ -124,6 +131,13 @@ function App() {
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
           <h2 className="view-title">Suggested Facts</h2>
           <SuggestedFacts />
+        </div>
+      )}
+
+      {view === "profile" && (
+        <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
+          <h2 className="view-title">Profile</h2>
+          <ProfileForm />
         </div>
       )}
 

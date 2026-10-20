@@ -200,33 +200,17 @@ async def websocket_events(websocket: WebSocket):
             pass
 
 
-# Hook into event_log to broadcast new events
-_original_append = event_log.append
-
-
-def _broadcast_append(event):
-    _original_append(event)
-    # Schedule broadcast on main event loop (thread-safe)
-    _schedule_broadcast(event.type.value, event.to_dict())
-
-
 def _broadcast_to_queues(event_type: str, data: dict):
     """Thread-safe broadcast to all subscriber queues."""
     global _main_loop
     
-    message = {
-        "type": event_type,
-        "data": data,
-        "timestamp": time.time(),
-    }
+    message = {"type": event_type, "data": data, "timestamp": time.time()}
     dead_queues = []
     for queue in _sse_subscribers:
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
             dead_queues.append(queue)
-    
-    # Clean up dead queues
     for q in dead_queues:
         if q in _sse_subscribers:
             _sse_subscribers.remove(q)
@@ -244,57 +228,63 @@ async def _broadcast_event(event_type: str, data: dict):
     _broadcast_to_queues(event_type, data)
 
 
-event_log.append = _broadcast_append
+def setup_stream_hooks():
+    """Setup hooks on conversation state for SSE broadcasting.
+    Must be called at app startup when a session is active."""
+    from conversation import event_log, escalation_engine, consent_manager, alert_builder
+    
+    # Hook into event_log to broadcast new events
+    _original_append = event_log.append
+    
+    def _broadcast_append(event):
+        _original_append(event)
+        _schedule_broadcast(event.type.value, event.to_dict())
+    
+    event_log.append = _broadcast_append
+    
+    # Also hook consent manager
+    _original_ask = consent_manager.ask_consent
+    
+    def _broadcast_ask(contact_name, contact_relationship, tier, question_text):
+        _original_ask(contact_name, contact_relationship, tier, question_text)
+        _schedule_broadcast("consent_asked", {
+            "contact_name": contact_name,
+            "contact_relationship": contact_relationship,
+            "tier": tier.value,
+            "question": question_text,
+            "timestamp": time.time(),
+        })
+    
+    consent_manager.ask_consent = _broadcast_ask
+    
+    _original_interpret = consent_manager.interpret_response
+    
+    def _broadcast_interpret(user_message):
+        state_before = consent_manager.state
+        result = _original_interpret(user_message)
+        if state_before == consent_manager.ConsentState.PENDING and result != state_before:
+            contact = consent_manager.context.contact_name if consent_manager.context else None
+            if contact:
+                _schedule_broadcast("consent_resolved", {
+                    "contact_name": contact,
+                    "outcome": result.value,
+                    "tier": consent_manager.context.tier_when_asked.value if consent_manager.context else None,
+                    "timestamp": time.time(),
+                })
+        return result
+    
+    consent_manager.interpret_response = _broadcast_interpret
+    
+    # Hook alert builder
+    _original_alert = alert_builder.build_tier_change_alert
+    
+    def _broadcast_alert(tier_from, tier_to, reason, context):
+        alert = _original_alert(tier_from, tier_to, reason, context)
+        _schedule_broadcast("alert", alert.to_dict())
+        return alert
+    
+    alert_builder.build_tier_change_alert = _broadcast_alert
 
 
-# Also hook consent manager
-_original_ask = consent_manager.ask_consent
-
-
-def _broadcast_ask(contact_name, contact_relationship, tier, question_text):
-    _original_ask(contact_name, contact_relationship, tier, question_text)
-    _schedule_broadcast("consent_asked", {
-        "contact_name": contact_name,
-        "contact_relationship": contact_relationship,
-        "tier": tier.value,
-        "question": question_text,
-        "timestamp": time.time(),
-    })
-
-
-consent_manager.ask_consent = _broadcast_ask
-
-
-_original_interpret = consent_manager.interpret_response
-
-
-def _broadcast_interpret(user_message):
-    state_before = consent_manager.state
-    result = _original_interpret(user_message)
-    if state_before == consent_manager.ConsentState.PENDING and result != state_before:
-        # Consent was resolved
-        contact = consent_manager.context.contact_name if consent_manager.context else None
-        if contact:
-            _schedule_broadcast("consent_resolved", {
-                "contact_name": contact,
-                "outcome": result.value,
-                "tier": consent_manager.context.tier_when_asked.value if consent_manager.context else None,
-                "timestamp": time.time(),
-            })
-    return result
-
-
-consent_manager.interpret_response = _broadcast_interpret
-
-
-# Hook alert builder
-_original_alert = alert_builder.build_tier_change_alert
-
-
-def _broadcast_alert(tier_from, tier_to, reason, context):
-    alert = _original_alert(tier_from, tier_to, reason, context)
-    _schedule_broadcast("alert", alert.to_dict())
-    return alert
-
-
-alert_builder.build_tier_change_alert = _broadcast_alert
+# Remove the module-level hooks that break with lazy session proxy
+# Event log hooks are set up by setup_stream_hooks() at startup

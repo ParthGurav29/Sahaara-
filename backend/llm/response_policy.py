@@ -117,8 +117,24 @@ def build_prompt(
     avoid_topics = profile.get_avoid_topics()
     avoid_block = ""
     if avoid_topics:
-        joined = "; ".join(avoid_topics)
-        avoid_block = f"- SENSITIVE TOPIC — handle with extra care: {joined}"
+        lines = []
+        for item in avoid_topics:
+            if isinstance(item, str):
+                # Legacy format — treat as avoid
+                lines.append(f"- SENSITIVE TOPIC: {item}. Do not engage directly. Validate the feeling and gently redirect.")
+            elif isinstance(item, dict):
+                topic = item.get("topic", "")
+                setting = item.get("setting", "avoid")
+                redirect = item.get("redirect_to", "")
+                if setting == "avoid":
+                    lines.append(f"- SENSITIVE TOPIC: {topic}. Do not engage directly. Validate the feeling and gently redirect.")
+                elif setting == "redirect":
+                    target = redirect or "a pleasant memory"
+                    lines.append(f"- SENSITIVE TOPIC: {topic}. Acknowledge the feeling briefly, then pivot to: {target}.")
+                elif setting == "allow_with_care":
+                    lines.append(f"- SENSITIVE TOPIC: {topic}. Allow her to talk about it, but watch for distress. Stay present and validating.")
+        if lines:
+            avoid_block = "\n".join(lines)
 
     memory_block = ""
     if memory_box_match is not None:

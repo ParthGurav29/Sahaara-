@@ -40,11 +40,16 @@ async def startup_event():
     """Capture the main event loop for thread-safe broadcasting."""
     set_main_loop(asyncio.get_running_loop())
     
+    # Setup SSE stream hooks (requires active session)
+    from dashboard.stream import setup_stream_hooks
+    setup_stream_hooks()
+    
     # Start proactive scheduler
-    from conversation import profile
+    import conversation
+    s = conversation._get_session()
     from scheduler import Scheduler, make_llm_caller
     global scheduler
-    scheduler = Scheduler(profile)
+    scheduler = Scheduler(s.profile)
     llm_call = make_llm_caller()
     await scheduler.start(llm_call=llm_call)
     
@@ -457,6 +462,34 @@ def scheduler_status():
     if scheduler:
         return scheduler.get_status()
     return {"error": "Scheduler not initialized"}
+
+
+@app.get("/profiles")
+def list_profiles():
+    """List all available profiles."""
+    import database
+    return {"profiles": database.list_profiles()}
+
+
+@app.get("/profile/current")
+def get_current_profile():
+    """Get the active profile's data."""
+    s = conversation._get_session()
+    return {"profile_id": s.profile_id, "data": s.profile._data}
+
+
+@app.put("/profile/{profile_id}")
+def update_profile(profile_id: str, body: dict):
+    """Update a profile's data."""
+    import database
+    data = body.get("data", body)
+    database.save_profile(profile_id, data)
+    # Refresh active session if it's the same profile
+    s = conversation._get_session()
+    if s.profile_id == profile_id:
+        s.profile._data = data
+    
+    return {"status": "ok", "profile_id": profile_id}
 
 
 @app.websocket("/ws/alerts")
