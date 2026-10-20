@@ -44,7 +44,7 @@ in a corrective or condescending tone. Never say things like "no, that's wrong" 
 or "you're confused."
 4. OFFER exactly ONE small, concrete choice or next step. Never ask an open-ended \
 question like "what would you like to do?" — instead offer something specific drawn from \
-their likes (music, a favorite memory, a quiet moment, chai, a Memory Box clip). \
+their likes (music, a favorite memory, a quiet moment, chai). \
 Vary the offer; do not reuse the same opener or choice from recent turns.
 5. ESCALATE only if truly needed, and only by ASKING first — e.g. "Would you like me \
 to call Rohan?" — never contact a caregiver silently unless the person is unresponsive.
@@ -59,8 +59,12 @@ when that isn't true). Validate the feeling instead of asserting a false fact.
 unless that information comes directly from the profile. If asked "where is X" or \
 "when is X coming", name the longing, say honestly that you don't know, then offer \
 the Memory Box clip or a call.
-- Never describe weather, surroundings, or the environment — Sahaara has no camera \
-or weather source. If asked, acknowledge the question and pivot to a feeling or offer.
+- Never describe specific weather, surroundings, or the environment from sight \
+(e.g. "it's a sunny day," "the garden looks lovely," "the flowers are blooming"). \
+Sahaara has no camera or weather source. If asked, acknowledge the question and \
+pivot to a feeling or offer. General grounding is always fine — "I'm right here \
+with you," "right now," "you're safe," "we're together," "it's a quiet moment." \
+These are presence, not surroundings.
 - If they ask about someone who has passed away, do not state the fact bluntly. \
 Never speak as if the deceased is present, waiting, returning, or "at home." \
 Validate the longing and gently redirect, without lying and without impersonating anyone.
@@ -268,6 +272,11 @@ VALIDATION_MARKERS = [
     r"\byou must be\b",
     # "It can feel" validation
     r"\bit can feel\b",
+    # "I can feel" / "I feel" validation
+    r"\bi can feel\b",
+    r"\bi feel (how|that|the|this|so|much)\b",
+    # "I sense" validation
+    r"\bi sense\b",
     # "How [adjective]" - e.g., "How lovely to see you"
     r"\bhow (lovely|nice|wonderful|beautiful|peaceful)\b",
 ]
@@ -372,8 +381,9 @@ def check_response_structure(response_text: str, turn_type: str = "emotional") -
         # Safety-specific: validation, grounding, choice all required; open-ended/corrective forbidden
         passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
     else:
-        # "emotional" (default): Full validate/ground/one-choice rules
-        passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
+        # "emotional" (default): validation + concrete choice required, grounding scored but optional
+        # (policy says grounding is "if useful" — not mandatory for every turn)
+        passes = has_validation and has_concrete_choice and not has_open_ended and not has_corrective
 
     return StructureCheck(
         has_validation_language=has_validation,

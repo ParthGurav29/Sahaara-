@@ -129,13 +129,15 @@ def daily_summary():
 def demo_reset():
     """Reset all demo state for a clean re-run."""
     from conversation import (
-        event_log, session_notes, escalation_engine, consent_manager,
+        event_log, session_notes, escalation_engine, consent_manager, memory_box, alert_store,
         _last_sahaara_prompt_time, _unresponsive_enabled
     )
     event_log.clear()
     session_notes.reset()
     escalation_engine.reset()
     consent_manager.reset()
+    memory_box.reset()
+    alert_store.clear()
     
     # Reset module-level globals
     import conversation
@@ -150,23 +152,40 @@ def demo_reset():
 
 @app.get("/alerts")
 def get_alerts(
-    since: float = None,
+    status: str = None,
     limit: int = 50,
 ):
-    """Get alerts for the dashboard."""
-    # Since we don't persist alerts separately, we build them from events
-    # In production, alerts would be persisted separately
+    """Get alerts for the dashboard. Now backed by AlertStore."""
+    from conversation import alert_store
+    alerts = alert_store.get_all(status=status)
     return {
-        "alerts": [],
-        "message": "Alerts are built from events. Use /escalation/events and /escalation/status for now.",
+        "alerts": [a.to_dict() for a in alerts[-limit:]],
+        "unread_count": alert_store.unread_count(),
     }
+
+
+@app.post("/alerts/{alert_id}/acknowledge")
+def acknowledge_alert(alert_id: str, body: dict = None):
+    """Acknowledge an alert with an optional note."""
+    from conversation import alert_store, event_log
+    
+    note = (body or {}).get("note", "")
+    alert = alert_store.acknowledge(alert_id, note)
+    if alert is None:
+        return {"error": "Alert not found", "alert_id": alert_id}
+    
+    event_log.log_alert_acknowledged(alert_id, note)
+    return {"status": "ok", "alert": alert.to_dict()}
 
 
 @app.get("/alerts/test")
 def test_alert():
     """Test endpoint to build a sample alert."""
-    from conversation import alert_builder, escalation_engine
+    from conversation import alert_builder, alert_store, escalation_engine
     from safety.escalation import EscalationTier
+    
+    # Clear any existing test alerts
+    alert_store.clear()
     
     alert = alert_builder.build_tier_change_alert(
         EscalationTier.GREEN,
@@ -174,7 +193,65 @@ def test_alert():
         "repeat_threshold",
         {"repeat_count": 3, "sustained_distress": False},
     )
-    return alert.to_dict()
+    return {"alert": alert.to_dict(), "unread_count": alert_store.unread_count()}
+
+
+@app.get("/alerts/{alert_id}/context")
+def alert_context(alert_id: str, turns: int = 10):
+    """Get an alert with surrounding conversation turns for detail view."""
+    from conversation import alert_store, event_log
+    from events.event_log import EventType
+    
+    alert = alert_store.get_by_id(alert_id)
+    if alert is None:
+        return {"error": "Alert not found", "alert_id": alert_id}
+    
+    # Get all conversation turns from the event log
+    all_turns = event_log.get_events(EventType.CONVERSATION_TURN)
+    all_events = event_log.get_all()
+    
+    # Find turns around the alert timestamp
+    alert_ts = alert.timestamp
+    surrounding_turns = []
+    for turn in all_turns:
+        ts = turn.detail.get("timestamp", turn.timestamp)
+        surrounding_turns.append(turn.to_dict())
+    
+    # Get tier change that triggered this alert
+    tier_changes = event_log.get_events(EventType.TIER_CHANGE)
+    trigger_event = None
+    for tc in tier_changes:
+        if abs(tc.timestamp - alert_ts) < 5:
+            trigger_event = tc.to_dict()
+            break
+    
+    # Build tier path
+    tier_events = sorted(event_log.get_events(EventType.TIER_CHANGE), key=lambda e: e.timestamp)
+    tier_path = [f"{e.detail.get('old_tier', '?')} → {e.detail.get('new_tier', '?')}" for e in tier_events]
+    
+    return {
+        "alert": alert.to_dict(),
+        "surrounding_turns": surrounding_turns[-turns:],
+        "trigger_event": trigger_event,
+        "tier_path": tier_path,
+        "recommended_action": alert.message,
+    }
+
+
+@app.post("/monitoring/pause")
+def pause_monitoring():
+    """Pause escalation monitoring."""
+    from conversation import escalation_engine
+    escalation_engine.config.demo_mode = False  # effectively pauses
+    return {"status": "ok", "monitoring": "paused"}
+
+
+@app.post("/monitoring/resume")
+def resume_monitoring():
+    """Resume escalation monitoring."""
+    from conversation import escalation_engine
+    escalation_engine.config.demo_mode = True
+    return {"status": "ok", "monitoring": "active"}
 
 
 @app.websocket("/ws/alerts")

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./EscalationLadder.css";
+import AlertCenter from "./AlertCenter";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
 
@@ -64,6 +65,8 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   fallback: "#fef2f2",
   danger_statement: "#fef2f2",
   system_health: "#e0e7ff",
+  conversation_turn: "#f5f2ed",
+  memory_box_played: "#e8f5e9",
 };
 
 const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
@@ -77,6 +80,8 @@ const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
   fallback: "#991b1b",
   danger_statement: "#991b1b",
   system_health: "#3730a3",
+  conversation_turn: "#5c5650",
+  memory_box_played: "#2e7d32",
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -113,6 +118,10 @@ function getEventDetailText(event: Event): string {
       return d.message;
     case "consent_asked":
       return `Asked to call ${d.contact_name}`;
+    case "conversation_turn":
+      return `${d.speaker === "user" ? "Asha" : "Sahaara"}: ${(d.text || "").slice(0, 80)}`;
+    case "memory_box_played":
+      return `Played: ${d.clip_filename} (${d.triggered_by})`;
     default:
       return JSON.stringify(d).slice(0, 100);
   }
@@ -209,24 +218,26 @@ export default function EscalationLadder() {
       tier_change: (e) => {
         try {
           const data = JSON.parse(e.data);
-          setEvents((prev) => [{ ...data, type: "tier_change" }, ...prev].slice(0, 20));
-          setStatus((prev) => prev ? { ...prev, tier: data.new_tier as EscalationTier } : null);
+          setEvents((prev) => [{ ...data, type: "tier_change" }, ...prev].slice(0, 40));
+          setStatus((prev) => prev ? { ...prev, tier: data.detail.new_tier as EscalationTier } : null);
         } catch {}
       },
       alert: (e) => {
         try {
           const data = JSON.parse(e.data);
           setAlerts((prev) => [data, ...prev].slice(0, 10));
-          setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 20));
+          setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 40));
         } catch {}
       },
-      consent_asked: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_asked" }, ...prev].slice(0, 20)); } catch {} },
-      consent_resolved: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_resolved" }, ...prev].slice(0, 20)); } catch {} },
-      repeat: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "repeat" }, ...prev].slice(0, 20)); } catch {} },
-      distress: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "distress" }, ...prev].slice(0, 20)); } catch {} },
-      system_health: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "system_health" }, ...prev].slice(0, 20)); } catch {} },
-      danger_statement: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "danger_statement" }, ...prev].slice(0, 20)); } catch {} },
-      fallback: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "fallback" }, ...prev].slice(0, 20)); } catch {} },
+      consent_asked: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_asked" }, ...prev].slice(0, 40)); } catch {} },
+      consent_resolved: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_resolved" }, ...prev].slice(0, 40)); } catch {} },
+      repeat: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "repeat" }, ...prev].slice(0, 40)); } catch {} },
+      distress: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "distress" }, ...prev].slice(0, 40)); } catch {} },
+      system_health: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "system_health" }, ...prev].slice(0, 40)); } catch {} },
+      danger_statement: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "danger_statement" }, ...prev].slice(0, 40)); } catch {} },
+      fallback: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "fallback" }, ...prev].slice(0, 40)); } catch {} },
+      conversation_turn: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "conversation_turn" }, ...prev].slice(0, 40)); } catch {} },
+      memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
     };
 
     Object.entries(handlers).forEach(([type, handler]) => es.addEventListener(type, handler));
@@ -245,7 +256,7 @@ export default function EscalationLadder() {
     );
   }
 
-  const recentEvents = events.slice(0, 5);
+  const recentEvents = events.slice(0, 10);
   const recentAlerts = alerts.slice(0, 3);
 
   return (
@@ -260,6 +271,7 @@ export default function EscalationLadder() {
           <span className={`connection-dot-minimal ${sseConnected ? "connected" : ""}`} />
           <span>{sseConnected ? "Live" : "Connecting"}</span>
         </div>
+        <AlertCenter />
       </div>
 
       {/* Status Cards */}
@@ -276,9 +288,27 @@ export default function EscalationLadder() {
         ))}
       </div>
 
-      {/* Alerts & Events - combined, limited, no scroll */}
+      {/* Caregiver Controls */}
+      <div className="caregiver-controls-minimal">
+        <button
+          className="control-btn control-btn--reset"
+          onClick={async () => {
+            try {
+              await fetch("http://127.0.0.1:8000/demo/reset", { method: "POST" });
+              window.location.reload();
+            } catch (err) {
+              console.error("Reset failed:", err);
+            }
+          }}
+          title="Reset demo state"
+        >
+          ↺ Reset Demo
+        </button>
+      </div>
+
+      {/* Day Timeline */}
       <div className="feed-section-minimal">
-        <h3 className="feed-title">Recent Activity</h3>
+        <h3 className="feed-title">Day Timeline</h3>
         <div className="feed-list-minimal">
           {recentAlerts.length > 0 && recentAlerts.map((alert, idx) => (
             <EventItem key={idx} event={alert} isAlert />

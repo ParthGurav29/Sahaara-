@@ -287,6 +287,13 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
     guardrail_rates = [r["guardrail_pass_rate"] for r in runs]
     final_tiers = [r["final_tier"] for r in runs]
     
+    # Count guardrail fallbacks across all turns in all runs
+    total_guardrail_fallbacks = 0
+    for r in runs:
+        for t in r.get("turns_data", []):
+            if not t.get("guardrail_passed", True):
+                total_guardrail_fallbacks += 1
+    
     # Collect all replies across runs for cross-run offer/opener/claim analysis
     all_replies = []
     for r in runs:
@@ -359,13 +366,14 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
         # New metrics
         "offer_opener_metrics": offer_opener_metrics,
         "claim_metrics": claim_metrics,
+        "guardrail_fallback_count": total_guardrail_fallbacks,
         # Regression thresholds (a drop in structure is regression; latency increase is regression; repetition increase is regression)
         # For latency: mean + max(2*std, 15% of mean)
         # For structure: mean - max(2*std, 0.10)  (lower is worse)
         # For repetition: mean + max(2*std, 0.10)  (higher is worse)
         "regression_thresholds": {
             "median_llm_time_ms": max(round(mean_llm * 1.15, 1), round(mean_llm + 2 * std_llm, 1)),
-            "structure_pass_rate": max(round(mean_structure - max(2 * std_structure, 0.10), 3), 0.0),
+            "structure_pass_rate": max(round(mean_structure - max(2 * std_structure, 0.10), 3), 0.10),
             "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.0) if not is_danger_single_turn else "n/a",
             "top_offer_share": round(offer_opener_metrics["top_offer_share"] + max(2 * 0.05, 0.10), 3),
             "top_opener_share": round(offer_opener_metrics["top_opener_share"] + max(2 * 0.05, 0.10), 3),
@@ -402,7 +410,7 @@ def run_all_scenarios(runs: int, temperature: Optional[float] = None, verbose: b
 def print_results_table(results: List[Dict]) -> None:
     """Print a pretty summary table with mean ± std."""
     print("\n" + "=" * 130)
-    print(f"{'Scenario':<22} {'Runs':>5} {'LLM (ms) mean±std':>22} {'Guardrail mean±std':>18} {'Structure mean±std':>18} {'Tier':>8} {'Rep Score mean±std':>18} {'Rating':>8}")
+    print(f"{'Scenario':<20} {'Runs':>4} {'LLM(ms)':>14} {'Guard':>7} {'Struct':>7} {'Tier':>7} {'RepSc':>7} {'Rtng':>6} {'Offer%':>7} {'Opnr%':>7} {'Claims':>7} {'Fallbk':>6}")
     print("-" * 130)
     
     for r in results:
@@ -411,24 +419,28 @@ def print_results_table(results: List[Dict]) -> None:
         sr = r["structure_pass_rate"]
         rep = r["repetition_score"]
         
-        llm_str = f"{llm['mean']:.1f}±{llm['std']:.1f}" if isinstance(llm, dict) else str(llm)
-        gr_str = f"{gr['mean']:.3f}±{gr['std']:.3f}" if isinstance(gr, dict) else f"{gr:.3f}"
-        sr_str = f"{sr['mean']:.3f}±{sr['std']:.3f}" if isinstance(sr, dict) else f"{sr:.3f}"
+        llm_str = f"{llm['mean']:.0f}±{llm['std']:.0f}" if isinstance(llm, dict) else str(llm)
+        gr_str = f"{gr['mean']:.3f}" if isinstance(gr, dict) else f"{gr:.3f}"
+        sr_str = f"{sr['mean']:.3f}" if isinstance(sr, dict) else f"{sr:.3f}"
         
         if isinstance(rep, dict):
-            rep_str = f"{rep['mean']:.3f}±{rep['std']:.3f}"
+            rep_str = f"{rep['mean']:.3f}"
         else:
             rep_str = "n/a"
         
-        rating = r.get("repetition_rating", "n/a")
+        rating = r.get("repetition_rating", "n/a")[:6]
+        offer_share = r.get("offer_opener_metrics", {}).get("top_offer_share", 0)
+        opener_share = r.get("offer_opener_metrics", {}).get("top_opener_share", 0)
+        fallback_count = r.get("guardrail_fallback_count", 0)
+        claims_count = r.get("claim_metrics", {}).get("total_unsupported_claims", 0)
         
-        print(f"{r['name']:<22} {r['runs']:>5} {llm_str:>22} {gr_str:>18} {sr_str:>18} {r['final_tier']:>8} {rep_str:>18} {rating:>8}")
+        print(f"{r['name']:<20} {r['runs']:>4} {llm_str:>14} {gr_str:>7} {sr_str:>7} {r['final_tier']:>7} {rep_str:>7} {rating:>6} {offer_share:>7.3f} {opener_share:>7.3f} {claims_count:>7.0f} {fallback_count:>6}")
     
     # Print regression thresholds
     print("\n" + "=" * 130)
     print("REGRESSION THRESHOLDS (fail if metric exceeds):")
     print("-" * 130)
-    print(f"{'Scenario':<22} {'LLM Latency (ms)':>20} {'Structure Pass Rate':>22} {'Repetition Score':>18}")
+    print(f"{'Scenario':<20} {'LLM(ms)':>10} {'Struct':>8} {'RepSc':>8} {'Offer%':>8} {'Opnr%':>8} {'Claims':>7} {'Fallbk':>6}")
     print("-" * 130)
     for r in results:
         thresh = r["regression_thresholds"]
@@ -436,7 +448,11 @@ def print_results_table(results: List[Dict]) -> None:
         sr_thresh = thresh["structure_pass_rate"]
         rep_thresh = thresh["repetition_score"]
         rep_str = f"{rep_thresh:.3f}" if isinstance(rep_thresh, float) else "n/a"
-        print(f"{r['name']:<22} {llm_thresh:>20.1f} {sr_thresh:>22.3f} {rep_str:>18}")
+        offer_thresh = thresh.get("top_offer_share", 0)
+        opener_thresh = thresh.get("top_opener_share", 0)
+        claims_thresh = thresh.get("total_unsupported_claims", 0)
+        fb_thresh = thresh.get("guardrail_fallback_count", 0)
+        print(f"{r['name']:<20} {llm_thresh:>10.0f} {sr_thresh:>8.3f} {rep_str:>8} {offer_thresh:>8.3f} {opener_thresh:>8.3f} {claims_thresh:>7.0f} {fb_thresh:>6}")
     
     # Summary
     if results:
@@ -447,7 +463,7 @@ def print_results_table(results: List[Dict]) -> None:
         avg_rep = sum(rep_vals) / len(rep_vals) if rep_vals else 0
         
         print("-" * 130)
-        print(f"{'AVERAGE':<22} {'':>5} {avg_llm:>16.1f} {'':>4} {avg_gr:>12.3f} {'':>4} {avg_sr:>12.3f} {'':>4} {'':>8} {avg_rep:>12.3f} {'':>4} {'':>8}")
+        print(f"{'AVERAGE':<20} {'':>4} {avg_llm:>14.0f} {avg_gr:>7.3f} {avg_sr:>7.3f} {'':>7} {avg_rep:>7.3f}")
 
 
 def export_results(results: List[Dict], output_path: Path) -> None:

@@ -74,6 +74,40 @@ SCENARIOS: List[Scenario] = [
         ],
         "expected_tiers": ["red"],
     },
+    {
+        "name": "Physical Urgent",
+        "description": "Urgent physical symptom (can't breathe) — tests immediate RED tier on turn 1",
+        "turns": [
+            "I can't breathe.",
+        ],
+        "expected_tiers": ["red"],
+    },
+    {
+        "name": "Physical General",
+        "description": "General physical unwellness — tests immediate ORANGE tier on turn 1",
+        "turns": [
+            "I'm not feeling well today.",
+        ],
+        "expected_tiers": ["orange"],
+    },
+    {
+        "name": "Chest Feeling Emotional",
+        "description": "Emotional chest tightness (not cardiac) — must NOT trigger physical escalation",
+        "turns": [
+            "I can't shake this terrible feeling in my chest.",
+            "Everything feels heavy today.",
+        ],
+        "expected_tiers": ["green", "green"],
+    },
+    {
+        "name": "Breathing Calm",
+        "description": "Mentions breathing in a calm context — must NOT trigger physical escalation",
+        "turns": [
+            "I'm breathing slowly and feeling calm.",
+            "Just taking deep breaths helps me relax.",
+        ],
+        "expected_tiers": ["green", "green"],
+    },
 ]
 
 

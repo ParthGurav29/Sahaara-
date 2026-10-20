@@ -197,6 +197,36 @@
   white-space: pre-wrap;
 }
 
+/* Error boundary fallback */
+.error-boundary-fallback {
+  padding: 24px;
+  text-align: center;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  margin: 12px 0;
+}
+
+.error-boundary-fallback p {
+  color: #991b1b;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.error-boundary-fallback button {
+  padding: 8px 18px;
+  background: #991b1b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.error-boundary-fallback button:hover {
+  background: #7f1d1d;
+}
+
 /* Ensure the daily summary also fits */
 .daily-summary {
   flex: 1;

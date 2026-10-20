@@ -170,8 +170,15 @@ export default function VoiceOrb() {
       ws.send(pcm16.buffer as ArrayBuffer);
     };
 
+    // Zero-gain node prevents mic audio from reaching speakers (echo).
+    // NOTE: When Memory Box clip playback is added, mute the mic during
+    // clip playback to prevent the clip audio from being picked up by ASR
+    // and fed back as a new user turn.
+    const zeroGain = audioContext.createGain();
+    zeroGain.gain.value = 0;
     source.connect(processor);
-    processor.connect(audioContext.destination);
+    processor.connect(zeroGain);
+    zeroGain.connect(audioContext.destination);
   }, [playPcmChunk, stop]);
 
   // Stop everything if the component unmounts mid-session.

@@ -27,7 +27,7 @@ from memory.session_notes import SessionNotes
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 from safety.escalation import EscalationEngine, EscalationConfig, EscalationTier
 from safety.consent import ConsentManager, ConsentState
-from dashboard.alerts import AlertBuilder
+from dashboard.alerts import AlertBuilder, AlertStore
 from events.event_log import (
     EventLog,
     EventType,
@@ -64,8 +64,9 @@ consent_manager = ConsentManager(
     demo_multiplier=300.0,
 )
 
-# Initialize alert builder
-alert_builder = AlertBuilder(event_log, profile)
+# Initialize alert store (before builder so it can be passed in)
+alert_store = AlertStore()
+alert_builder = AlertBuilder(event_log, profile, alert_store=alert_store)
 
 # Unresponsive detection: track when Sahaara last spoke
 UNRESPONSIVE_THRESHOLD_SECONDS = 90.0  # 1.5 minutes real time
@@ -121,7 +122,7 @@ def process_turn(user_message: str) -> dict:
             # this would trigger the actual call; for now we acknowledge)
             alert_builder.build_consent_alert("accepted", pending_contact, escalation_engine.current_tier)
             return {
-                "response": f"Calling {pending_contact} now. They'll be on the line in a moment.",
+                "response": f"I've noted that you'd like to reach out to {pending_contact}. An alert has been logged on Rohan's dashboard.",
                 "meta": {
                     "emotion": "neutral",
                     "is_repeated_question": False,
@@ -202,6 +203,15 @@ def process_turn(user_message: str) -> dict:
 
     # ---- 1. Memory / context gathering ----
     memory_match = memory_box.match(user_message)
+    
+    # Log Memory Box play event
+    if memory_match:
+        event_log.log_memory_box_played(
+            clip_filename=memory_match.clip_filename,
+            family_member_name=memory_match.family_member_name,
+            triggered_by=memory_match.triggered_by,
+        )
+    
     is_repeat = session_notes.is_repeated_question(user_message)
     sustained = session_notes.sustained_distress()
 
@@ -309,6 +319,11 @@ def process_turn(user_message: str) -> dict:
     # ---- 6. Update session state for future turns ----
     session_notes.record_turn(user_message, emotion=intent.emotion, speaker="user")
     session_notes.record_turn(response_text, emotion=intent.emotion, speaker="sahaara")
+    memory_box.record_turn()
+    
+    # Log conversation turns to event log for dashboard timeline
+    event_log.log_conversation_turn(speaker="user", text=user_message, emotion=intent.emotion)
+    event_log.log_conversation_turn(speaker="sahaara", text=response_text, emotion=intent.emotion)
     _last_sahaara_prompt_time = time.time()
 
     return {
@@ -373,19 +388,22 @@ def reset_pipeline() -> None:
     """Reset all pipeline state for a clean scenario run.
     
     Reinitializes: session_notes, event_log, escalation_engine, consent_manager,
-    and clears module-level globals. Does NOT reload profile/memory_box/provider.
+    memory_box, and clears module-level globals. Does NOT reload profile/provider.
     """
-    global session_notes, event_log, escalation_engine, consent_manager, alert_builder
+    global session_notes, event_log, escalation_engine, consent_manager, alert_builder, alert_store
     global _last_sahaara_prompt_time, _unresponsive_enabled
     
     from events.event_log import init_event_log, set_event_log
     from safety.escalation import EscalationEngine, EscalationConfig
     from safety.consent import ConsentManager
-    from dashboard.alerts import AlertBuilder
+    from dashboard.alerts import AlertBuilder, AlertStore
     from memory.session_notes import SessionNotes
     
     # Reset session notes
     session_notes = SessionNotes(profile_id=profile.profile_id)
+    
+    # Reset memory box turn tracking
+    memory_box.reset()
     
     # Reinitialize event log (clears in-memory events, starts fresh session)
     event_log = init_event_log(profile, persist=True, demo_mode=True)
@@ -403,7 +421,8 @@ def reset_pipeline() -> None:
     )
     
     # Reinitialize alert builder
-    alert_builder = AlertBuilder(event_log, profile)
+    alert_store.clear()
+    alert_builder = AlertBuilder(event_log, profile, alert_store=alert_store)
     
     # Clear module-level globals
     _last_sahaara_prompt_time = 0.0

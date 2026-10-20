@@ -43,6 +43,9 @@ class EventType(str, Enum):
     SESSION_END = "session_end"
     TIMING = "timing"
     PHYSICAL_SYMPTOM = "physical_symptom"
+    MEMORY_BOX_PLAYED = "memory_box_played"
+    CONVERSATION_TURN = "conversation_turn"
+    ALERT_ACKNOWLEDGED = "alert_acknowledged"
 
 
 class EscalationTier(str, Enum):
@@ -322,6 +325,64 @@ class EventLog:
             detail={
                 "phrase": phrase,
                 "matched_pattern": matched_pattern,
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_memory_box_played(
+        self,
+        clip_filename: str,
+        family_member_name: str,
+        triggered_by: str,  # "longing_match" or "replay_request"
+    ) -> Event:
+        """Log that a Memory Box clip was played."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.MEMORY_BOX_PLAYED,
+            profile_id=self.profile_id,
+            detail={
+                "clip_filename": clip_filename,
+                "family_member_name": family_member_name,
+                "triggered_by": triggered_by,
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_conversation_turn(
+        self,
+        speaker: str,  # "user" or "sahaara"
+        text: str,
+        emotion: str = "neutral",
+    ) -> Event:
+        """Log a full conversation turn."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.CONVERSATION_TURN,
+            profile_id=self.profile_id,
+            detail={
+                "speaker": speaker,
+                "text": text,
+                "emotion": emotion,
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_alert_acknowledged(
+        self,
+        alert_id: str,
+        note: str = "",
+    ) -> Event:
+        """Log that a caregiver acknowledged an alert."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.ALERT_ACKNOWLEDGED,
+            profile_id=self.profile_id,
+            detail={
+                "alert_id": alert_id,
+                "note": note,
             },
         )
         self.append(event)

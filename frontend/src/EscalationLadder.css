@@ -303,3 +303,30 @@
 .dashboard-header-minimal {
   flex-shrink: 0;
 }
+/* Caregiver controls */
+.caregiver-controls-minimal {
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.control-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d4cfc9;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #faf9f6;
+  color: #5c5650;
+}
+
+.control-btn--reset {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.control-btn--reset:hover {
+  background: #fee2e2;
+}

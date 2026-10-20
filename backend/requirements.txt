@@ -34,3 +34,6 @@ typing_extensions==4.16.0
 urllib3==2.8.0
 uvicorn==0.53.0
 websockets==16.1.1
+sse-starlette
+pydub
+# pydub requires ffmpeg installed system-wide for MP3 decoding

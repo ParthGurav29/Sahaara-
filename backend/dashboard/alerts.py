@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+import time
 
 from events.event_log import EventLog, EventType, EscalationTier
 from memory.profile import Profile
@@ -26,9 +27,14 @@ class Alert:
     profile_id: str
     message: str
     detail: dict
+    alert_id: str = ""
+    status: str = "new"  # "new", "acknowledged", "resolved"
+    acknowledged_at: Optional[float] = None
+    acknowledged_note: Optional[str] = None
     
     def to_dict(self) -> dict:
         return {
+            "alert_id": self.alert_id,
             "timestamp": self.timestamp,
             "timestamp_iso": datetime.fromtimestamp(self.timestamp).isoformat(),
             "tier_from": self.tier_from.value,
@@ -37,7 +43,54 @@ class Alert:
             "profile_id": self.profile_id,
             "message": self.message,
             "detail": self.detail,
+            "status": self.status,
+            "acknowledged_at": self.acknowledged_at,
+            "acknowledged_note": self.acknowledged_note,
         }
+
+
+class AlertStore:
+    """In-memory store for alerts. Holds all alerts for the current session."""
+    
+    def __init__(self):
+        self._alerts: list[Alert] = []
+        self._counter: int = 0
+    
+    def add(self, alert: Alert) -> Alert:
+        self._counter += 1
+        alert.alert_id = f"alert_{self._counter}"
+        self._alerts.append(alert)
+        return alert
+    
+    def get_all(self, status: Optional[str] = None) -> list[Alert]:
+        if status:
+            return [a for a in self._alerts if a.status == status]
+        return list(self._alerts)
+    
+    def get_by_id(self, alert_id: str) -> Optional[Alert]:
+        for a in self._alerts:
+            if a.alert_id == alert_id:
+                return a
+        return None
+    
+    def acknowledge(self, alert_id: str, note: str = "") -> Optional[Alert]:
+        alert = self.get_by_id(alert_id)
+        if alert is None:
+            return None
+        alert.status = "acknowledged"
+        alert.acknowledged_at = time.time()
+        alert.acknowledged_note = note
+        return alert
+    
+    def unread_count(self) -> int:
+        return sum(1 for a in self._alerts if a.status == "new")
+    
+    def clear(self):
+        self._alerts.clear()
+        self._counter = 0
+    
+    def to_dict_list(self) -> list[dict]:
+        return [a.to_dict() for a in self._alerts]
 
 
 class AlertBuilder:
@@ -50,9 +103,16 @@ class AlertBuilder:
     - NOT: "Check on Asha" or "Signs of decline detected"
     """
     
-    def __init__(self, event_log: EventLog, profile: Profile):
+    def __init__(self, event_log: EventLog, profile: Profile, alert_store: Optional["AlertStore"] = None):
         self.event_log = event_log
         self.profile = profile
+        self.alert_store = alert_store
+    
+    def _store(self, alert: "Alert") -> "Alert":
+        """Store alert if a store is configured."""
+        if self.alert_store:
+            self.alert_store.add(alert)
+        return alert
     
     def _get_contact_name(self, tier: EscalationTier, reason: str, context: dict) -> Optional[str]:
         """Get the most relevant contact name for this alert."""
@@ -227,7 +287,7 @@ class AlertBuilder:
         # Apply guardrail safety
         safe_message = self._build_guardrail_safe_message(message)
         
-        return Alert(
+        alert = Alert(
             timestamp=now,
             tier_from=tier_from,
             tier_to=tier_to,
@@ -242,6 +302,8 @@ class AlertBuilder:
                 "context": context,
             },
         )
+        self._store(alert)
+        return alert
     
     def build_consent_alert(
         self,
@@ -272,7 +334,7 @@ class AlertBuilder:
         
         safe_message = self._build_guardrail_safe_message(message)
         
-        return Alert(
+        alert = Alert(
             timestamp=now,
             tier_from=tier,
             tier_to=tier,
@@ -285,6 +347,8 @@ class AlertBuilder:
                 "tier": tier.value,
             },
         )
+        self._store(alert)
+        return alert
     
     def build_fallback_alert(self, fallback_type: str, detail: dict) -> Alert:
         """Build an alert for a fallback trigger."""
@@ -306,7 +370,7 @@ class AlertBuilder:
         
         safe_message = self._build_guardrail_safe_message(message)
         
-        return Alert(
+        alert = Alert(
             timestamp=now,
             tier_from=EscalationTier.GREEN,
             tier_to=EscalationTier.GREEN,
@@ -315,6 +379,8 @@ class AlertBuilder:
             message=safe_message,
             detail=detail,
         )
+        self._store(alert)
+        return alert
 
     def build_fallback_alert(self, fallback_type: str, detail: dict) -> Alert:
         """Build an alert for a fallback trigger."""
@@ -336,7 +402,7 @@ class AlertBuilder:
         
         safe_message = self._build_guardrail_safe_message(message)
         
-        return Alert(
+        alert = Alert(
             timestamp=now,
             tier_from=EscalationTier.GREEN,
             tier_to=EscalationTier.GREEN,
@@ -345,6 +411,8 @@ class AlertBuilder:
             message=safe_message,
             detail=detail,
         )
+        self._store(alert)
+        return alert
 
     def build_physical_symptom_alert(
         self,
@@ -377,7 +445,7 @@ class AlertBuilder:
         
         safe_message = self._build_guardrail_safe_message(message)
         
-        return Alert(
+        alert = Alert(
             timestamp=now,
             tier_from=EscalationTier.GREEN,
             tier_to=EscalationTier.RED if urgency == "urgent" else EscalationTier.ORANGE,
@@ -391,6 +459,8 @@ class AlertBuilder:
                 "contact_name": contact_name,
             },
         )
+        self._store(alert)
+        return alert
 
 
 if __name__ == "__main__":

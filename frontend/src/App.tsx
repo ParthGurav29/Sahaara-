@@ -1,9 +1,36 @@
-import { useState } from "react";
+import { Component, useState } from "react";
 
 import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import "./App.css";
+
+class ErrorBoundary extends Component<
+  { children: React.ReactNode; name: string },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; name: string }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(`[ErrorBoundary:${this.props.name}]`, error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary-fallback">
+          <p>Something went wrong in {this.props.name}.</p>
+          <button onClick={() => this.setState({ hasError: false })}>Retry</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const [message, setMessage] = useState("");
@@ -67,13 +94,17 @@ function App() {
           {/* Asha's view - Voice Orb */}
           <section className="asha-view">
             <h2 className="view-title">Asha's View</h2>
-            <VoiceOrb />
+            <ErrorBoundary name="VoiceOrb">
+              <VoiceOrb />
+            </ErrorBoundary>
           </section>
 
           {/* Rohan's view - Escalation Ladder */}
           <section className="caregiver-view">
             <h2 className="view-title">Rohan's View</h2>
-            <EscalationLadder />
+            <ErrorBoundary name="EscalationLadder">
+              <EscalationLadder />
+            </ErrorBoundary>
           </section>
         </div>
       )}
