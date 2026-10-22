@@ -372,12 +372,16 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
         # For structure: mean - max(2*std, 0.10)  (lower is worse)
         # For repetition: mean + max(2*std, 0.10)  (higher is worse)
         "regression_thresholds": {
+            # Ceiling metrics (fail if EXCEEDS — higher = worse):
             "median_llm_time_ms": max(round(mean_llm * 1.15, 1), round(mean_llm + 2 * std_llm, 1)),
-            "structure_pass_rate": max(round(mean_structure - max(2 * std_structure, 0.10), 3), 0.10),
-            "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.0) if not is_danger_single_turn else "n/a",
+            "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.10) if not is_danger_single_turn else "n/a",
             "top_offer_share": round(offer_opener_metrics["top_offer_share"] + max(2 * 0.05, 0.10), 3),
             "top_opener_share": round(offer_opener_metrics["top_opener_share"] + max(2 * 0.05, 0.10), 3),
             "total_unsupported_claims": round(claim_metrics["total_unsupported_claims"] + max(2 * 1, 2), 1),
+            # Zero tolerance — any guardrail fallback is a regression:
+            "guardrail_fallback_count": 0,
+            # Floor metric (fail if DROPS BELOW — lower = worse):
+            "structure_pass_rate": max(round(mean_structure - max(2 * std_structure, 0.10), 3), 0.10),
         },
     }
     
@@ -438,7 +442,9 @@ def print_results_table(results: List[Dict]) -> None:
     
     # Print regression thresholds
     print("\n" + "=" * 130)
-    print("REGRESSION THRESHOLDS (fail if metric exceeds):")
+    print("REGRESSION THRESHOLDS:")
+    print("  LLM/RepSc/Offer%/Opnr%/Claims/Fallbk — fail if EXCEEDS (higher = worse)")
+    print("  Struct — fail if DROPS BELOW (lower = worse)")
     print("-" * 130)
     print(f"{'Scenario':<20} {'LLM(ms)':>10} {'Struct':>8} {'RepSc':>8} {'Offer%':>8} {'Opnr%':>8} {'Claims':>7} {'Fallbk':>6}")
     print("-" * 130)
@@ -461,9 +467,13 @@ def print_results_table(results: List[Dict]) -> None:
         avg_sr = sum(r['structure_pass_rate']['mean'] for r in results) / len(results)
         rep_vals = [r['repetition_score']['mean'] for r in results if isinstance(r['repetition_score'], dict)]
         avg_rep = sum(rep_vals) / len(rep_vals) if rep_vals else 0
+        avg_offer = sum(r.get("offer_opener_metrics", {}).get("top_offer_share", 0) for r in results) / len(results)
+        avg_opener = sum(r.get("offer_opener_metrics", {}).get("top_opener_share", 0) for r in results) / len(results)
+        avg_claims = sum(r.get("claim_metrics", {}).get("total_unsupported_claims", 0) for r in results) / len(results)
+        avg_fb = sum(r.get("guardrail_fallback_count", 0) for r in results) / len(results)
         
         print("-" * 130)
-        print(f"{'AVERAGE':<20} {'':>4} {avg_llm:>14.0f} {avg_gr:>7.3f} {avg_sr:>7.3f} {'':>7} {avg_rep:>7.3f}")
+        print(f"{'AVERAGE':<20} {'':>4} {avg_llm:>14.0f} {avg_gr:>7.3f} {avg_sr:>7.3f} {'':>7} {avg_rep:>7.3f} {'':>6} {avg_offer:>7.3f} {avg_opener:>7.3f} {avg_claims:>7.0f} {avg_fb:>6.0f}")
 
 
 def export_results(results: List[Dict], output_path: Path) -> None:
@@ -481,10 +491,19 @@ def export_results(results: List[Dict], output_path: Path) -> None:
             ) if any(isinstance(r['repetition_score'], dict) for r in results) else 0.0,
         },
         "regression_rules": {
-            "description": "A metric counts as regression if it exceeds: mean + 2*std_dev OR fixed limit (0.1 for scores, 15% for latency), whichever is larger",
+            "description": "Ceiling metrics (latency, repetition, offer/opener share, claims, fallbacks): regression if exceeds mean + 2*std OR fixed limit (0.1 for scores, 15% for latency), whichever is larger. Floor metric (structure pass rate): regression if drops below mean - 2*std OR 0.10, whichever is larger.",
             "latency_fixed_limit_pct": 0.15,
             "score_fixed_limit": 0.1,
             "std_multiplier": 2.0,
+            "directions": {
+                "median_llm_time_ms": "ceiling (higher = worse)",
+                "structure_pass_rate": "floor (lower = worse)",
+                "repetition_score": "ceiling (higher = worse)",
+                "top_offer_share": "ceiling (higher = worse)",
+                "top_opener_share": "ceiling (higher = worse)",
+                "total_unsupported_claims": "ceiling (higher = worse)",
+                "guardrail_fallback_count": "ceiling, zero tolerance (higher = worse)",
+            },
         },
     }
     output_path.write_text(json.dumps(output, indent=2))
