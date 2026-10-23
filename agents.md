@@ -17,6 +17,7 @@
 - `tests/unit_e2e.py` — **143/143 pass**
 - `tests/test_offer_rate.py` — **23/23 pass**
 - `tests/test_guardrails.py` — **13/13 pass**
+- `tests/guardrail_baseline.py` — **17/17 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
 - `tsc --noEmit` — clean · `import main` — clean (31 routes registered)
 - Harness live runs — 🔴 **BLOCKED** (see Blockers)
 
@@ -25,12 +26,12 @@
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Verification of the existing build | ✅ Done (Oct 22) — 143 unit tests, tsc, imports; Phase 0 fixes confirmed present; Phase 5 confirmed NOT built |
-| M1 | Natural conversation (offer frequency down, hard gates kept) | 🔨 In progress — harness metric done (`offer_rate`); checker/prompt changes NOT yet made |
-| W1 | Real caregiver conversations for style examples | ⏸ Waiting on owner's caregiver contact |
+| M1 | Natural conversation (offer frequency down, hard gates kept) | 🔨 In progress — metrics done, guardrail pre-baseline saved; checker/prompt changes NOT yet made; **not declared over until all 3 done-when criteria measured** |
+| W1 | Real caregiver conversations for style examples | ⏸ Waiting on owner — **JSON template ready at `docs/w1_caregiver_exchanges.json`** (6–8 exchanges to start, 4 demo scenes) |
 | W2a | Harness display/threshold fixes | ✅ Done `aa48c62` |
-| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ⬜ Next after baseline |
-| W2c | Prompt loosening | ⬜ |
-| W3 | Guardrail adversarial re-run | ⬜ |
+| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ⬜ Code gated on `baseline_pre_m1.json` (Nebius 402) — **fully designed, runs first thing when credits return** |
+| W2c | Prompt loosening | ⏸ **HELD by owner decision (Oct 23)** until real caregiver exchanges arrive — Liz Ayre doc = background only, labeled; no fabricated examples |
+| W3 | Guardrail adversarial re-run (post-change, `--verify` vs pre-baseline) | ⬜ after W2c |
 | W4a | Cartesia TTS schema modernization | ✅ Done `259a438` |
 | W4b | Voice tuning (Orange/Red calmer pace/softness) | ⬜ |
 | W5 | Metrics + blind naturalness review | ⬜ |
@@ -47,10 +48,11 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-1. When credits return: save **5-run `baseline_pre_m1.json` on the CURRENT build — BEFORE touching any checker** (owner's explicit condition), plus `baseline_guardrails_pre.json` (adversarial suite — runs WITHOUT the LLM: canned strings into `check_guardrails()`).
-2. W2b (structure split) → paste full 5-run table + 5-6 untruncated replies → **wait for owner review**.
-3. W2c → review → W3 (adversarial re-run) → review → W4b → review → W5 (metrics + blind naturalness). One at a time, never batched.
-4. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
+1. ✅ **DONE 2026-10-23:** guardrail adversarial pre-baseline saved — `tests/baseline_guardrails_pre.json` (17/17: 13 core + 4 fabrication-family cases, commit + code fingerprints recorded). Re-verify anytime: `cd backend && .venv/bin/python tests/guardrail_baseline.py --verify tests/baseline_guardrails_pre.json`.
+2. When credits return: save **5-run `baseline_pre_m1.json` on the CURRENT build — BEFORE touching any checker** (owner's explicit condition).
+3. W2b (structure split — design in the Oct 23 changelog entry) → paste full 5-run table + 5-6 untruncated replies → **wait for owner review**.
+4. W2c **only after** owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → review → W3 (post-change `--verify` + full suite) → review → W4b → review → W5 (metrics + blind naturalness). One at a time, never batched.
+5. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
 
 ---
 
@@ -65,6 +67,8 @@ Direct instructions from the project owner — they override convenience:
 5. **Single Cartesia voice ID, always.** Owner: *"a noticeably different voice when she's distressed could sound like a different person arriving."* Orange/Red replies get calmer/slower (pace/softness), never more urgent, never a second voice. A second voice exists on the roadmap only as a caregiver-approved Memory Box voice.
 6. **W1 style examples must come from real caregivers** — never invented by the agent or the owner. Agent supplies the JSON template; labeled draft placeholders are allowed for plumbing only, never as ground truth and never in the final prompt; owner reviews for safety first.
 7. **Safety invariants never change:** no diagnosis, no dosing, no invented facts, no deceased-as-present, no fabricated weather/surroundings, never claim a notification fired unless it did.
+8. **M1 sequencing — owner decision (2026-10-23), verbatim:** *"Do W2b now (structure split, offer rate separate, hard gates for validation and no-invented-facts, thresholds fixed), after saving the baseline on the current build. Hold W2c until real caregiver exchanges are provided. The Liz Ayre doc may be used as background only, labeled as such, and not as the style reference or ground truth. No fabricated examples. Report W2b with the full 5-run table and 5-6 untruncated replies, then wait."*
+   - W1 starter scope (owner): 6–8 exchanges from one caregiver/family member covering the 4 demo scenes (missing Priya, asking for Vikram, repeating a question, an anxious evening) — *"what they'd really say, not what sounds correct"*; recording + transcription is fine; **owner safety-reviews before any of it enters the prompt**. If exchanges aren't in when W2b finishes, run a small W2c on 6–8 and extend later — don't wait for the full 15–20.
 
 ## 2. What this product is
 
@@ -100,6 +104,8 @@ cd backend && .venv/bin/python -m tests.harness --scenario "Anxious Evening" --r
 cd backend && .venv/bin/python tests/unit_e2e.py           # 143 tests — the main suite
 cd backend && .venv/bin/python tests/test_guardrails.py     # 13 adversarial guardrail tests
 cd backend && .venv/bin/python tests/test_offer_rate.py     # 23 offer_rate metric tests
+cd backend && .venv/bin/python tests/guardrail_baseline.py # 17 adversarial cases -> saves baseline_guardrails_pre.json
+cd backend && .venv/bin/python tests/guardrail_baseline.py --verify tests/baseline_guardrails_pre.json  # drift check
 cd backend && .venv/bin/python tests/test_policy_engine.py  # prompt-template tests
 cd backend && .venv/bin/python tests/test_repetition_handling.py
 
@@ -342,6 +348,8 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 - `backend/tests/baseline.json` — Oct 10 harness baseline
 - `backend/tests/baseline_final.json` — Oct 13 harness baseline
 - `backend/tests/baseline_pre_m1.json` — **PENDING** (save before any checker change)
+- `backend/tests/baseline_guardrails_pre.json` — ✅ saved 2026-10-23 (17/17, pre-M1 guardrail adversarial state; runner: `tests/guardrail_baseline.py`)
+- `docs/w1_caregiver_exchanges.json` — W1 collection template (agent-supplied; owner safety-reviews before prompt use)
 - `backend/voice/assets/ab_test/` — blind A/B WAVs + `AB_KEY.{txt,json}` (gitignored; do not open until rated)
 - `backend/tests/structure_review.txt` — notes on structure checker behavior
 
@@ -507,3 +515,10 @@ Multiple prompt/guardrail changes applied together:
 - **`agents.md` (rewritten):** added §0 Current Status (one-screen milestone/blocker/next-action snapshot @ `6cb0cca`), §1 Standing Rules (owner's verbatim working agreement incl. M1 conditions and W-cadence), maintenance protocol in header, updated commands (10 scenarios, new suites), architecture modules (+session_manager/database/scheduler/actions/summarizer/suggestions/fillers/tests), data section (SQLite + SessionManager), gotchas (removed 3 fixed: `.env.example`, requirements, stale tests; added Nebius-402-as-fake-failures, Cartesia pinning, dead `safety/event_log.py`, repo hygiene), harness section (10 scenarios + two-offer-metrics explanation), tech stack (SQLite, TTS sunset), reference docs. Change log backfilled Oct 20–22 commits (`97f4904`…`5fdab86`, `55d69b2`, M0 pass).
 - **`overview.md`:** full re-verification pass — every factual claim re-checked against source or re-run (see its header). Brainstorm/expansion items status-tagged (built / in progress / roadmap / decided-against), obsolete items trimmed, header stamped with date + commit.
 - No production code changed. Verification re-run this date: unit_e2e 143/143, offer_rate 23/23, guardrails 13/13.
+
+### 2026-10-23 — M1 Track A: guardrail pre-baseline saved + W1 template + Option 2 decision recorded (this change)
+- **M1 sequencing decision (owner, verbatim in §1.8):** W2b now, after saving the pre-change baselines; **W2c HELD** until real caregiver exchanges arrive; Liz Ayre doc = labeled background only, never style ground truth; no fabricated examples.
+- **`tests/guardrail_baseline.py` (new):** runner for the guardrail adversarial pre-baseline — the "run the adversarial tests before AND after" M1 condition. Runs WITHOUT the LLM (canned candidate replies → `check_guardrails()`), so it works despite the Nebius 402. Corpus = the 13 named cases from `test_guardrails.py` (texts + expected violation categories extracted from the test source at runtime — single source of truth, extraction failures fail loudly) + 4 extended must-catch cases covering the Oct-19 fabrication families (weather/schedule/whereabouts/surroundings, texts verbatim from `unit_e2e.py` §12). Also executes each original test function so the suite's own assertions count. Records commit, profile_id, and sha256 fingerprints of `guardrails.py`/`response_policy.py`. `--verify BASELINE` mode diffs outcomes + violations per case and exits 1 on drift (this is how W3 compares post-change).
+- **`tests/baseline_guardrails_pre.json` (new, saved):** 17/17 ok (rate 1.0) — must_catch 13/13, must_allow 4/4, extraction failures 0, commit `fcb08cd`. Round-trip `--verify` → "No drift".
+- **`docs/w1_caregiver_exchanges.json` (new):** W1 collection template — 4 demo scenes (missing_priya, vikram_mention, repetition, anxious_evening), shape-only placeholder entries (`placeholder: true`, empty fields — NO invented speech anywhere), owner-safety-review checklist, and hard rules (agent never sets `owner_approved`; placeholder entries never read into a prompt). Owner sends to one caregiver for 6–8 starter exchanges ("what they'd really say"; recording + transcript fine).
+- **No production code changed.** `response_policy.py`, `conversation.py`, harness thresholds — all untouched; the M1 pre-change baseline condition is still unmet only for the LLM-dependent 5-run harness baseline (`baseline_pre_m1.json`, blocked on credits).

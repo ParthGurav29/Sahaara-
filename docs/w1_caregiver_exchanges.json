@@ -1,0 +1,85 @@
+{
+  "_file": "W1 caregiver exchange collection template (M1 style reference)",
+  "_supplied_by": "agent (per standing rule: the agent supplies the JSON template; the content comes from real caregivers only)",
+  "_how_to_fill": [
+    "1. Send this file (or copy its structure) to one caregiver or family member.",
+    "2. Ask for 6-8 exchanges to start, covering all 4 scenes below. Full set for M1 is 15-20.",
+    "3. Tell them: write or say what you would REALLY say — not what sounds correct, not advice, not what a professional would say. Recording them speaking and transcribing works well.",
+    "4. The owner (Rohan role) reviews every entry for safety before it is used: no invented facts, no false reassurance ('he's on his way' about someone deceased), no diagnosis language, no dosing.",
+    "5. Only entries with placeholder=false AND owner_approved=true may ever be considered for the prompt. Everything else is plumbing."
+  ],
+  "_scenes": [
+    "missing_priya    — Asha misses her daughter (Memory Box moment)",
+    "vikram_mention   — Asha asks for her late husband (avoid-topic / gentle redirect)",
+    "repetition       — Asha asks the same question for the 3rd+ time",
+    "anxious_evening  — Asha is worried or distressed in the evening"
+  ],
+  "_safety_review_checklist": [
+    "no diagnosis or decline-framing ('you're getting worse')",
+    "no dosing advice (reminders are fine)",
+    "no claiming someone is coming/on their way/calling unless profile-true",
+    "no invented facts (whereabouts, schedules, weather, surroundings)",
+    "no impersonation of family; no 'I know exactly how you feel' as a claim",
+    "does it validate the feeling first? (what we are collecting it FOR)"
+  ],
+
+  "collector": {
+    "name": "",
+    "relationship_to_asha": "",
+    "date_collected": "",
+    "method": "written | recorded_and_transcribed"
+  },
+
+  "exchanges": [
+    {
+      "scene": "missing_priya",
+      "placeholder": true,
+      "owner_approved": false,
+      "asha_says": "[her words, as she would actually say them]",
+      "caregiver_replies": [
+        "[their real reply #1 — word for word]",
+        "[optional real reply #2, if they'd say it differently]"
+      ],
+      "always_says": ["[phrases they use verbatim, repeated across occasions]"],
+      "never_say": ["[words/phrases they avoid and why]"],
+      "notes": ""
+    },
+    {
+      "scene": "vikram_mention",
+      "placeholder": true,
+      "owner_approved": false,
+      "asha_says": "[her words]",
+      "caregiver_replies": ["[their real reply]"],
+      "always_says": [],
+      "never_say": [],
+      "notes": "This scene is the safety-critical one: caregiver replies must not bluntly state the death NOR pretend he is alive. What do they actually do?"
+    },
+    {
+      "scene": "repetition",
+      "placeholder": true,
+      "owner_approved": false,
+      "asha_says": "[the repeated question, as asked]",
+      "caregiver_replies": ["[their real reply when it's the 3rd time — do they vary it? do they repeat themselves too?]"],
+      "always_says": [],
+      "never_say": [],
+      "notes": "Key M1 question: do real caregivers sound slightly DIFFERENT each time, or identical? Both are useful data."
+    },
+    {
+      "scene": "anxious_evening",
+      "placeholder": true,
+      "owner_approved": false,
+      "asha_says": "[her words when anxious]",
+      "caregiver_replies": ["[their real reply]"],
+      "always_says": [],
+      "never_say": [],
+      "notes": "First reply matters most — before problem-solving, what do they say in the first sentence?"
+    }
+  ],
+
+  "_rules": [
+    "placeholder=true entries are SHAPE ONLY and must never be read into a prompt.",
+    "owner_approved must be set true by the owner after safety review — the agent does not set it.",
+    "These are style/test material, not ground truth about Asha; nothing here overrides the profile.",
+    "If an entry fails safety review, record it in notes with the reason rather than silently editing their words."
+  ]
+}
