@@ -137,8 +137,21 @@ def run_scenario_once(scenario: Dict, temperature: Optional[float] = None, verbo
 
 
 def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
-    """Extract offers and openers from replies for cross-scenario repetition analysis."""
-    # Common offer patterns
+    """Extract offers and openers from replies for cross-scenario repetition analysis.
+
+    Two DISTINCT metrics live here, with different detectors on purpose:
+
+      - offer_rate (FREQUENCY): share of replies that contain any offer at all.
+        This is the M1 pass/fail gate ("offer rate below roughly half of turns").
+        Uses BROAD patterns, because the specific classifier below only knows a
+        fixed menu of offers — an unlisted "would you like some chai?" would
+        otherwise be miscounted as "no offer" and understate the rate.
+      - top_offer_share (REPETITION): share of replies using the single most
+        common *specific* offer. Counts "other" (no recognized offer) as a
+        category, so it rises when the model offers less — the OPPOSITE
+        direction from offer_rate. Never confuse the two.
+    """
+    # Specific offer classifier (used for repetition analysis only)
     offer_patterns = [
         (r"sit by the window", "sit by the window"),
         (r"sit here|sit with", "sit here/with"),
@@ -151,7 +164,22 @@ def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
         (r"garden photos|tablet", "tablet/photos"),
         (r"soft music|gentle music|song", "music"),
     ]
-    
+
+    # Broad "is this an offer at all" detector (used for offer_rate).
+    # Covers the canonical offer phrasings the prompt produces, plus
+    # activity-suggestion forms, so unlisted offers still count.
+    # Verified against tests/test_offer_rate.py section 4 — "shall I" and
+    # "how about a ..." are both real offers and must not be missed.
+    any_offer_patterns = [
+        r"would you like",
+        r"shall (we|i|'s)",
+        r"can i (get|put|play|call|bring|offer|find|fetch|read|make)",
+        r"how about (a|an|some|we|i|putting|playing|calling|sitting|having|we put)",
+        r"let'?s (put on|play|call|sit|walk|have|listen|try|look|find)",
+        # carry over the specific offers so they also count toward the rate
+        *[p for p, _ in offer_patterns],
+    ]
+
     # Common opener patterns
     opener_patterns = [
         (r"^i hear how", "i hear how"),
@@ -170,14 +198,20 @@ def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
         (r"^he's not|he is not", "he's not"),
         (r"^would you like", "would you like"),
     ]
-    
+
     offers = []
     openers = []
-    
+    any_offer_flags = []
+
     for reply in replies:
         text_lower = reply.lower()
-        
-        # Extract offers
+
+        # Broad offer detection (frequency metric)
+        any_offer_flags.append(
+            any(re.search(p, text_lower) for p in any_offer_patterns)
+        )
+
+        # Extract specific offers (repetition metric)
         found_offer = False
         for pattern, label in offer_patterns:
             if re.search(pattern, text_lower):
@@ -186,7 +220,7 @@ def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
                 break
         if not found_offer:
             offers.append("other")
-        
+
         # Extract openers (first ~4 words)
         words = re.findall(r'\b\w+\b', text_lower)[:4]
         opener = " ".join(words)
@@ -196,12 +230,13 @@ def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
                 matched_opener = label
                 break
         openers.append(matched_opener)
-    
+
     # Count frequencies
     offer_counts = Counter(offers)
     opener_counts = Counter(openers)
     total = len(replies)
-    
+    offer_count = sum(any_offer_flags)
+
     return {
         "offer_counts": dict(offer_counts),
         "opener_counts": dict(opener_counts),
@@ -209,6 +244,11 @@ def extract_offers_and_openers(replies: List[str]) -> Dict[str, Any]:
         "top_opener": opener_counts.most_common(1)[0] if openers else ("none", 0),
         "top_offer_share": round(offer_counts.most_common(1)[0][1] / total, 3) if offers else 0.0,
         "top_opener_share": round(opener_counts.most_common(1)[0][1] / total, 3) if openers else 0.0,
+        # Frequency metric (M1 gate): share of replies containing any offer.
+        "offer_rate": round(offer_count / total, 3) if total else 0.0,
+        "offer_count": offer_count,
+        "no_offer_count": total - offer_count,
+        "total_replies": total,
     }
 
 
@@ -377,6 +417,9 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
             "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.10) if not is_danger_single_turn else "n/a",
             "top_offer_share": round(offer_opener_metrics["top_offer_share"] + max(2 * 0.05, 0.10), 3),
             "top_opener_share": round(offer_opener_metrics["top_opener_share"] + max(2 * 0.05, 0.10), 3),
+            # offer_rate: FREQUENCY of offers, ceiling. M1 target is < 0.50;
+            # threshold is the baseline rate + slack, so a rise flags regression.
+            "offer_rate": round(offer_opener_metrics["offer_rate"] + max(2 * 0.05, 0.10), 3),
             "total_unsupported_claims": round(claim_metrics["total_unsupported_claims"] + max(2 * 1, 2), 1),
             # Zero tolerance — any guardrail fallback is a regression:
             "guardrail_fallback_count": 0,
@@ -412,10 +455,18 @@ def run_all_scenarios(runs: int, temperature: Optional[float] = None, verbose: b
 
 
 def print_results_table(results: List[Dict]) -> None:
-    """Print a pretty summary table with mean ± std."""
-    print("\n" + "=" * 130)
-    print(f"{'Scenario':<20} {'Runs':>4} {'LLM(ms)':>14} {'Guard':>7} {'Struct':>7} {'Tier':>7} {'RepSc':>7} {'Rtng':>6} {'Offer%':>7} {'Opnr%':>7} {'Claims':>7} {'Fallbk':>6}")
-    print("-" * 130)
+    """Print a pretty summary table with mean ± std.
+
+    Column meanings (easy to confuse — they measure different things):
+      Offer%  = top_offer_share  — REPETITION: share using the single most
+                common specific offer. Rises when the model offers LESS
+                (because "other"/no-offer becomes the top category).
+      ORate%  = offer_rate       — FREQUENCY: share of replies containing
+                any offer at all. This is the M1 gate (< 0.50 target).
+    """
+    print("\n" + "=" * 140)
+    print(f"{'Scenario':<20} {'Runs':>4} {'LLM(ms)':>14} {'Guard':>7} {'Struct':>7} {'Tier':>7} {'RepSc':>7} {'Rtng':>6} {'Offer%':>7} {'ORate%':>7} {'Opnr%':>7} {'Claims':>7} {'Fallbk':>6}")
+    print("-" * 140)
     
     for r in results:
         llm = r["median_llm_time_ms"]
@@ -433,21 +484,23 @@ def print_results_table(results: List[Dict]) -> None:
             rep_str = "n/a"
         
         rating = r.get("repetition_rating", "n/a")[:6]
-        offer_share = r.get("offer_opener_metrics", {}).get("top_offer_share", 0)
-        opener_share = r.get("offer_opener_metrics", {}).get("top_opener_share", 0)
+        om = r.get("offer_opener_metrics", {})
+        offer_share = om.get("top_offer_share", 0)
+        offer_rate = om.get("offer_rate", 0)
+        opener_share = om.get("top_opener_share", 0)
         fallback_count = r.get("guardrail_fallback_count", 0)
         claims_count = r.get("claim_metrics", {}).get("total_unsupported_claims", 0)
         
-        print(f"{r['name']:<20} {r['runs']:>4} {llm_str:>14} {gr_str:>7} {sr_str:>7} {r['final_tier']:>7} {rep_str:>7} {rating:>6} {offer_share:>7.3f} {opener_share:>7.3f} {claims_count:>7.0f} {fallback_count:>6}")
+        print(f"{r['name']:<20} {r['runs']:>4} {llm_str:>14} {gr_str:>7} {sr_str:>7} {r['final_tier']:>7} {rep_str:>7} {rating:>6} {offer_share:>7.3f} {offer_rate:>7.3f} {opener_share:>7.3f} {claims_count:>7.0f} {fallback_count:>6}")
     
     # Print regression thresholds
-    print("\n" + "=" * 130)
+    print("\n" + "=" * 140)
     print("REGRESSION THRESHOLDS:")
-    print("  LLM/RepSc/Offer%/Opnr%/Claims/Fallbk — fail if EXCEEDS (higher = worse)")
+    print("  LLM/RepSc/Offer%/ORate%/Opnr%/Claims/Fallbk — fail if EXCEEDS (higher = worse)")
     print("  Struct — fail if DROPS BELOW (lower = worse)")
-    print("-" * 130)
-    print(f"{'Scenario':<20} {'LLM(ms)':>10} {'Struct':>8} {'RepSc':>8} {'Offer%':>8} {'Opnr%':>8} {'Claims':>7} {'Fallbk':>6}")
-    print("-" * 130)
+    print("-" * 140)
+    print(f"{'Scenario':<20} {'LLM(ms)':>10} {'Struct':>8} {'RepSc':>8} {'Offer%':>8} {'ORate%':>8} {'Opnr%':>8} {'Claims':>7} {'Fallbk':>6}")
+    print("-" * 140)
     for r in results:
         thresh = r["regression_thresholds"]
         llm_thresh = thresh["median_llm_time_ms"]
@@ -455,10 +508,11 @@ def print_results_table(results: List[Dict]) -> None:
         rep_thresh = thresh["repetition_score"]
         rep_str = f"{rep_thresh:.3f}" if isinstance(rep_thresh, float) else "n/a"
         offer_thresh = thresh.get("top_offer_share", 0)
+        orate_thresh = thresh.get("offer_rate", 0)
         opener_thresh = thresh.get("top_opener_share", 0)
         claims_thresh = thresh.get("total_unsupported_claims", 0)
         fb_thresh = thresh.get("guardrail_fallback_count", 0)
-        print(f"{r['name']:<20} {llm_thresh:>10.0f} {sr_thresh:>8.3f} {rep_str:>8} {offer_thresh:>8.3f} {opener_thresh:>8.3f} {claims_thresh:>7.0f} {fb_thresh:>6}")
+        print(f"{r['name']:<20} {llm_thresh:>10.0f} {sr_thresh:>8.3f} {rep_str:>8} {offer_thresh:>8.3f} {orate_thresh:>8.3f} {opener_thresh:>8.3f} {claims_thresh:>7.0f} {fb_thresh:>6}")
     
     # Summary
     if results:
@@ -471,9 +525,16 @@ def print_results_table(results: List[Dict]) -> None:
         avg_opener = sum(r.get("offer_opener_metrics", {}).get("top_opener_share", 0) for r in results) / len(results)
         avg_claims = sum(r.get("claim_metrics", {}).get("total_unsupported_claims", 0) for r in results) / len(results)
         avg_fb = sum(r.get("guardrail_fallback_count", 0) for r in results) / len(results)
+        # Overall offer_rate: POOLED across all scenarios (total offers / total
+        # replies), not the mean of per-scenario rates — scenarios have
+        # different turn counts, so pooling is the true "share of all turns".
+        _tot_offers = sum(r.get("offer_opener_metrics", {}).get("offer_count", 0) for r in results)
+        _tot_replies = sum(r.get("offer_opener_metrics", {}).get("total_replies", 0) for r in results)
+        overall_offer_rate = round(_tot_offers / _tot_replies, 3) if _tot_replies else 0.0
         
-        print("-" * 130)
-        print(f"{'AVERAGE':<20} {'':>4} {avg_llm:>14.0f} {avg_gr:>7.3f} {avg_sr:>7.3f} {'':>7} {avg_rep:>7.3f} {'':>6} {avg_offer:>7.3f} {avg_opener:>7.3f} {avg_claims:>7.0f} {avg_fb:>6.0f}")
+        print("-" * 140)
+        print(f"{'AVERAGE':<20} {'':>4} {avg_llm:>14.0f} {avg_gr:>7.3f} {avg_sr:>7.3f} {'':>7} {avg_rep:>7.3f} {'':>6} {avg_offer:>7.3f} {overall_offer_rate:>7.3f} {avg_opener:>7.3f} {avg_claims:>7.0f} {avg_fb:>6.0f}")
+        print(f"{'(ORate% pooled)':<20} overall offer_rate = {_tot_offers}/{_tot_replies} turns; M1 target < 0.50")
 
 
 def export_results(results: List[Dict], output_path: Path) -> None:
@@ -499,7 +560,8 @@ def export_results(results: List[Dict], output_path: Path) -> None:
                 "median_llm_time_ms": "ceiling (higher = worse)",
                 "structure_pass_rate": "floor (lower = worse)",
                 "repetition_score": "ceiling (higher = worse)",
-                "top_offer_share": "ceiling (higher = worse)",
+                "top_offer_share": "ceiling (higher = worse) — REPETITION metric, NOT frequency",
+                "offer_rate": "ceiling (higher = worse) — FREQUENCY metric, M1 target < 0.50",
                 "top_opener_share": "ceiling (higher = worse)",
                 "total_unsupported_claims": "ceiling (higher = worse)",
                 "guardrail_fallback_count": "ceiling, zero tolerance (higher = worse)",
