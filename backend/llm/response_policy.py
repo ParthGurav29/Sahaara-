@@ -280,6 +280,10 @@ VALIDATION_MARKERS = [
     r"\bi can hear (how|what)\b",
     # "I hear that..." - validation of what was said
     r"\bi hear that\b",
+    # "I hear this is scary" / "I hear it hurts" - the physical-distress prompt
+    # block MANDATES exactly this phrasing ("I hear this is scary, I'm right
+    # here"), so the checker must recognize it (added W2b — Oct 23).
+    r"\bi hear (this|it)\b",
     # "That [noun] sounds [adjective]" - e.g., "That heaviness sounds uncomfortable"
     r"\bthat \w+ sounds (uncomfortable|hard|difficult|lovely|nice|peaceful|heavy)\b",
     # "I'm sorry you're feeling" / "Sorry you're feeling"
@@ -298,6 +302,13 @@ VALIDATION_MARKERS = [
     r"\bi sense\b",
     # "How [adjective]" - e.g., "How lovely to see you"
     r"\bhow (lovely|nice|wonderful|beautiful|peaceful)\b",
+    # "Thank you for sharing" - validating the act of opening up
+    # (added W2b - checker could not recognize genuine validation)
+    r"\bthank you for (sharing|telling me)\b",
+    # Mirroring the feeling back IS validation: "Your calm breathing feels
+    # like a gentle tide", "That deep breath feels so soothing"
+    # (added W2b - Breathing Calm replies failed on marker blindness)
+    r"\b(that|your) (\w+ )?\w+ feels (like|so)\b",
 ]
 
 CORRECTIVE_MARKERS = [
@@ -330,6 +341,9 @@ GROUNDING_MARKERS = [
     # Safety/companionship - flexible patterns
     r"\byou'?re safe\b",
     r"\byou'?re with me\b",
+    r"\bi'?m right here\b",  # the prompt's canonical presence phrase:
+    #   "I'm right here [with you]" (added W2b - bare "I'm right here."
+    #   did not match any grounding pattern)
     r"\bi'?m (right here )?with you\b",
     r"\bwe'?re (here|together)\b",
     r"\bwith you\b",    # "with you" anywhere
@@ -380,10 +394,27 @@ def check_response_structure(response_text: str, turn_type: str = "emotional") -
 
     Args:
         response_text: The response to check
-        turn_type: One of "emotional", "casual", "danger"
-            - "emotional": Full validate/ground/one-choice rules (default)
-            - "casual": Lighter check - validation optional, grounding optional, choice required
-            - "danger": Safety-specific - validation required, grounding required, choice required
+        turn_type: One of "emotional", "casual", "physical_urgent",
+            "physical_general", "danger"
+            - "emotional": validation REQUIRED; one-choice OPTIONAL (M1);
+              grounding optional; open-ended/corrective forbidden
+            - "casual": validation optional; one-choice OPTIONAL (M1);
+              open-ended/corrective forbidden
+            - "physical_urgent": FULL PROTOCOL (M1) — validation +
+              grounding required (the prompt block: name the feeling +
+              stay present + urge help; choice deliberately NOT required
+              because that block forbids activity offers)
+            - "physical_general": FULL PROTOCOL (M1) — validation +
+              choice required (the prompt block: name the feeling + offer
+              to call caregiver + comfort choice)
+            - "danger": FULL PROTOCOL kept (M1) — validation, grounding,
+              and choice all required; open-ended/corrective forbidden
+
+    M1 note ("structure split"): making the model OFFER fewer choices must
+    not weaken what the checker actually gates on. Validation (all modes
+    where it was required) and no-invented-facts (guardrails — untouched
+    here) stay hard gates. Danger and physical-distress turns are held to
+    the exact pre-M1 protocol.
     """
     text_lower = response_text.lower()
 
@@ -394,15 +425,34 @@ def check_response_structure(response_text: str, turn_type: str = "emotional") -
     has_corrective = any(re.search(p, text_lower) for p in CORRECTIVE_MARKERS)
 
     if turn_type == "casual":
-        # Lighter check: choice required, open-ended/corrective forbidden, validation/grounding optional
-        passes = has_concrete_choice and not has_open_ended and not has_corrective
+        # Casual: no positive requirement beyond the forbidden patterns -
+        # the M1 split makes the one-choice OPTIONAL here. Validation was
+        # never required in casual mode and is not newly required.
+        passes = not has_open_ended and not has_corrective
+    elif turn_type == "physical_urgent":
+        # PHYSICAL URGENT / RED: the prompt block's OWN protocol — NAME THE
+        # FEELING (validation) + STAY PRESENT (grounding) + urge help, and
+        # it EXPLICITLY FORBIDS activity offers ("NO MUSIC OR WINDOW
+        # OFFERS"). Requiring a menu choice here would fail replies that
+        # follow the prompt exactly, so choice is NOT required (aligned
+        # to the prompt Oct 23 — previously the checker inherited the
+        # generic emotional choice requirement and scored 0.000
+        # coin-flips on correct replies).
+        passes = has_validation and has_grounding and not has_open_ended and not has_corrective
+    elif turn_type == "physical_general":
+        # PHYSICAL UNWELLNESS / ORANGE: the prompt block's OWN protocol —
+        # name the feeling + OFFER TO CALL CAREGIVER + OFFER COMFORT
+        # CHOICE, so validation AND choice are both required.
+        passes = has_validation and has_concrete_choice and not has_open_ended and not has_corrective
     elif turn_type == "danger":
-        # Safety-specific: validation, grounding, choice all required; open-ended/corrective forbidden
+        # Safety-specific (unchanged by M1): validation, grounding, choice
+        # all required; open-ended/corrective forbidden
         passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
     else:
-        # "emotional" (default): validation + concrete choice required, grounding scored but optional
-        # (policy says grounding is "if useful" — not mandatory for every turn)
-        passes = has_validation and has_concrete_choice and not has_open_ended and not has_corrective
+        # "emotional" (default): validation REQUIRED (hard gate, kept by M1);
+        # concrete choice OPTIONAL (the M1 split); grounding scored but
+        # optional (policy says "if useful"); open-ended/corrective forbidden
+        passes = has_validation and not has_open_ended and not has_corrective
 
     return StructureCheck(
         has_validation_language=has_validation,

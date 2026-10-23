@@ -55,6 +55,14 @@ def run_scenario_once(scenario: Dict, temperature: Optional[float] = None, verbo
         scenario_name = scenario["name"]
         if "Danger" in scenario_name:
             turn_type = "danger"
+        elif "Physical Urgent" in scenario_name:
+            # Urgent physical turns: prompt protocol is name-feeling +
+            # stay-present + urge help (NO menu offer required)
+            turn_type = "physical_urgent"
+        elif "Physical" in scenario_name:
+            # General unwellness: prompt protocol offers caregiver call +
+            # comfort choice
+            turn_type = "physical_general"
         elif "Casual" in scenario_name:
             turn_type = "casual"
         else:
@@ -347,8 +355,12 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
     # Extract unsupported claims metrics
     claim_metrics = check_unsupported_claims(all_replies)
     
-    # Check if this is a single-turn Danger scenario (no repetition possible)
-    is_danger_single_turn = runs[0]["turns"] == 1 and "Danger" in scenario_name
+    # Check if this is a single-turn scenario (Danger / Physical — no
+    # repetition possible; RepSc of 0.000 there was a meaningless metric,
+    # which the M1 threshold cleanup removes)
+    is_single_turn = runs[0]["turns"] == 1 and (
+        "Danger" in scenario_name or "Physical" in scenario_name
+    )
     
     def mean_std(values: List[float]) -> Tuple[float, float]:
         if len(values) < 2:
@@ -400,9 +412,9 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
             "std": round(std_rep, 3),
             "min": round(min(rep_scores), 3),
             "max": round(max(rep_scores), 3),
-        } if not is_danger_single_turn else "n/a",
-        "repetition_rating": most_common_rating if not is_danger_single_turn else "n/a",
-        "repetition_flags": total_flags if not is_danger_single_turn else "n/a",
+        } if not is_single_turn else "n/a",
+        "repetition_rating": most_common_rating if not is_single_turn else "n/a",
+        "repetition_flags": total_flags if not is_single_turn else "n/a",
         # New metrics
         "offer_opener_metrics": offer_opener_metrics,
         "claim_metrics": claim_metrics,
@@ -414,7 +426,7 @@ def aggregate_runs(runs: List[Dict], scenario_name: str) -> Dict:
         "regression_thresholds": {
             # Ceiling metrics (fail if EXCEEDS — higher = worse):
             "median_llm_time_ms": max(round(mean_llm * 1.15, 1), round(mean_llm + 2 * std_llm, 1)),
-            "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.10) if not is_danger_single_turn else "n/a",
+            "repetition_score": max(round(mean_rep + max(2 * std_rep, 0.10), 3), 0.10) if not is_single_turn else "n/a",
             "top_offer_share": round(offer_opener_metrics["top_offer_share"] + max(2 * 0.05, 0.10), 3),
             "top_opener_share": round(offer_opener_metrics["top_opener_share"] + max(2 * 0.05, 0.10), 3),
             # offer_rate: FREQUENCY of offers, ceiling. M1 target is < 0.50;
@@ -537,10 +549,11 @@ def print_results_table(results: List[Dict]) -> None:
         print(f"{'(ORate% pooled)':<20} overall offer_rate = {_tot_offers}/{_tot_replies} turns; M1 target < 0.50")
 
 
-def export_results(results: List[Dict], output_path: Path) -> None:
+def export_results(results: List[Dict], output_path: Path, label: str = None) -> None:
     """Export results to JSON file."""
     output = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "label": label,  # e.g. "pre-M1 checker" / "post-M1 checker" (M1 condition)
         "scenarios": results,
         "summary": {
             "median_llm_latency_ms": round(sum(r['median_llm_time_ms']['mean'] for r in results) / len(results), 1) if results else 0,
@@ -577,6 +590,7 @@ def main():
     parser.add_argument("--scenario", default="all", help="Scenario name or 'all'")
     parser.add_argument("--runs", type=int, default=5, help="Number of runs per scenario (default: 5)")
     parser.add_argument("--export", type=Path, help="Export results to JSON file")
+    parser.add_argument("--label", help="Label stored in the export (e.g. 'pre-M1 checker', 'post-M1 checker')")
     parser.add_argument("--verbose", action="store_true", help="Print detailed structure check per turn (first run only)")
     parser.add_argument("--temperature", type=float, help="LLM temperature override (e.g., 0.3)")
     parser.add_argument("--no-llm", action="store_true", help="Use scripted responses (not implemented yet)")
@@ -597,7 +611,7 @@ def main():
     print_results_table(results)
     
     if args.export:
-        export_results(results, args.export)
+        export_results(results, args.export, label=args.label)
 
 
 if __name__ == "__main__":

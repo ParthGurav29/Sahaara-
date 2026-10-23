@@ -192,7 +192,18 @@ def process_turn(user_message: str) -> dict:
     response_text = result.text
     
     # ---- SAFETY CHECKS ----
-    structure = check_response_structure(response_text)
+    # Structure check is QA-only (never gates); guardrails below are the
+    # runtime gate. Turn type follows the intent so the QA score reflects
+    # the right protocol (M1: danger/physical keep the full protocol).
+    if intent.is_physical_urgent:
+        _structure_turn_type = "physical_urgent"
+    elif intent.is_physical_general:
+        _structure_turn_type = "physical_general"
+    elif intent.is_danger_statement:
+        _structure_turn_type = "danger"
+    else:
+        _structure_turn_type = "emotional"
+    structure = check_response_structure(response_text, turn_type=_structure_turn_type)
     guardrail = check_guardrails(response_text, s.profile)
     
     used_fallback = False

@@ -14,33 +14,34 @@
 ## 0. Current Status (as of 2026-10-23, HEAD `6cb0cca`)
 
 **Verification snapshot (all run 2026-10-23):**
-- `tests/unit_e2e.py` — **143/143 pass**
-- `tests/test_offer_rate.py` — **23/23 pass**
-- `tests/test_guardrails.py` — **13/13 pass**
+- `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
+- `tests/test_offer_rate.py` — **23/23 pass** · `tests/test_policy_engine.py` — **9/9 pass**
+- `tests/test_guardrails.py` — **13/13 pass**; `guardrail_baseline.py --verify` — **no drift** vs pre-baseline
 - `tests/guardrail_baseline.py` — **17/17 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
+- **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker") — see the Oct 23 W2b changelog entry for the full pre/post table
 - `tsc --noEmit` — clean · `import main` — clean (31 routes registered)
-- Harness live runs — 🔴 **BLOCKED** (see Blockers)
 
 **Milestones:**
 
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Verification of the existing build | ✅ Done (Oct 22) — 143 unit tests, tsc, imports; Phase 0 fixes confirmed present; Phase 5 confirmed NOT built |
-| M1 | Natural conversation (offer frequency down, hard gates kept) | 🔨 In progress — metrics done, guardrail pre-baseline saved; checker/prompt changes NOT yet made; **not declared over until all 3 done-when criteria measured** |
+| M1 | Natural conversation (offer frequency down, hard gates kept) | 🔨 In progress — W2b done; **offer_rate still 0.936 (target <0.50) — that gate is judged AFTER W2c** (prompt loosening is what changes model behavior; W2b changed the checker only). Guardrails no-worse: ✅ (1.000/0 fallbacks, adversarial no-drift). Blind raters: pending W5. |
 | W1 | Real caregiver conversations for style examples | ⏸ Waiting on owner — **JSON template ready at `docs/w1_caregiver_exchanges.json`** (6–8 exchanges to start, 4 demo scenes) |
 | W2a | Harness display/threshold fixes | ✅ Done `aa48c62` |
-| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ⬜ Code gated on `baseline_pre_m1.json` (Nebius 402) — **fully designed, runs first thing when credits return** |
+| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ✅ **Done 2026-10-23** (this build) — full 5-run pre+post baselines saved, table + replies reported to owner, **awaiting review** |
 | W2c | Prompt loosening | ⏸ **HELD by owner decision (Oct 23)** until real caregiver exchanges arrive — Liz Ayre doc = background only, labeled; no fabricated examples |
-| W3 | Guardrail adversarial re-run (post-change, `--verify` vs pre-baseline) | ⬜ after W2c |
+| W3 | Guardrail adversarial re-run (post-W2c, `--verify` vs pre-baseline) | ⬜ after W2c (the post-W2b verify already ran: no drift) |
 | W4a | Cartesia TTS schema modernization | ✅ Done `259a438` |
 | W4b | Voice tuning (Orange/Red calmer pace/softness) | ⬜ |
 | W5 | Metrics + blind naturalness review | ⬜ |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
-- 🔴 **Nebius API 402 `credit_balance_exhausted`** — every LLM call fails. Blocks: pre-M1 baseline, all harness runs, W2b–W5 evaluation, per-scenario offer numbers. Owner is restoring credits. (Cartesia credits work fine — voice work can proceed.)
-- ⏸ **W1** — waiting on owner's caregiver contact.
+- ~~Nebius API 402~~ — **RESOLVED 2026-10-23** (credits restored; harness live runs work again)
+- ⏸ **W1** — waiting on owner's caregiver contact (template ready).
 - ⏸ **Filler cache regeneration** — explicitly deferred by owner; sonic-2 kept pinned so the existing `.raw` cache stays valid.
+- ⏸ **W2b owner review** — full 5-run table + untruncated replies reported; next work item waits for owner sign-off (standing rule: one item at a time).
 
 **Critical alerts (read before ANY voice work):**
 - **sonic-2 is sunsetted (Oct 20, 2026).** Cartesia docs: *"sonic-2 and all sonic-2-* snapshots will stop working after October 20, 2026."* It still returns audio (Cartesia enforcing lazily) but is degraded — one A/B render took **29.3s wall vs ~1s** for other models. Pinned only for demo voice continuity. **Do not ship on sonic-2.**
@@ -48,11 +49,10 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-1. ✅ **DONE 2026-10-23:** guardrail adversarial pre-baseline saved — `tests/baseline_guardrails_pre.json` (17/17: 13 core + 4 fabrication-family cases, commit + code fingerprints recorded). Re-verify anytime: `cd backend && .venv/bin/python tests/guardrail_baseline.py --verify tests/baseline_guardrails_pre.json`.
-2. When credits return: save **5-run `baseline_pre_m1.json` on the CURRENT build — BEFORE touching any checker** (owner's explicit condition).
-3. W2b (structure split — design in the Oct 23 changelog entry) → paste full 5-run table + 5-6 untruncated replies → **wait for owner review**.
-4. W2c **only after** owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → review → W3 (post-change `--verify` + full suite) → review → W4b → review → W5 (metrics + blind naturalness). One at a time, never batched.
-5. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
+1. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
+2. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
+3. ⏸ **WAITING ON OWNER REVIEW of W2b** (table + untruncated replies reported). On approval: W2c only after owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → W3 full adversarial re-run → W4b → W5 (metrics + blind naturalness). One at a time, never batched.
+4. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
 
 ---
 
@@ -231,7 +231,7 @@ Physical symptoms (added Oct 19):
 Nemotron models are reasoning models. If `enable_thinking` is not explicitly disabled, responses can come back with **empty `content`** (reasoning trace consumed the token budget). The client disables it: `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`. There's a fallback to `reasoning_content` if `content` is still empty.
 
 ### Nebius 402 shows up as fake metric failures
-When credits are exhausted, every harness turn returns an error dict — Guard/Struct/ORate print **0.000** and tiers print `unknown`. This is an API failure, NOT a model regression. Check `guardrail_fallback_count` and error output before believing a red table. (Current state as of 2026-10-23: BLOCKED.)
+When credits are exhausted, every harness turn returns an error dict — Guard/Struct/ORate print **0.000** and tiers print `unknown`. This is an API failure, NOT a model regression. Check `guardrail_fallback_count` and error output before believing a red table. (Resolved 2026-10-23 — credits restored; the pattern remains a live trap on any future 402.)
 
 ### Cartesia model pinning
 `CARTESIA_MODEL_ID` defaults to `sonic-2` with a MODEL PINNING comment block in `voice/tts.py`. Read §0's critical alerts before touching it: sonic-2 is past sunset, `sonic-latest` is a beta alias. Migration target `sonic-3.6-2026-08-27`, pending the blind A/B.
@@ -285,11 +285,12 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 
 **Directions:** all thresholds are ceilings (fail if EXCEPTS) except **Struct, which is a floor** (fail if drops below 0.100). Zero tolerance: `guardrail_fallback_count` = 0.
 
-### Known harness gaps (as of 2026-10-23)
-- No saved `baseline_pre_m1.json` yet (Nebius 402 blocked) — **must be saved on the current build before any checker change** (§0 next action).
-- ORate/other thresholds are currently derived from single-run values + slack; they get recalibrated from the real 5-run baseline.
-- Structure floor is 0.100 (raised from 0.000 in W2a so the gate can actually fail).
-- Historical: Casual Chat once showed guardrail 0.900 (one violation, cause unknown) — watch it in baselines.
+### Known harness gaps (as of 2026-10-23, post-W2b)
+- Both M1 baselines exist: `baseline_pre_m1.json` ("pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` ("post-M1 checker").
+- Thresholds still derive mean ±2*std from the CURRENT run, not from the saved baselines (floors ≥0.10, no 0.000s after W2b; Physical single-turns are n/a for repetition).
+- Chest Feeling Emotional / Breathing Calm struct scores swing ~0.4–1.0 across runs — validation-marker variance at temperature 0.7 with n=5; wide floors. Watch, don't trust single runs.
+- Casual Chat guardrail occasionally 0.900 (weather fabrication on "How is the weather today?") — guardrail catches it (fallback), but the model sometimes attempts it. W2c prompt item: teach honest weather answering.
+- offer_rate ~0.90+ until W2c loosens the prompt — expected, not a W2b regression (W2b changed the checker only).
 
 ## 11. Known bugs (as of Oct 19 2026)
 
@@ -522,3 +523,18 @@ Multiple prompt/guardrail changes applied together:
 - **`tests/baseline_guardrails_pre.json` (new, saved):** 17/17 ok (rate 1.0) — must_catch 13/13, must_allow 4/4, extraction failures 0, commit `fcb08cd`. Round-trip `--verify` → "No drift".
 - **`docs/w1_caregiver_exchanges.json` (new):** W1 collection template — 4 demo scenes (missing_priya, vikram_mention, repetition, anxious_evening), shape-only placeholder entries (`placeholder: true`, empty fields — NO invented speech anywhere), owner-safety-review checklist, and hard rules (agent never sets `owner_approved`; placeholder entries never read into a prompt). Owner sends to one caregiver for 6–8 starter exchanges ("what they'd really say"; recording + transcript fine).
 - **No production code changed.** `response_policy.py`, `conversation.py`, harness thresholds — all untouched; the M1 pre-change baseline condition is still unmet only for the LLM-dependent 5-run harness baseline (`baseline_pre_m1.json`, blocked on credits).
+
+### 2026-10-23 — W2b: structure split (offer optional), physical/danger full protocol kept, baselines pre+post (this change)
+- **Owner conditions honored:** 5-run baseline saved FIRST on the untouched build (`baseline_pre_m1.json`, labeled "pre-M1 checker (untouched build, commit 6ffe71b)") — then and only then the checker changed. Guardrail adversarial suite run before (17/17, saved) and after (`--verify` → **no drift**). Post baseline saved labeled **"post-M1 checker"** (`baseline_post_m1_checker.json`).
+- **`llm/response_policy.py` — checker split (`check_response_structure`):**
+  - `casual`: choice **optional**; only open-ended/corrective forbidden (validation was never required here).
+  - `emotional`: validation **stays a hard gate**; choice **optional** (the M1 change); grounding optional; open-ended/corrective forbidden.
+  - `physical_urgent` (NEW mode): validation + grounding required, choice deliberately **not** required — the physical-urgent prompt block mandates name-feeling + stay-present + urge-help and EXPLICITLY FORBIDS activity offers; the old inherited choice requirement produced 0.000 coin-flip scores on correct replies (violating the owner's "no 0.000" condition).
+  - `physical_general`: validation + choice required (that prompt block mandates "offer to call caregiver" + comfort choice).
+  - `danger`: byte-for-byte unchanged (validation + grounding + choice).
+  - **Marker recognizers added** (same bug class as Oct-20's "I can feel" fix — checker blind to genuine validation/grounding the prompt itself mandates): `\bi hear (this|it)\b` (the block's canonical "I hear this is scary"), `\bthank you for (sharing|telling me)\b`, mirroring-feelings `\b(that|your) (\w+ )?\w+ feels (like|so)\b` ("Your calm breathing feels like a gentle tide"), grounding `\bi'?m right here\b`. All recognition-only — a non-validating reply still fails.
+- **`tests/harness.py`:** scenario→turn_type mapping (`Physical Urgent`/`Physical`/`Danger`/`Casual`); single-turn n/a now covers Physical scenarios too (meaningless RepSc 0.000s removed); `--label` arg stored in exports.
+- **`conversation.py`:** QA structure check now uses the intent's turn type (QA-meta only — never gates; guardrails remain the sole runtime gate).
+- **`tests/unit_e2e.py`:** +14 M1 checks (split behaviors, both physical modes, canonical-phrase recognition) → **157/157**.
+- **5-run results (pre → post):** Guard 1.000 → 1.000 (0 fallbacks both) · **Struct avg 0.723 → 0.855** · Physical Urgent struct 0.000 → 1.000 · Casual 0.800 → 1.000 · Anxious 0.800 → 0.950 · offer_rate 0.900 → 0.936 (**unchanged by design** — prompt untouched; the <0.50 M1 gate is judged after W2c).
+- **Findings reported to owner (not fixed here — W2c/owner territory):** (1) intermittent weather fabrication on "How is the weather today?" turns — guardrail CAUGHT both times, honest "I don't know what the sky looks like" replies also observed; (2) one Vikram reply offered "I can call him for you" about the deceased spouse — guardrail's call-promise pattern targets claims, not offers; (3) one "Priya's picture… play his favorite song" pronoun slip; (4) claims heuristic 2 → 3 candidates in Casual Chat (broad patterns like "in the kitchen"; zero guardrail breaches, within ceiling).
