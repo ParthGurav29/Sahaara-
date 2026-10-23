@@ -27,3 +27,5 @@ dist/
 
 # Logs
 *.log
+# Transient voice A/B listening-test artifacts (regenerate via tests/voice_ab.py)
+backend/voice/assets/ab_test/

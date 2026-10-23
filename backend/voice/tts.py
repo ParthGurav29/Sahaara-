@@ -9,9 +9,9 @@ should start speaking the first sentence as soon as it's generated").
 Request schema verified against Cartesia's live AsyncAPI spec on 2026-10-23
 (API version 2026-08-14). Key changes from the original 2024-era code:
   - cartesia_version bumped 2024-06-10 -> 2026-08-14
-  - model_id: "sonic-2" is no longer in the documented enum. Current enum
-    is sonic-3.6 / sonic-3.5 / sonic-3 / sonic-latest. Default is
-    sonic-latest, overridable via CARTESIA_MODEL_ID.
+  - model_id: see the MODEL PINNING note below. Currently pinned to the
+    sunsetted sonic-2 for demo voice continuity only. sonic-2 is past its
+    Oct 20 2026 sunset date and must be migrated before any real deploy.
   - voice: the old {"mode": "id", "id": ...} shape used a "mode" field that
     no longer appears in the schema. Current spec accepts either a plain ID
     string or an object with a required "id". We use the object form for
@@ -43,9 +43,23 @@ CARTESIA_API_KEY = os.environ.get("CARTESIA_API_KEY")
 CARTESIA_VOICE_ID = os.environ.get("CARTESIA_VOICE_ID", "")
 CARTESIA_WS_URL = "wss://api.cartesia.ai/tts/websocket"
 CARTESIA_VERSION = "2026-08-14"  # verified against docs.cartesia.ai on 2026-10-23
-# sonic-2 was removed from the documented enum. sonic-latest tracks the newest
-# stable release; set CARTESIA_MODEL_ID to pin (e.g. "sonic-3") if needed.
-CARTESIA_MODEL_ID = os.environ.get("CARTESIA_MODEL_ID", "sonic-latest")
+
+# MODEL PINNING — read before changing this.
+#
+# As of 2026-10-23, per docs.cartesia.ai/build-with-cartesia/tts-models/older-models:
+#   - "sonic-2 and all sonic-2-* snapshots will stop working after October 20, 2026."
+#     We are past that date. sonic-2 still returns audio (Cartesia appears to be
+#     enforcing the sunset lazily), but it is DEAD IN THE WATER and can fail at any
+#     moment. Pinned to sonic-2 only for demo voice continuity until the A/B
+#     listening test decides the migration target. Do not ship on sonic-2.
+#   - "sonic-latest" is a DEPRECATED ALIAS for "sonic-preview" (a beta model,
+#     "not intended for production usage, can change without notice"). Do not use it.
+#
+# Recommended migration target (dated snapshot, "never changes once released"):
+#   sonic-3.6-2026-08-27
+# Continuous-update alias (tracks newest stable 3.6):
+#   sonic-3.6
+CARTESIA_MODEL_ID = os.environ.get("CARTESIA_MODEL_ID", "sonic-2")
 CARTESIA_LANGUAGE = os.environ.get("CARTESIA_LANGUAGE", "en")
 
 
