@@ -124,20 +124,26 @@ function App() {
       )}
 
       {view === "summary" && (
-        <DailySummaryScreen />
+        <ErrorBoundary name="DailySummary">
+          <DailySummaryScreen />
+        </ErrorBoundary>
       )}
 
       {view === "suggestions" && (
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
           <h2 className="view-title">Suggested Facts</h2>
-          <SuggestedFacts />
+          <ErrorBoundary name="SuggestedFacts">
+            <SuggestedFacts />
+          </ErrorBoundary>
         </div>
       )}
 
       {view === "profile" && (
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
           <h2 className="view-title">Profile</h2>
-          <ProfileForm />
+          <ErrorBoundary name="ProfileForm">
+            <ProfileForm />
+          </ErrorBoundary>
         </div>
       )}
 

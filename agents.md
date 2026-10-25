@@ -11,15 +11,16 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-23, HEAD `6cb0cca`)
+## 0. Current Status (as of 2026-10-25, HEAD `...`)
 
-**Verification snapshot (all run 2026-10-23):**
+**Verification snapshot (all run 2026-10-25):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
 - `tests/test_offer_rate.py` — **23/23 pass** · `tests/test_policy_engine.py` — **9/9 pass**
-- `tests/test_guardrails.py` — **13/13 pass**; `guardrail_baseline.py --verify` — **no drift** vs pre-baseline
-- `tests/guardrail_baseline.py` — **17/17 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
-- **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker") — see the Oct 23 W2b changelog entry for the full pre/post table
+- `tests/test_guardrails.py` — **13/13 pass** · `guardrail_baseline.py --verify` — **no drift** vs pre-baseline
+- `tests/guardrail_baseline.py` — **38/38 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
+- **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
 - `tsc --noEmit` — clean · `import main` — clean (31 routes registered)
+- **Auth flow verified:** caregiver/person login, role-based access, logout, cookie + header auth all working
 
 **Milestones:**
 
@@ -29,12 +30,13 @@
 | M1 | Natural conversation (offer frequency down, hard gates kept) | 🔨 In progress — W2b done; **offer_rate still 0.936 (target <0.50) — that gate is judged AFTER W2c** (prompt loosening is what changes model behavior; W2b changed the checker only). Guardrails no-worse: ✅ (1.000/0 fallbacks, adversarial no-drift). Blind raters: pending W5. |
 | W1 | Real caregiver conversations for style examples | ⏸ Waiting on owner — **JSON template ready at `docs/w1_caregiver_exchanges.json`** (6–8 exchanges to start, 4 demo scenes) |
 | W2a | Harness display/threshold fixes | ✅ Done `aa48c62` |
-| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ✅ **Done 2026-10-23** (this build) — full 5-run pre+post baselines saved, table + replies reported to owner, **awaiting review** |
+| W2b | Structure split: offer optional, `offer_rate` separate, validation + no-invented-facts stay hard gates | ✅ **Done 2026-10-23** — full 5-run pre+post baselines saved, table + replies reported to owner, **awaiting review** |
 | W2c | Prompt loosening | ⏸ **HELD by owner decision (Oct 23)** until real caregiver exchanges arrive — Liz Ayre doc = background only, labeled; no fabricated examples |
 | W3 | Guardrail adversarial re-run (post-W2c, `--verify` vs pre-baseline) | ⬜ after W2c (the post-W2b verify already ran: no drift) |
 | W4a | Cartesia TTS schema modernization | ✅ Done `259a438` |
 | W4b | Voice tuning (Orange/Red calmer pace/softness) | ⬜ |
 | W5 | Metrics + blind naturalness review | ⬜ |
+| M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), JWT-like opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -538,3 +540,13 @@ Multiple prompt/guardrail changes applied together:
 - **`tests/unit_e2e.py`:** +14 M1 checks (split behaviors, both physical modes, canonical-phrase recognition) → **157/157**.
 - **5-run results (pre → post):** Guard 1.000 → 1.000 (0 fallbacks both) · **Struct avg 0.723 → 0.855** · Physical Urgent struct 0.000 → 1.000 · Casual 0.800 → 1.000 · Anxious 0.800 → 0.950 · offer_rate 0.900 → 0.936 (**unchanged by design** — prompt untouched; the <0.50 M1 gate is judged after W2c).
 - **Findings reported to owner (not fixed here — W2c/owner territory):** (1) intermittent weather fabrication on "How is the weather today?" turns — guardrail CAUGHT both times, honest "I don't know what the sky looks like" replies also observed; (2) one Vikram reply offered "I can call him for you" about the deceased spouse — guardrail's call-promise pattern targets claims, not offers; (3) one "Priya's picture… play his favorite song" pronoun slip; (4) claims heuristic 2 → 3 candidates in Casual Chat (broad patterns like "in the kitchen"; zero guardrail breaches, within ceiling).
+
+### 2026-10-25 — M2: Login & persistent storage (this change)
+- **Goal:** Make it safe to hold real transcripts — caregiver accounts, role-based access, retention, delete-my-data.
+- **Database (`backend/database.py`):** Schema v2 migration (PRAGMA user_version). Added tables: `users` (email, bcrypt password_hash, role, profile_id), `auth_tokens` (SHA256 token hash, user_id, expires_at, revoked), `retention_policies` (profile_id, retention_days=90 default, auto_cleanup), `memory_box_clips` (clip metadata for auth-protected serving). All existing tables unchanged. Migration from v1→v2 automatic on startup.
+- **Auth package (`backend/auth/`):** New modules — `models.py` (User, TokenData), `security.py` (bcrypt hash/verify, opaque token create/verify/revoke), `deps.py` (FastAPI dependencies: `get_current_user`, `require_caregiver`, `require_person`, `require_profile_access`, WS variants), `routes.py` (`POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/me`, `/auth/users/{profile_id}`). Tokens: 32-byte URL-safe random, stored as SHA256 hash, 30-day expiry, HttpOnly cookie + Bearer header support.
+- **Main (`backend/main.py`):** All endpoints protected with role guards. Caregiver endpoints (`/escalation/*`, `/alerts*`, `/daily-summary`, `/suggestions*`, `/turn/context`, `/monitoring/*`, `/scheduler*`, `/profiles`, `/profile/*`) require `require_caregiver` + profile access. Person endpoints (`/chat`, `/ws/voice`, `/demo/reset`) require `require_person`. WS endpoints (`/ws/alerts`, `/ws/escalation`, `/ws/voice`) use query-param/header token auth with same role checks. `_get_session()` replaced with `get_session_for_profile(profile_id)` for multi-profile isolation.
+- **Conversation (`backend/conversation.py`):** Added `get_session_for_profile(profile_id)` for profile-scoped turn processing.
+- **Session manager (`backend/session_manager.py`):** Already per-profile (Phase 4) — no changes needed. Verified isolation works.
+- **Initial users:** Created `caregiver@example.com` (caregiver) and `asha@example.com` (person) for `asha_demo_001` via `scripts/create_initial_users.py`.
+- **Verification:** All 157 unit tests pass; guardrail baseline no drift (38/38); auth flow tested — login/logout, role separation (caregiver 403 on /chat, person 403 on /escalation), cookie + header auth, token revocation on logout, profile isolation (caregiver A cannot see profile B data). Frontend `tsc --noEmit` clean.

@@ -35,6 +35,82 @@ const emptyProfile: ProfileData = {
   daily_routine: { wake_time: "07:00", meals: { breakfast: "", lunch: "", dinner: "" }, medication_times: [] },
 };
 
+// --- Defensive normalization -------------------------------------------
+// The API can serve a corrupted profile (sections as empty strings instead
+// of objects). Without this, ANY unexpected shape crashed ProfileForm's
+// render and — since it had no ErrorBoundary — unmounted the whole app
+// (the Oct 23 "black screen" bug). Now every section is coerced to a
+// renderable shape no matter what arrives.
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+const asStr = (v: unknown) => (typeof v === "string" ? v : "");
+const asStrList = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+function normalizeProfile(raw: unknown, profileId: string): ProfileData {
+  const r = isObj(raw) ? raw : {};
+  const name = isObj(r.name) ? r.name : {};
+  const life = isObj(r.life_story) ? r.life_story : {};
+  const likes = isObj(r.likes) ? r.likes : {};
+  const routine = isObj(r.daily_routine) ? r.daily_routine : {};
+  const meals = isObj(routine.meals) ? routine.meals : {};
+  const avoid = isObj(r.avoid) ? r.avoid : {};
+  const rawTopics = Array.isArray(avoid.topics) ? avoid.topics : [];
+  const topics: TopicSetting[] = rawTopics.map((t) =>
+    typeof t === "string"
+      ? { topic: t, setting: "avoid" as const, redirect_to: "", notes: "" }
+      : {
+          topic: isObj(t) ? asStr(t.topic) : "",
+          setting: isObj(t) && (t.setting === "avoid" || t.setting === "redirect" || t.setting === "allow_with_care") ? t.setting : "avoid",
+          redirect_to: isObj(t) ? asStr(t.redirect_to) : "",
+          notes: isObj(t) ? asStr(t.notes) : "",
+        }
+  );
+  const medRaw = routine.medication_times;
+  const medication_times = Array.isArray(medRaw)
+    ? asStrList(medRaw)
+    : typeof medRaw === "string"
+      ? medRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  return {
+    profile_id: asStr(r.profile_id) || profileId,
+    name: {
+      full_name: asStr(name.full_name),
+      preferred_address: asStr(name.preferred_address),
+      notes: asStr(name.notes),
+    },
+    family: Array.isArray(r.family)
+      ? r.family.map((m) => ({
+          name: isObj(m) ? asStr(m.name) : "",
+          relationship: isObj(m) ? asStr(m.relationship) : "",
+          notes: isObj(m) ? asStr(m.notes) : "",
+          memory_box_clip: isObj(m) && typeof m.memory_box_clip === "string" ? m.memory_box_clip : null,
+        }))
+      : [],
+    life_story: {
+      hometown: asStr(life.hometown),
+      work: asStr(life.work),
+      key_events: asStrList(life.key_events),
+    },
+    likes: {
+      music: asStrList(likes.music),
+      food: asStrList(likes.food),
+      topics: asStrList(likes.topics),
+      routines: asStrList(likes.routines),
+    },
+    avoid: { topics },
+    daily_routine: {
+      wake_time: asStr(routine.wake_time) || "07:00",
+      meals: {
+        breakfast: asStr(meals.breakfast),
+        lunch: asStr(meals.lunch),
+        dinner: asStr(meals.dinner),
+      },
+      medication_times,
+    },
+  };
+}
+
 export default function ProfileForm() {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [saved, setSaved] = useState(false);
@@ -49,15 +125,8 @@ export default function ProfileForm() {
       const res = await fetch("http://127.0.0.1:8000/profile/current");
       const data = await res.json();
       if (data.data) {
-        // Normalize avoid topics to new format
-        const avoid = data.data.avoid || {};
-        const rawTopics = avoid.topics || [];
-        const topics: TopicSetting[] = rawTopics.map((t: any) =>
-          typeof t === "string"
-            ? { topic: t, setting: "avoid" as const, redirect_to: "", notes: "" }
-            : { topic: t.topic || "", setting: t.setting || "avoid", redirect_to: t.redirect_to || "", notes: t.notes || "" }
-        );
-        setProfile({ ...data.data, avoid: { topics }, profile_id: data.profile_id });
+        // Coerce every section to a renderable shape (see normalizeProfile)
+        setProfile(normalizeProfile(data.data, data.profile_id || "asha_demo_001"));
       }
     } catch (err) {
       console.error("Failed to fetch profile:", err);

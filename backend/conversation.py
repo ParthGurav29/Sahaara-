@@ -48,6 +48,11 @@ def _get_session():
     return session
 
 
+def get_session_for_profile(profile_id: str):
+    """Get a session for a specific profile ID."""
+    return _session_manager.get(profile_id)
+
+
 def process_turn(user_message: str) -> dict:
     """Runs one full turn through the pipeline."""
     s = _get_session()

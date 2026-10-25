@@ -2901,5 +2901,18 @@
     "memory_box_plays": 0,
     "repeat_count": 0,
     "consent_asks": 0
+  },
+  {
+    "session_id": "session_1792592154",
+    "date": "2026-10-21T19:45:54.921007",
+    "summary_text": "Test had a brief session.",
+    "key_themes": [],
+    "emotion_summary": "neutral",
+    "turn_count": 0,
+    "highest_tier": "green",
+    "tier_label": "calm (green)",
+    "memory_box_plays": 0,
+    "repeat_count": 0,
+    "consent_asks": 0
   }
 ]
