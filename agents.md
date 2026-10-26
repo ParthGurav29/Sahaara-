@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-26, HEAD `285f64d`)
+## 0. Current Status (as of 2026-10-26, HEAD `2be66aa` on `main`)
 
 **Verification snapshot (all run 2026-10-26):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
@@ -24,6 +24,9 @@
 - `tests/guardrail_baseline.py` — **38/38 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
 - **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
 - `tsc --noEmit` — clean
+- **Android baseline (real device, 2026-10-26):** Motorola Edge 70 Fusion, Android 17 (SDK 37), Chrome 155.0.8059.84. Login, dashboard, SSE, alerts, Daily Summary, Suggested Facts, and logout pass over USB `adb reverse`; `isSecureContext` is true for `127.0.0.1`, `serviceWorker`/`PushManager` are present, and notification permission is still `default`.
+- **M5 Step 0 complete; Step 1 is still only a proposal:** no PWA manifest, service worker, VAPID keys, or push code exists yet. Android Chrome supports Web Push; no delivery can be claimed.
+- **Two pre-existing caregiver bugs found on device:** `GET /profile/current` returns 404 (Profile tab blank; backend has no `/profile` route), and `POST /scheduler/toggle` returns 401 because the fetch omits credentials. Not fixed in the main sync; owner decision needed.
 - **M2 complete:** Caregiver accounts, opaque tokens, role-based access, retention policies, delete-my-data, SQLite keyed by profile_id
 - **M3 Steps 1-8 complete:** trigger engine, skip rules, quiet hours, expiry, dedupe, wording rotation, guardrail gate, response tracking, no-response flow, delivery, intro + identity, caregiver controls, **simulated day** (read-only preview, nothing persisted). Gated by `SAHAARA_PROACTIVE_V2` (default OFF; env gate verified both states).
 - **Step 8 E2E (live server, port 8010):** custom check-in times honored by simulator; quiet hours honored; invalid inputs → 400; `include_history` dedupes already-persisted slots; intro override applied and guardrail-rejected text returns 400; history endpoint returns typed rows; live loop persisted 3 expired slots once and was idempotent on re-run (DB-flood bug fixed); `POST /chat` works with `record_user_turn` wiring.
@@ -45,6 +48,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 complete 2026-10-26** — real Android device baseline verified. Step 1 (PWA shell, same-origin `/api`, HTTPS tunnel test) is still a proposal; **no push code yet**. Android only; iOS out of scope. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -52,6 +56,8 @@
 - ⏸ **W1** — waiting on owner's caregiver contact (template ready).
 - ⏸ **Filler cache regeneration** — explicitly deferred by owner; sonic-2 kept pinned so the existing `.raw` cache stays valid.
 - ⏸ **W2b owner review** — full 5-run table + untruncated replies reported; next work item waits for owner sign-off (standing rule: one item at a time).
+- ⏸ **M5 Step 1 approval** — Android-only PWA/Web Push proposal waiting; do not add push code or claims until approved.
+- ⏸ **Profile 404 / Reminders 401** — pre-existing caregiver dashboard bugs found on Android; not fixed in the main sync.
 
 **Critical alerts (read before ANY voice work):**
 - **sonic-2 is sunsetted (Oct 20, 2026).** Cartesia docs: *"sonic-2 and all sonic-2-* snapshots will stop working after October 20, 2026."* It still returns audio (Cartesia enforcing lazily) but is degraded — one A/B render took **29.3s wall vs ~1s** for other models. Pinned only for demo voice continuity. **Do not ship on sonic-2.**
@@ -59,6 +65,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
+0. ⏸ **M5:** Step 0 is device-verified (Motorola Edge 70 Fusion, Android 17, Chrome 155.0.8059.84). Step 1 (PWA shell + same-origin `/api` + HTTPS tunnel test) is still a proposal; **do not add push code until the owner approves**.
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -71,7 +78,7 @@
 
 Direct instructions from the project owner — they override convenience:
 
-1. **Commit after every change; NEVER push.** The owner pushes manually.
+1. **Commit directly on `main`; no new branches; NEVER push.** The owner pushes manually. Owner, 2026-10-26: *"dont use brnaches ... whatever u commit please commit in main only ... i will be the one who will push the stable version of the code in the github."*
 2. **Update this file after every change** (maintenance protocol above).
 3. **One work item at a time.** Owner, verbatim: *"Build W2-W5 one at a time. After each, paste the full 5-run table and 5-6 untruncated replies, and wait for my review before the next one. Don't batch them. Batching is what caused the last regression."*
 4. **M1 conditions** (owner, verbatim): *"Run and save the 5-run baseline on the current build before touching the checker. Then make offers optional, report offer rate as a separate metric, and keep validation and no-invented-facts as hard gates that must not drop. Label the new baseline 'post-M1 checker'. Danger and physical-distress turns keep the full protocol. Fix the thresholds so none is 0.000 and each metric's direction is correct. Run the guardrail adversarial tests before and after."*
@@ -80,6 +87,7 @@ Direct instructions from the project owner — they override convenience:
 7. **Safety invariants never change:** no diagnosis, no dosing, no invented facts, no deceased-as-present, no fabricated weather/surroundings, never claim a notification fired unless it did.
 8. **M1 sequencing — owner decision (2026-10-23), verbatim:** *"Do W2b now (structure split, offer rate separate, hard gates for validation and no-invented-facts, thresholds fixed), after saving the baseline on the current build. Hold W2c until real caregiver exchanges are provided. The Liz Ayre doc may be used as background only, labeled as such, and not as the style reference or ground truth. No fabricated examples. Report W2b with the full 5-run table and 5-6 untruncated replies, then wait."*
    - W1 starter scope (owner): 6–8 exchanges from one caregiver/family member covering the 4 demo scenes (missing Priya, asking for Vikram, repeating a question, an anxious evening) — *"what they'd really say, not what sounds correct"*; recording + transcription is fine; **owner safety-reviews before any of it enters the prompt**. If exchanges aren't in when W2b finishes, run a small W2c on 6–8 and extend later — don't wait for the full 15–20.
+9. **M5 is Android-only.** iOS is out of scope; do not add iOS setup, tests, or support claims unless the owner explicitly reopens it.
 
 ## 2. What this product is
 
@@ -718,3 +726,12 @@ Multiple prompt/guardrail changes applied together:
 - **Live E2E (port 8000, auth enabled):** gap last TTS byte → `listening` = **1.52 s**; **94,916 bytes of TTS echoed back as mic audio during the turn → 0 self-triggered turns over the following 7 s**; a real second utterance immediately after `listening` was answered. Separate **12 s zero-audio idle** test: socket survived and a real turn still started. Server log: **0 handler crashes**.
 - **Regression:** 157/157 unit_e2e · 13/13 guardrails · 23/23 offer_rate · 9/9 policy · 14/14 auth · 16/16 simulated day · 7/7 response tracking · 44/44 wording lines · 2/2 repetition · 3/3 voice wiring · 5/5 turn-taking · guardrail baseline no drift · `tsc --noEmit` clean · `npm run build` clean (lint warnings pre-existing). Frontend `dist` rebuilt so the running `vite preview` on :5173 serves the fix.
 - **Not included:** runtime `backend/data/sahaara.db` mutation and `backend/logs/voice_timing.jsonl` (left uncommitted, same practice as prior voice commits).
+
+### 2026-10-26 — main synced to current Android-tested code (commit `2be66aa`)
+- **`main` now contains the current M2/M3 + voice-turn-taking + honest-alert code** as a single normal commit on `main` (`2be66aa`); no feature branch was used and nothing was pushed.
+- **Old main-only M2 code removed where it duplicated the current path:** `backend/auth/` package and `backend/scripts/create_initial_users.py` are gone; current auth is `backend/auth.py` + `backend/auth_routes.py`. Harmless main-only docs/baselines/config were preserved.
+- **Runtime files are not committed:** `backend/data/sahaara.db`, `backend/logs/voice_timing.jsonl`, and `backend/memory/data/session_summaries.json` remain working-tree modifications. The live DB was restored from the existing stash; the current code expects that schema (the old `main` DB had a different `auth_tokens` schema and failed `init_db`).
+- **Android baseline (real device):** Motorola Edge 70 Fusion, Android 17 (SDK 37), Chrome 155.0.8059.84. Login, dashboard, SSE, alerts, Daily Summary, Suggested Facts, and logout pass over USB `adb reverse`; `isSecureContext` true for `127.0.0.1`; `serviceWorker`/`PushManager` present; notification permission `default`.
+- **Pre-existing bugs found, not fixed:** `GET /profile/current` 404 (Profile tab blank; no `/profile` route exists), and `POST /scheduler/toggle` 401 (fetch omits credentials). Both need owner direction; neither blocks M5.
+- **Regression:** unit_e2e 157/157 · guardrails 13/13 · offer_rate 23/23 · policy 9/9 · auth 14/14 · simulated_day 16/16 · response_tracking 7/7 · wording_pools 44/44 · voice_ws 3/3 · voice_turn 5/5 · guardrail baseline no drift · `tsc --noEmit` clean · 34 HTTP paths + `/ws/voice`.
+- **M5 status:** Step 0 complete; Step 1 (PWA shell, same-origin `/api`, HTTPS tunnel test) is still a proposal. No manifest, service worker, VAPID keys, or push delivery exists yet.
