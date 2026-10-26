@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { wsUrl } from "./api";
 import "./VoiceOrb.css";
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -23,8 +24,7 @@ const STATE_COLOR: Record<OrbState, string> = {
   error: "#C2716B", // muted clay-red — something's wrong, not alarming
 };
 
-const WS_URL =
-  (import.meta as any).env?.VITE_VOICE_WS_URL ?? "ws://localhost:8000/ws/voice";
+const WS_URL = wsUrl("/ws/voice");
 
 // Must match voice/asr.py's Deepgram config (linear16, 16000Hz, mono).
 const MIC_SAMPLE_RATE = 16000;

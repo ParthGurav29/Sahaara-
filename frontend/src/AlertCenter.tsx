@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { apiFetch } from "./api";
 import "./AlertCenter.css";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
@@ -55,7 +56,7 @@ export default function AlertCenter() {
     if (!authEnabled || !token) return;
     
     try {
-      const res = await fetch(`http://127.0.0.1:8000/alerts?limit=20`, {
+      const res = await apiFetch("/alerts?limit=20", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -76,7 +77,7 @@ export default function AlertCenter() {
     if (!authEnabled || !token) return;
     
     try {
-      await fetch(`http://127.0.0.1:8000/alerts/${alertId}/acknowledge`, {
+      await apiFetch(`/alerts/${alertId}/acknowledge`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ note: "" }),

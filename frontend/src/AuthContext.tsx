@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { apiFetch } from "./api";
 
 interface User {
   user_id: number;
@@ -18,8 +19,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = "http://127.0.0.1:8000";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -32,23 +31,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function checkAuthStatus() {
     try {
-      const res = await fetch(`${API_BASE}/auth/status`, {
-        credentials: "include",
+      const statusRes = await apiFetch("/auth/status");
+      const statusData = await statusRes.json();
+      const enabled = Boolean(statusData.enabled);
+      setAuthEnabled(enabled);
+
+      if (!enabled) {
+        setUser(null);
+        setToken(null);
+        return;
+      }
+
+      // Restore the cookie session. /auth/me returns the current opaque
+      // token as well, so SSE and the voice WebSocket can reconnect after
+      // a page reload without storing the token in browser storage.
+      const meRes = await apiFetch("/auth/me");
+      if (!meRes.ok) {
+        setUser(null);
+        setToken(null);
+        return;
+      }
+
+      const me = await meRes.json();
+      setUser({
+        user_id: me.user_id,
+        username: me.username,
+        role: me.role,
+        profile_id: me.profile_id,
       });
-      const data = await res.json();
-      setAuthEnabled(data.enabled);
+      setToken(me.token || null);
     } catch {
       setAuthEnabled(false);
+      setUser(null);
+      setToken(null);
     } finally {
-      if (!user) setIsLoading(false);
+      setIsLoading(false);
     }
   }
 
   async function login(username: string, password: string) {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await apiFetch("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ username, password }),
     });
 
@@ -70,9 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     try {
-      await fetch(`${API_BASE}/auth/logout`, {
+      await apiFetch("/auth/logout", {
         method: "POST",
-        credentials: "include",
       });
     } catch {
       // Ignore logout errors

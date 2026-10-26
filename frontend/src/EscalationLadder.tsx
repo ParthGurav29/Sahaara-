@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { apiFetch, eventSourceUrl } from "./api";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
 
@@ -201,7 +202,7 @@ export default function EscalationLadder() {
     if (!authEnabled || !token) return;
     
     try {
-      const res = await fetch(`http://127.0.0.1:8000/turn/context`, {
+      const res = await apiFetch("/turn/context", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -216,10 +217,10 @@ export default function EscalationLadder() {
     
     try {
       const [statusRes, eventsRes] = await Promise.all([
-        fetch("http://127.0.0.1:8000/escalation/status", {
+        apiFetch("/escalation/status", {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch("http://127.0.0.1:8000/escalation/events?limit=20", {
+        apiFetch("/escalation/events?limit=20", {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -239,7 +240,7 @@ export default function EscalationLadder() {
       return;
     }
 
-    const es = new EventSource(`http://127.0.0.1:8000/stream/events?token=${encodeURIComponent(token)}`);
+    const es = new EventSource(eventSourceUrl("/stream/events", token));
     esRef.current = es;
 
     es.onopen = () => setSseConnected(true);
@@ -335,7 +336,7 @@ export default function EscalationLadder() {
           className="control-btn control-btn--reset"
           onClick={async () => {
             try {
-              await fetch("http://127.0.0.1:8000/demo/reset", { method: "POST" });
+              await apiFetch("/demo/reset", { method: "POST" });
               window.location.reload();
             } catch (err) {
               console.error("Reset failed:", err);
@@ -349,7 +350,7 @@ export default function EscalationLadder() {
           className={`control-btn ${schedulerPaused ? "control-btn--paused" : "control-btn--active"}`}
           onClick={async () => {
             try {
-              const res = await fetch("http://127.0.0.1:8000/scheduler/toggle", { method: "POST" });
+              const res = await apiFetch("/scheduler/toggle", { method: "POST" });
               const data = await res.json();
               setSchedulerPaused(data.paused);
             } catch {}

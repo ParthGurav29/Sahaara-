@@ -1,6 +1,7 @@
 import { Component, useState } from "react";
 
 import { AuthProvider, useAuth } from "./AuthContext";
+import { apiFetch } from "./api";
 import LoginPage from "./LoginPage";
 import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
@@ -54,10 +55,9 @@ function AppContent() {
     setResponse("");
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/chat", {
+      const res = await apiFetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ message }),
       });
 

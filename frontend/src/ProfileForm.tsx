@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { apiFetch } from "./api";
 import "./DailySummary.css";
 
 interface FamilyMember {
@@ -50,7 +51,7 @@ export default function ProfileForm() {
     if (!authEnabled || !token) return;
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/profile/current", {
+      const res = await apiFetch("/profile/current", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -76,7 +77,7 @@ export default function ProfileForm() {
     if (!authEnabled || !token) return;
     
     try {
-      await fetch(`http://127.0.0.1:8000/profile/${profile.profile_id || "asha_demo_001"}`, {
+      await apiFetch(`/profile/${profile.profile_id || "asha_demo_001"}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ data: profile }),

@@ -40,6 +40,7 @@ class MeResponse(BaseModel):
     username: str
     role: str
     profile_id: str
+    token: str
 
 
 def auth_enabled() -> bool:
@@ -197,9 +198,15 @@ async def logout(request: Request, response: Response):
 
 
 @router.get("/me", response_model=MeResponse)
-async def get_me(user: dict = Depends(get_current_user_optional)):
-    """Get current user info (works with or without auth)."""
-    return user
+async def get_me(request: Request, user: dict = Depends(get_current_user_optional)):
+    """Get current user info and the current opaque token."""
+    token = request.cookies.get("auth_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    return MeResponse(**user, token=token or "")
 
 
 @router.get("/status")

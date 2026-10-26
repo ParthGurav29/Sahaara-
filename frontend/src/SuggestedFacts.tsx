@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { apiFetch } from "./api";
 import "./DailySummary.css";
 
 interface Suggestion {
@@ -32,7 +33,7 @@ export default function SuggestedFacts() {
     if (!authEnabled || !token) return;
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/suggestions", {
+      const res = await apiFetch("/suggestions", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -52,7 +53,7 @@ export default function SuggestedFacts() {
     if (!authEnabled || !token) return;
     
     try {
-      await fetch(`http://127.0.0.1:8000/suggestions/${id}/approve`, { 
+      await apiFetch(`/suggestions/${id}/approve`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -66,7 +67,7 @@ export default function SuggestedFacts() {
     if (!authEnabled || !token) return;
     
     try {
-      await fetch(`http://127.0.0.1:8000/suggestions/${id}/reject`, { 
+      await apiFetch(`/suggestions/${id}/reject`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { apiFetch } from "./api";
 import "./DailySummary.css";
 
 interface DailySummary {
@@ -48,7 +49,7 @@ export default function DailySummaryScreen() {
     
     try {
       setLoading(true);
-      const res = await fetch("http://127.0.0.1:8000/daily-summary", {
+      const res = await apiFetch("/daily-summary", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch summary");
