@@ -2,25 +2,22 @@
 database.py
 
 SQLite database for Sahaara — replaces flat JSON files.
-Handles profiles, events, session summaries, suggestions, users, auth tokens,
-retention policies, and memory box clips.
+Handles profiles, events, session summaries, and suggestions.
 
 Migration: loads existing asha_profile.json on first run.
 """
 
-import hashlib
 import json
-import secrets
+import os
 import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent / "data" / "sahaara.db"
-
-# Schema version for migrations
-SCHEMA_VERSION = 2
+# SAHAARA_DB_PATH lets tests point at a throwaway database instead of the
+# live dev DB (auth tests truncate the users table).
+DB_PATH = Path(os.environ.get("SAHAARA_DB_PATH") or (Path(__file__).parent / "data" / "sahaara.db"))
 
 
 def get_connection() -> sqlite3.Connection:
@@ -32,40 +29,10 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Create tables and migrate existing JSON data. Handles schema migrations."""
+    """Create tables and migrate existing JSON data."""
     conn = get_connection()
     
-    # Check current schema version
-    cursor = conn.execute("PRAGMA user_version")
-    current_version = cursor.fetchone()[0]
-    
-    if current_version < 1:
-        # Fresh install - create all tables
-        _create_all_tables(conn)
-        conn.execute("PRAGMA user_version = 1")
-    elif current_version == 1:
-        # Migration from v1 to v2 - add auth/retention/clip tables
-        _migrate_v1_to_v2(conn)
-        conn.execute("PRAGMA user_version = 2")
-    
-    conn.commit()
-    
-    # Migrate existing JSON profile if DB is empty
-    cursor = conn.execute("SELECT COUNT(*) FROM profiles")
-    if cursor.fetchone()[0] == 0:
-        _migrate_profile(conn)
-    
-    # Ensure default retention policy for existing profiles
-    _ensure_default_retention_policies(conn)
-    
-    conn.commit()
-    conn.close()
-
-
-def _create_all_tables(conn: sqlite3.Connection):
-    """Create all tables for fresh install (schema v2)."""
     conn.executescript("""
-        -- Core tables
         CREATE TABLE IF NOT EXISTS profiles (
             profile_id TEXT PRIMARY KEY,
             name TEXT NOT NULL DEFAULT '',
@@ -99,137 +66,85 @@ def _create_all_tables(conn: sqlite3.Connection):
             created_at REAL NOT NULL,
             FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
         );
-        
+
         -- Auth tables (M2)
         CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK (role IN ('caregiver', 'person')),
+            salt TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'caregiver',
             profile_id TEXT NOT NULL,
-            is_active INTEGER DEFAULT 1,
             created_at REAL NOT NULL,
-            last_login REAL,
             FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
         );
         
         CREATE TABLE IF NOT EXISTS auth_tokens (
             token_hash TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            created_at REAL NOT NULL,
             expires_at REAL NOT NULL,
-            revoked INTEGER DEFAULT 0,
-            created_at REAL NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(user_id)
+            revoked INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
         
-        -- Retention policies (M2)
-        CREATE TABLE IF NOT EXISTS retention_policies (
-            profile_id TEXT PRIMARY KEY,
-            retention_days INTEGER NOT NULL DEFAULT 90,
-            auto_cleanup INTEGER DEFAULT 1,
-            last_cleanup_at REAL,
-            FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
-        );
-        
-        -- Memory box clips (M2)
-        CREATE TABLE IF NOT EXISTS memory_box_clips (
-            clip_id TEXT PRIMARY KEY,
-            profile_id TEXT NOT NULL,
-            family_member_name TEXT NOT NULL,
-            relationship TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            mime_type TEXT DEFAULT 'audio/mpeg',
-            size_bytes INTEGER,
-            duration_seconds REAL,
-            created_at REAL NOT NULL,
-            uploaded_by TEXT,
-            FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
-        );
-        
-        -- Indexes
         CREATE INDEX IF NOT EXISTS idx_events_profile ON events(profile_id, timestamp);
         CREATE INDEX IF NOT EXISTS idx_events_type ON events(profile_id, type);
         CREATE INDEX IF NOT EXISTS idx_suggestions_profile ON suggestions(profile_id, status);
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_profile ON users(profile_id);
         CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
         CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
-        CREATE INDEX IF NOT EXISTS idx_clips_profile ON memory_box_clips(profile_id);
     """)
-
-
-def _migrate_v1_to_v2(conn: sqlite3.Connection):
-    """Migrate from schema v1 to v2 - add auth, retention, clip tables."""
+    
+    # M3: Scheduler tables
     conn.executescript("""
-        -- Auth tables
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK (role IN ('caregiver', 'person')),
-            profile_id TEXT NOT NULL,
-            is_active INTEGER DEFAULT 1,
-            created_at REAL NOT NULL,
-            last_login REAL,
-            FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
-        );
-        
-        CREATE TABLE IF NOT EXISTS auth_tokens (
-            token_hash TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            expires_at REAL NOT NULL,
-            revoked INTEGER DEFAULT 0,
-            created_at REAL NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(user_id)
-        );
-        
-        -- Retention policies
-        CREATE TABLE IF NOT EXISTS retention_policies (
+        CREATE TABLE IF NOT EXISTS scheduler_settings (
             profile_id TEXT PRIMARY KEY,
-            retention_days INTEGER NOT NULL DEFAULT 90,
-            auto_cleanup INTEGER DEFAULT 1,
-            last_cleanup_at REAL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            max_checkins_per_day INTEGER NOT NULL DEFAULT 4,
+            min_gap_after_conversation_minutes INTEGER NOT NULL DEFAULT 20,
+            checkin_window_minutes INTEGER NOT NULL DEFAULT 15,
+            response_window_minutes INTEGER NOT NULL DEFAULT 10,
+            intro_throttle_hours INTEGER NOT NULL DEFAULT 24,
+            checkin_times TEXT NOT NULL DEFAULT '["08:00","14:00","19:00"]',
+            quiet_hours_start TEXT NOT NULL DEFAULT '22:00',
+            quiet_hours_end TEXT NOT NULL DEFAULT '07:00',
+            intro_enabled INTEGER NOT NULL DEFAULT 1,
+            intro_overrides TEXT NOT NULL DEFAULT '{}',
+            wording_recent_limit INTEGER NOT NULL DEFAULT 4,
+            retry_once INTEGER NOT NULL DEFAULT 1,
+            proactive_v2_enabled INTEGER NOT NULL DEFAULT 1,
             FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
         );
         
-        -- Memory box clips
-        CREATE TABLE IF NOT EXISTS memory_box_clips (
-            clip_id TEXT PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS checkin_fired_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             profile_id TEXT NOT NULL,
-            family_member_name TEXT NOT NULL,
-            relationship TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            mime_type TEXT DEFAULT 'audio/mpeg',
-            size_bytes INTEGER,
-            duration_seconds REAL,
-            created_at REAL NOT NULL,
-            uploaded_by TEXT,
+            slot_id TEXT NOT NULL,
+            checkin_type TEXT NOT NULL,
+            fired_at REAL NOT NULL,
+            wording_id TEXT NOT NULL,
+            response_received INTEGER NOT NULL DEFAULT 0,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            skip_reason TEXT NOT NULL DEFAULT '',
+            delivered_audio INTEGER NOT NULL DEFAULT 0,
+            audio_blocked INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
         );
         
-        -- New indexes
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_profile ON users(profile_id);
-        CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
-        CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
-        CREATE INDEX IF NOT EXISTS idx_clips_profile ON memory_box_clips(profile_id);
+        CREATE INDEX IF NOT EXISTS idx_checkin_fired_profile ON checkin_fired_history(profile_id, slot_id);
+        CREATE INDEX IF NOT EXISTS idx_checkin_fired_date ON checkin_fired_history(profile_id, fired_at);
     """)
-
-
-def _ensure_default_retention_policies(conn: sqlite3.Connection):
-    """Ensure all profiles have a retention policy (default 90 days)."""
-    profiles = conn.execute("SELECT profile_id FROM profiles").fetchall()
-    now = time.time()
-    for row in profiles:
-        profile_id = row["profile_id"]
-        exists = conn.execute(
-            "SELECT 1 FROM retention_policies WHERE profile_id = ?", (profile_id,)
-        ).fetchone()
-        if not exists:
-            conn.execute(
-                "INSERT INTO retention_policies (profile_id, retention_days, auto_cleanup, last_cleanup_at) VALUES (?, 90, 1, ?)",
-                (profile_id, now)
-            )
+    
+    conn.commit()
+    
+    # Migrate existing JSON profile if DB is empty
+    cursor = conn.execute("SELECT COUNT(*) FROM profiles")
+    if cursor.fetchone()[0] == 0:
+        _migrate_profile(conn)
+    
+    conn.close()
 
 
 def _migrate_profile(conn: sqlite3.Connection):
@@ -395,311 +310,182 @@ def clear_suggestions(profile_id: str):
     conn.close()
 
 
-# ---- Users (M2) ----
+# ---- Scheduler Settings (M3) ----
 
-def create_user(user_id: str, email: str, password_hash: str, role: str, profile_id: str) -> dict:
-    """Create a new user. Returns the user dict."""
+def decode_json_field(value, default):
+    """Decode a JSON text column, tolerating legacy double-encoded values."""
+    if value is None:
+        return default
+    if isinstance(value, type(default)):
+        return value
+    try:
+        decoded = json.loads(value)
+        if isinstance(decoded, str):  # legacy double-encoding
+            decoded = json.loads(decoded)
+        return decoded if isinstance(decoded, type(default)) else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _normalize_json_field(value, default):
+    """Accept a list/dict OR a JSON string and return a single-encoded JSON string.
+
+    The Step 7 caregiver endpoints pass DB rows back through
+    save_scheduler_settings(); without this guard those JSON strings were
+    encoded a second time, corrupting checkin_times / intro_overrides.
+    """
+    return json.dumps(decode_json_field(value, default))
+
+
+def get_scheduler_settings(profile_id: str) -> Optional[dict]:
+    """Get scheduler settings for a profile."""
     conn = get_connection()
-    now = time.time()
+    row = conn.execute("SELECT * FROM scheduler_settings WHERE profile_id = ?", (profile_id,)).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return dict(row)
+
+
+def save_scheduler_settings(profile_id: str, settings: dict):
+    """Save scheduler settings for a profile."""
+    conn = get_connection()
     conn.execute(
-        """INSERT INTO users (user_id, email, password_hash, role, profile_id, is_active, created_at)
-           VALUES (?, ?, ?, ?, ?, 1, ?)""",
-        (user_id, email.lower(), password_hash, role, profile_id, now)
+        """INSERT OR REPLACE INTO scheduler_settings 
+        (profile_id, enabled, max_checkins_per_day, min_gap_after_conversation_minutes,
+         checkin_window_minutes, response_window_minutes, intro_throttle_hours,
+         checkin_times, quiet_hours_start, quiet_hours_end, intro_enabled,
+         intro_overrides, wording_recent_limit, retry_once,
+         proactive_v2_enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            profile_id,
+            settings.get("enabled", 1),
+            settings.get("max_checkins_per_day", 4),
+            settings.get("min_gap_after_conversation_minutes", 20),
+            settings.get("checkin_window_minutes", 15),
+            settings.get("response_window_minutes", 10),
+            settings.get("intro_throttle_hours", 24),
+            _normalize_json_field(settings.get("checkin_times", ["08:00", "14:00", "19:00"]), []),
+            settings.get("quiet_hours_start", "22:00"),
+            settings.get("quiet_hours_end", "07:00"),
+            settings.get("intro_enabled", 1),
+            _normalize_json_field(settings.get("intro_overrides", {}), {}),
+            settings.get("wording_recent_limit", 4),
+            settings.get("retry_once", 1),
+            settings.get("proactive_v2_enabled", 1),
+        )
     )
     conn.commit()
     conn.close()
+
+
+def get_default_scheduler_settings() -> dict:
+    """Return default scheduler settings."""
     return {
-        "user_id": user_id,
-        "email": email.lower(),
-        "role": role,
-        "profile_id": profile_id,
-        "is_active": True,
-        "created_at": now,
-        "last_login": None,
+        "enabled": True,
+        "max_checkins_per_day": 4,
+        "min_gap_after_conversation_minutes": 20,
+        "checkin_window_minutes": 15,
+        "response_window_minutes": 10,
+        "retry_once": True,
+        "intro_throttle_hours": 24,
+        "checkin_times": ["08:00", "14:00", "19:00"],
+        "quiet_hours_start": "22:00",
+        "quiet_hours_end": "07:00",
+        "intro_enabled": True,
+        "intro_throttle_hours": 24,
+        "intro_overrides": {},
+        "wording_recent_limit": 4,
+        "retry_once": True,
+        "proactive_v2_enabled": True,
     }
 
 
-def get_user_by_email(email: str) -> Optional[dict]:
-    """Get user by email (case-insensitive)."""
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT * FROM users WHERE email = ?", (email.lower(),)
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return dict(row)
+# ---- Check-in Fired History (M3) ----
 
-
-def get_user_by_id(user_id: str) -> Optional[dict]:
-    """Get user by user_id."""
-    conn = get_connection()
-    row = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return dict(row)
-
-
-def get_users_by_profile(profile_id: str) -> list[dict]:
-    """Get all users for a profile."""
-    conn = get_connection()
-    rows = conn.execute("SELECT * FROM users WHERE profile_id = ?", (profile_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-def update_user_login(user_id: str):
-    """Update last_login timestamp."""
+def save_checkin_fired(record: dict):
+    """Save a fired check-in record for deduplication and history."""
+    # fired_at is stored as epoch seconds (REAL). Accept datetime or legacy ISO strings.
+    fired_at = record["fired_at"]
+    if isinstance(fired_at, datetime):
+        fired_at = fired_at.timestamp()
+    elif isinstance(fired_at, str):
+        fired_at = datetime.fromisoformat(fired_at).timestamp()
     conn = get_connection()
     conn.execute(
-        "UPDATE users SET last_login = ? WHERE user_id = ?", (time.time(), user_id)
+        """INSERT INTO checkin_fired_history 
+        (profile_id, slot_id, checkin_type, fired_at, wording_id, 
+         response_received, retry_count, skip_reason, delivered_audio, audio_blocked)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            record["profile_id"],
+            record["slot_id"],
+            record["checkin_type"],
+            fired_at,
+            record["wording_id"],
+            record.get("response_received", 0),
+            record.get("retry_count", 0),
+            record.get("skip_reason", ""),
+            record.get("delivered_audio", 0),
+            record.get("audio_blocked", 0),
+        )
     )
     conn.commit()
     conn.close()
 
 
-def update_user_password(user_id: str, password_hash: str):
-    """Update user's password hash."""
+def get_checkin_fired_history(profile_id: str, slot_id: str = None, since: float = None, limit: int = 100) -> list[dict]:
+    """Get fired check-in history for a profile."""
     conn = get_connection()
-    conn.execute(
-        "UPDATE users SET password_hash = ? WHERE user_id = ?", (password_hash, user_id)
-    )
-    conn.commit()
-    conn.close()
-
-
-def deactivate_user(user_id: str):
-    """Deactivate a user (soft delete)."""
-    conn = get_connection()
-    conn.execute("UPDATE users SET is_active = 0 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-
-
-# ---- Auth Tokens (M2) ----
-
-def _hash_token(token: str) -> str:
-    """SHA256 hash of token for storage."""
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def create_token(user_id: str, expires_in_seconds: int = 30 * 86400) -> tuple[str, float]:
-    """
-    Create a new auth token for a user.
-    Returns (raw_token, expires_at).
-    Token is 32-byte URL-safe random string.
-    """
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = _hash_token(raw_token)
-    now = time.time()
-    expires_at = now + expires_in_seconds
+    query = "SELECT * FROM checkin_fired_history WHERE profile_id = ?"
+    params = [profile_id]
     
-    conn = get_connection()
-    conn.execute(
-        """INSERT INTO auth_tokens (token_hash, user_id, expires_at, revoked, created_at)
-           VALUES (?, ?, ?, 0, ?)""",
-        (token_hash, user_id, expires_at, now)
-    )
-    conn.commit()
-    conn.close()
-    return raw_token, expires_at
-
-
-def verify_token(token: str) -> Optional[dict]:
-    """
-    Verify a token and return the user if valid.
-    Returns None if invalid, expired, or revoked.
-    """
-    token_hash = _hash_token(token)
-    conn = get_connection()
-    row = conn.execute(
-        """SELECT at.*, u.user_id, u.email, u.role, u.profile_id, u.is_active
-           FROM auth_tokens at
-           JOIN users u ON at.user_id = u.user_id
-           WHERE at.token_hash = ? AND at.revoked = 0 AND at.expires_at > ? AND u.is_active = 1""",
-        (token_hash, time.time())
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return dict(row)
-
-
-def revoke_token(token: str) -> bool:
-    """Revoke a token (logout). Returns True if token was found and revoked."""
-    token_hash = _hash_token(token)
-    conn = get_connection()
-    cursor = conn.execute(
-        "UPDATE auth_tokens SET revoked = 1 WHERE token_hash = ? AND revoked = 0",
-        (token_hash,)
-    )
-    conn.commit()
-    conn.close()
-    return cursor.rowcount > 0
-
-
-def revoke_all_user_tokens(user_id: str):
-    """Revoke all tokens for a user (e.g., on password change)."""
-    conn = get_connection()
-    conn.execute("UPDATE auth_tokens SET revoked = 1 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-
-
-def cleanup_expired_tokens():
-    """Remove expired/revoked tokens older than 30 days. Call periodically."""
-    conn = get_connection()
-    cutoff = time.time() - (30 * 86400)
-    conn.execute(
-        "DELETE FROM auth_tokens WHERE (revoked = 1 OR expires_at < ?) AND created_at < ?",
-        (time.time(), cutoff)
-    )
-    conn.commit()
-    conn.close()
-
-
-# ---- Retention Policies (M2) ----
-
-def get_retention_policy(profile_id: str) -> Optional[dict]:
-    """Get retention policy for a profile."""
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT * FROM retention_policies WHERE profile_id = ?", (profile_id,)
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return dict(row)
-
-
-def set_retention_policy(profile_id: str, retention_days: int, auto_cleanup: bool = True):
-    """Set or update retention policy for a profile."""
-    conn = get_connection()
-    now = time.time()
-    conn.execute(
-        """INSERT OR REPLACE INTO retention_policies (profile_id, retention_days, auto_cleanup, last_cleanup_at)
-           VALUES (?, ?, ?, COALESCE((SELECT last_cleanup_at FROM retention_policies WHERE profile_id = ?), ?))""",
-        (profile_id, retention_days, 1 if auto_cleanup else 0, profile_id, now)
-    )
-    conn.commit()
-    conn.close()
-
-
-def update_retention_cleanup_time(profile_id: str):
-    """Update last_cleanup_at to now."""
-    conn = get_connection()
-    conn.execute(
-        "UPDATE retention_policies SET last_cleanup_at = ? WHERE profile_id = ?",
-        (time.time(), profile_id)
-    )
-    conn.commit()
-    conn.close()
-
-
-def get_all_retention_policies() -> list[tuple[str, int]]:
-    """Get all profiles with auto_cleanup enabled. Returns [(profile_id, retention_days), ...]."""
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT profile_id, retention_days FROM retention_policies WHERE auto_cleanup = 1 AND retention_days > 0"
-    ).fetchall()
-    conn.close()
-    return [(r["profile_id"], r["retention_days"]) for r in rows]
-
-
-# ---- Memory Box Clips (M2) ----
-
-def create_memory_box_clip(
-    clip_id: str,
-    profile_id: str,
-    family_member_name: str,
-    relationship: str,
-    filename: str,
-    mime_type: str = "audio/mpeg",
-    size_bytes: int = None,
-    duration_seconds: float = None,
-    uploaded_by: str = None,
-) -> dict:
-    """Create a new memory box clip record."""
-    conn = get_connection()
-    now = time.time()
-    conn.execute(
-        """INSERT INTO memory_box_clips
-           (clip_id, profile_id, family_member_name, relationship, filename, mime_type, size_bytes, duration_seconds, created_at, uploaded_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (clip_id, profile_id, family_member_name, relationship, filename, mime_type, size_bytes, duration_seconds, now, uploaded_by)
-    )
-    conn.commit()
-    conn.close()
-    return {
-        "clip_id": clip_id,
-        "profile_id": profile_id,
-        "family_member_name": family_member_name,
-        "relationship": relationship,
-        "filename": filename,
-        "mime_type": mime_type,
-        "size_bytes": size_bytes,
-        "duration_seconds": duration_seconds,
-        "created_at": now,
-        "uploaded_by": uploaded_by,
-    }
-
-
-def get_memory_box_clip(clip_id: str) -> Optional[dict]:
-    """Get clip by clip_id."""
-    conn = get_connection()
-    row = conn.execute("SELECT * FROM memory_box_clips WHERE clip_id = ?", (clip_id,)).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return dict(row)
-
-
-def get_memory_box_clips_by_profile(profile_id: str) -> list[dict]:
-    """Get all clips for a profile."""
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM memory_box_clips WHERE profile_id = ? ORDER BY created_at DESC", (profile_id,)
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-def delete_memory_box_clip(clip_id: str) -> bool:
-    """Delete a clip record. Returns True if deleted."""
-    conn = get_connection()
-    cursor = conn.execute("DELETE FROM memory_box_clips WHERE clip_id = ?", (clip_id,))
-    conn.commit()
-    conn.close()
-    return cursor.rowcount > 0
-
-
-# ---- Data Deletion (M2: Delete-my-data) ----
-
-def delete_all_profile_data(profile_id: str) -> dict:
-    """
-    Delete ALL data for a profile (GDPR-style).
-    Returns count of deleted rows per table.
-    """
-    conn = get_connection()
-    counts = {}
+    if slot_id:
+        query += " AND slot_id = ?"
+        params.append(slot_id)
+    if since:
+        query += " AND fired_at >= ?"
+        params.append(since)
     
-    # Delete in order to respect FK constraints
-    tables = [
-        ("auth_tokens", "DELETE FROM auth_tokens WHERE user_id IN (SELECT user_id FROM users WHERE profile_id = ?)"),
-        ("users", "DELETE FROM users WHERE profile_id = ?"),
-        ("memory_box_clips", "DELETE FROM memory_box_clips WHERE profile_id = ?"),
-        ("suggestions", "DELETE FROM suggestions WHERE profile_id = ?"),
-        ("session_summaries", "DELETE FROM session_summaries WHERE profile_id = ?"),
-        ("events", "DELETE FROM events WHERE profile_id = ?"),
-        ("retention_policies", "DELETE FROM retention_policies WHERE profile_id = ?"),
-        ("profiles", "DELETE FROM profiles WHERE profile_id = ?"),
-    ]
+    query += " ORDER BY fired_at DESC LIMIT ?"
+    params.append(limit)
     
-    for table_name, query in tables:
-        cursor = conn.execute(query, (profile_id,))
-        counts[table_name] = cursor.rowcount
-    
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    # Normalize fired_at to epoch seconds. Older rows stored ISO strings; mixed
+    # storage classes also break SQLite's ORDER BY, so re-sort in Python.
+    result = []
+    for row in rows:
+        item = dict(row)
+        if isinstance(item.get("fired_at"), str):
+            try:
+                item["fired_at"] = datetime.fromisoformat(item["fired_at"]).timestamp()
+            except ValueError:
+                item["fired_at"] = 0.0
+        result.append(item)
+    result.sort(key=lambda r: r.get("fired_at") or 0, reverse=True)
+    return result
+
+
+def mark_checkin_response_received(profile_id: str, slot_id: str):
+    """Mark a check-in as having received a user response."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE checkin_fired_history SET response_received = 1 WHERE profile_id = ? AND slot_id = ?",
+        (profile_id, slot_id)
+    )
     conn.commit()
     conn.close()
-    return counts
+
+
+def update_checkin_audio_delivery(profile_id: str, slot_id: str, delivered_audio: int = 0, audio_blocked: int = 0):
+    """Update audio delivery status for a check-in."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE checkin_fired_history SET delivered_audio = ?, audio_blocked = ? WHERE profile_id = ? AND slot_id = ?",
+        (delivered_audio, audio_blocked, profile_id, slot_id)
+    )
+    conn.commit()
+    conn.close()

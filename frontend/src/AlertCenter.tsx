@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
 import "./AlertCenter.css";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
@@ -45,13 +46,18 @@ function formatAckTime(ts: number | null): string {
 }
 
 export default function AlertCenter() {
+  const { token, authEnabled } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
   const fetchAlerts = async () => {
+    if (!authEnabled || !token) return;
+    
     try {
-      const res = await fetch("http://127.0.0.1:8000/alerts?limit=20");
+      const res = await fetch(`http://127.0.0.1:8000/alerts?limit=20`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setAlerts(data.alerts.reverse());
       setUnreadCount(data.unread_count);
@@ -64,13 +70,15 @@ export default function AlertCenter() {
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token, authEnabled]);
 
   const acknowledge = async (alertId: string) => {
+    if (!authEnabled || !token) return;
+    
     try {
       await fetch(`http://127.0.0.1:8000/alerts/${alertId}/acknowledge`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ note: "" }),
       });
       fetchAlerts();

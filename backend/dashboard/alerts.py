@@ -252,8 +252,8 @@ class AlertBuilder:
         elif tier_to == EscalationTier.RED:
             if reason == "danger_statement":
                 message = (
-                    f"URGENT: {self.profile.preferred_address} made a concerning statement. "
-                    f"Sahaara has notified emergency contacts. Please check immediately."
+                    f"URGENT: {self.profile.preferred_address} said something that needs a check-in. "
+                    f"An urgent alert has been logged on the caregiver dashboard. Please check immediately."
                 )
             elif reason == "unresponsive":
                 message = (
@@ -317,7 +317,7 @@ class AlertBuilder:
         if outcome == "accepted":
             message = (
                 f"{self.profile.preferred_address} agreed to a call with {contact_name}. "
-                f"Sahaara is connecting them now."
+                f"An alert has been logged on the caregiver dashboard."
             )
         elif outcome == "declined":
             message = (

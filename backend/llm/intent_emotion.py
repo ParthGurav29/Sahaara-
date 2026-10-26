@@ -52,6 +52,13 @@ FACTUAL_MARKERS = [
     r"\bhow do i\b", r"\bcan you turn\b", r"\bwhat'?s the weather\b",
 ]
 
+# Identity/self-description questions
+IDENTITY_PATTERNS = [
+    r"\bwho are you\b", r"\bwho am i talking to\b", r"\bwhat are you\b",
+    r"\bwhat is your name\b", r"\bidentify yourself\b", r"\bwhat kind of (assistant|bot|ai) are you\b",
+    r"\bwho is this\b", r"\bwhat is sahaara\b",
+]
+
 # ---- Physical distress patterns ----------------------------------------
 # Two levels: Urgent (Red) and General (Orange)
 # These are PHYSICAL symptoms, not emotional distress.
@@ -138,7 +145,8 @@ class IntentResult:
     emotion: str                       # best-guess primary emotion label
     is_emotional_need: bool            # should the response-policy validate first?
     is_factual_ask: bool               # does it also carry a literal factual question?
-    is_danger_statement: bool          # Red tier trigger
+    is_identity_ask: bool = False      # is this a "who are you" / identity question?
+    is_danger_statement: bool = False  # Red tier trigger
     matched_emotion_keywords: list[str] = field(default_factory=list)
     # Physical distress flags (new)
     is_physical_urgent: bool = False   # Urgent physical symptom -> RED
@@ -173,6 +181,7 @@ def classify_intent(text: str) -> IntentResult:
 
     is_danger = any(re.search(p, text_lower) for p in DANGER_PATTERNS)
     is_factual = any(re.search(p, text_lower) for p in FACTUAL_MARKERS)
+    is_identity = any(re.search(p, text_lower) for p in IDENTITY_PATTERNS)
     is_emotional = matched_emotion is not None and matched_emotion != "content"
 
     emotion = matched_emotion or (DEFAULT_EMOTION if not is_factual else "neutral")
@@ -182,6 +191,7 @@ def classify_intent(text: str) -> IntentResult:
         emotion=emotion,
         is_emotional_need=is_emotional,
         is_factual_ask=is_factual,
+        is_identity_ask=is_identity,
         is_danger_statement=is_danger,
         matched_emotion_keywords=matched_keywords,
         is_physical_urgent=is_physical_urgent,

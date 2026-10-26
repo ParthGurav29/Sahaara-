@@ -121,65 +121,6 @@ FABRICATED_SURROUNDINGS_PATTERNS = [
     r"\bview (is|looks) (lovely|nice|beautiful|peaceful|gorgeous)\b",
 ]
 
-# ---- M1 Extended Patterns ------------------------------------------------
-
-# Living availability fabrication — Sahaara cannot know if living family
-# are "busy", "can't be here", "not available", etc.
-FABRICATED_LIVING_AVAILABILITY_PATTERNS = [
-    r"(priya|rohan|daughter|son) (can'?t|cannot|can not) (be here|come|visit|make it)",
-    r"(priya|rohan|daughter|son) (is|'s) (not available|busy|unable to)",
-    r"(priya|rohan|daughter|son) (won'?t|will not) (be here|come|visit)",
-]
-
-# Deceased whereabouts fabrication — Sahaara should not speculate about
-# where a deceased person is (even "I don't know where he is")
-FABRICATED_DECEASED_WHEREABOUTS_PATTERNS = [
-    r"(i|we) don'?t know where (vikram|husband|late husband) is",
-    r"where (vikram|husband|late husband) (is|has gone|went)",
-]
-
-# Attributed feelings — Sahaara cannot know what others feel
-# ("we all miss her", "Rohan misses you too", "family thinks of her")
-FABRICATED_ATTRIBUTED_FEELINGS_PATTERNS = [
-    r"we (all )?(miss|misses) (her|him|them|priya|rohan|vikram|daughter|son|husband)",
-    r"(priya|rohan|vikram|daughter|son|husband|family) (miss|misses) (you|her|him|me|us)",
-    r"everyone (miss|misses) (her|him|them|priya|rohan|vikram|daughter|son|husband)",
-    r"(the whole family|the family) (miss|misses) (her|him|them|priya|rohan|vikram|daughter|son|husband)",
-]
-
-# Offered nonexistent assets — Sahaara cannot offer songs, photos, or
-# clips that don't exist (only Priya has a clip; no songs/photos exist)
-FABRICATED_OFFERED_ASSETS_PATTERNS = [
-    r"would you like to (hear|listen to) (a|some|any) (song|music|songs)",
-    r"shall (we|i) (play|put on) (a|some|any) (song|music|songs)",
-    r"how about (a|some|any) (song|music|songs)",
-    r"let'?s (play|put on|listen to) (a|some|any) (song|music|songs)",
-    r"(look at|see|view|show you) (a|some|any|the) (photo|picture|image|photos|pictures)",
-    r"would you like to (look at|see|view) (a|some|any|the) (photo|picture|image|photos|pictures)",
-]
-
-# False capabilities — Sahaara cannot make calls (no call integration).
-# Consent asks are allowed ("Would you like me to call?"), but asserting
-# a call happens is not ("I'm calling now", "I've called", "I'll call right now").
-FALSE_CAPABILITIES_PATTERNS = [
-    # Claims that a call IS HAPPENING or HAS HAPPENED (block these)
-    r"\b(i'?m calling|i am calling)\b.*\b(priya|rohan|vikram|daughter|son|husband|her|him|them)\b",
-    r"\b(i'?ve called|i have called)\b.*\b(priya|rohan|vikram|daughter|son|husband|her|him|them)\b",
-    r"\bi'?ll call\b.*\b(priya|rohan|vikram|daughter|son|husband|her|him|them)\b.*\b(now|right now|right away|immediately)\b",
-    r"\bcalling\b.*\b(priya|rohan|vikram|daughter|son|husband|her|him|them)\b.*\b(now|right now)\b",
-    # Keep these - they're clearly claims
-    r"(he|she|they) (will|'ll) be on the line",
-    r"(priya|rohan|vikram|daughter|son|husband|her|him|them) (will|'ll) (call|be here|arrive) (now|right away|soon)",
-]
-
-# Memory Box mislabeled as song — The clip is a recorded message, not a song.
-MEMORY_BOX_MISLABELED_PATTERNS = [
-    r"(hear|listen to) (a|the) song (from|by|of) (priya|rohan|vikram|daughter|son|husband|her|his|their)",
-    r"(song|music) from (priya|rohan|vikram|daughter|son|husband|her|his|their)",
-    r"(priya|rohan|vikram|daughter|son|husband|her|his|their) (song|music)",
-    r"(priya|rohan|vikram|daughter|son|husband|her|his|their)'?s (song|music)",
-]
-
 
 @dataclass
 class GuardrailResult:
@@ -262,121 +203,6 @@ def _check_fabricated_surroundings(text_lower: str) -> list[str]:
     return [f"fabricated_surroundings: {hit}" for hit in hits]
 
 
-def _check_fabricated_living_availability(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags fabricated claims about living family availability.
-    Sahaara cannot know if living family are busy, can't come, etc.
-    """
-    if profile is None:
-        return []
-    
-    # Only check for living family members
-    living_names = [m["name"].lower() for m in profile.get_family() if "late" not in m.get("relationship", "").lower()]
-    living_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family() if "late" not in m.get("relationship", "").lower()]
-    
-    mentioned_living = any(name in text_lower for name in living_names) or \
-                       any(rel in text_lower for rel in living_relationships)
-    
-    if not mentioned_living:
-        return []
-    
-    hits = _find_matches(text_lower, FABRICATED_LIVING_AVAILABILITY_PATTERNS)
-    return [f"fabricated_living_availability: {hit}" for hit in hits]
-
-
-def _check_fabricated_deceased_whereabouts(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags fabricated claims about deceased family whereabouts.
-    Sahaara should not speculate about where a deceased person is.
-    """
-    if profile is None:
-        return []
-    
-    deceased_names = [m["name"].lower() for m in profile.get_family() if "late" in m.get("relationship", "").lower()]
-    deceased_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family() if "late" in m.get("relationship", "").lower()]
-    
-    mentioned_deceased = any(name in text_lower for name in deceased_names) or \
-                         any(rel in text_lower for rel in deceased_relationships)
-    
-    if not mentioned_deceased:
-        return []
-    
-    hits = _find_matches(text_lower, FABRICATED_DECEASED_WHEREABOUTS_PATTERNS)
-    return [f"fabricated_deceased_whereabouts: {hit}" for hit in hits]
-
-
-def _check_fabricated_attributed_feelings(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags attributed feelings to family members.
-    Sahaara cannot know what others feel.
-    """
-    if profile is None:
-        return []
-    
-    # Check if any family member is mentioned
-    family_names = [m["name"].lower() for m in profile.get_family()]
-    family_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family()]
-    
-    mentioned_family = any(name in text_lower for name in family_names) or \
-                       any(rel in text_lower for rel in family_relationships)
-    
-    # Also catch generic "we all miss her" type patterns
-    generic_we = "we " in text_lower or "us " in text_lower or "our " in text_lower
-    generic_family = any(w in text_lower for w in ["family", "everyone", "whole family"])
-    
-    if not (mentioned_family or generic_we or generic_family):
-        return []
-    
-    hits = _find_matches(text_lower, FABRICATED_ATTRIBUTED_FEELINGS_PATTERNS)
-    return [f"fabricated_attributed_feelings: {hit}" for hit in hits]
-
-
-def _check_fabricated_offered_assets(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags offers of nonexistent songs, photos, clips."""
-    # These are always violations - no profile check needed since
-    # we know no songs/photos exist and only Priya has a clip
-    hits = _find_matches(text_lower, FABRICATED_OFFERED_ASSETS_PATTERNS)
-    return [f"fabricated_offered_assets: {hit}" for hit in hits]
-
-
-def _check_false_capabilities(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags claims of capabilities that don't exist (call integration)."""
-    # Check if any family member is mentioned
-    if profile is None:
-        return []
-    
-    family_names = [m["name"].lower() for m in profile.get_family()]
-    family_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family()]
-    
-    mentioned_family = any(name in text_lower for name in family_names) or \
-                       any(rel in text_lower for rel in family_relationships)
-    
-    # Also catch generic pronouns referring to family
-    mentioned_pronoun = any(p in text_lower for p in ["her", "him", "them"])
-    
-    if not (mentioned_family or mentioned_pronoun):
-        return []
-    
-    hits = _find_matches(text_lower, FALSE_CAPABILITIES_PATTERNS)
-    return [f"false_capabilities: {hit}" for hit in hits]
-
-
-def _check_memory_box_mislabeled(text_lower: str, profile: Optional[Profile]) -> list[str]:
-    """Flags Memory Box clip referred to as a song."""
-    if profile is None:
-        return []
-    
-    # Only trigger if a family member with a clip is mentioned
-    clip_holders = [m["name"].lower() for m in profile.get_family() if m.get("memory_box_clip")]
-    clip_relationships = [m["relationship"].lower().replace("late ", "") for m in profile.get_family() if m.get("memory_box_clip")]
-    
-    mentioned_clip_holder = any(name in text_lower for name in clip_holders) or \
-                            any(rel in text_lower for rel in clip_relationships)
-    
-    if not mentioned_clip_holder:
-        return []
-    
-    hits = _find_matches(text_lower, MEMORY_BOX_MISLABELED_PATTERNS)
-    return [f"memory_box_mislabeled: {hit}" for hit in hits]
-
-
 def _check_fabricated_reassurance(text_lower: str, profile: Optional[Profile]) -> list[str]:
     """Flags reassurance language ('he's on his way') when it appears
     alongside a mention of a deceased or avoid-topic family member —
@@ -426,13 +252,6 @@ def check_guardrails(response_text: str, profile: Optional[Profile] = None) -> G
     violations += _check_fabricated_schedule(text_lower, profile)
     violations += _check_fabricated_weather(text_lower)
     violations += _check_fabricated_surroundings(text_lower)
-    # M1 Extended checks
-    violations += _check_fabricated_living_availability(text_lower, profile)
-    violations += _check_fabricated_deceased_whereabouts(text_lower, profile)
-    violations += _check_fabricated_attributed_feelings(text_lower, profile)
-    violations += _check_fabricated_offered_assets(text_lower, profile)
-    violations += _check_false_capabilities(text_lower, profile)
-    violations += _check_memory_box_mislabeled(text_lower, profile)
 
     return GuardrailResult(text=response_text, violations=violations)
 

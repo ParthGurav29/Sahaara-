@@ -56,7 +56,15 @@ def get_session_for_profile(profile_id: str):
 def process_turn(user_message: str) -> dict:
     """Runs one full turn through the pipeline."""
     s = _get_session()
-    
+
+    # M3: let the proactive scheduler see real conversation activity
+    # (drives the "recent conversation" skip rule + response-window tracking).
+    if _scheduler is not None:
+        try:
+            _scheduler.record_user_turn()
+        except Exception:
+            pass
+
     if provider is None:
         return {"error": f"LLM provider not configured: {provider_init_error}"}
 
@@ -82,7 +90,7 @@ def process_turn(user_message: str) -> dict:
                 "response": f"I've noted that you'd like to reach out to {pending_contact}. An alert has been logged on Rohan's dashboard.",
                 "meta": {"emotion": "neutral", "is_repeated_question": False,
                          "sustained_distress": False, "consent_outcome": "accepted",
-                         "contact_called": pending_contact, "tier": s.escalation_engine.current_tier.value},
+                         "contact_called": None, "tier": s.escalation_engine.current_tier.value},
             }
         elif consent_result == ConsentState.DECLINED:
             s.alert_builder.build_consent_alert("declined", pending_contact, s.escalation_engine.current_tier)
@@ -112,6 +120,32 @@ def process_turn(user_message: str) -> dict:
     if intent.is_danger_statement:
         s.event_log.log_danger_statement(phrase=user_message, matched_pattern="danger_pattern")
         s.escalation_engine.force_tier(EscalationTier.RED, "danger_statement")
+
+    # ---- IDENTITY QUESTIONS ----
+    # Handle "who are you" / identity questions with deterministic intro response
+    if intent.is_identity_ask:
+        from scheduling.models import get_wording_pool
+        intro_pool = get_wording_pool("intro")
+        if intro_pool:
+            import random
+            response_text = random.choice(intro_pool)["text"]
+        else:
+            # Fallback if pool is empty
+            response_text = "Hello. I'm Sahaara, a voice companion. I'm not a person, but I'm here to listen and chat."
+        
+        s.event_log.log_conversation_turn(speaker="user", text=user_message, emotion=intent.emotion)
+        s.event_log.log_conversation_turn(speaker="sahaara", text=response_text, emotion="neutral", context_trace={})
+        
+        return {
+            "response": response_text,
+            "meta": {
+                "emotion": "neutral", "is_repeated_question": False,
+                "sustained_distress": False, "memory_box_offered": None,
+                "guardrail_fallback_used": False, "guardrail_violations": [],
+                "structure_check_passed": True, "model": "deterministic",
+                "tier": s.escalation_engine.current_tier.value, "consent_state": s.consent_manager.state.value,
+            }
+        }
 
     # ---- MEMORY / CONTEXT ----
     

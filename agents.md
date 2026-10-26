@@ -11,16 +11,23 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-25, HEAD `...`)
+## 0. Current Status (as of 2026-10-26, HEAD `285f64d`)
 
-**Verification snapshot (all run 2026-10-25):**
+**Verification snapshot (all run 2026-10-26):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
 - `tests/test_offer_rate.py` — **23/23 pass** · `tests/test_policy_engine.py` — **9/9 pass**
 - `tests/test_guardrails.py` — **13/13 pass** · `guardrail_baseline.py --verify` — **no drift** vs pre-baseline
+- `tests/test_simulated_day.py` — **16/16 pass** · `tests/test_response_tracking.py` — **7/7 pass** · `tests/test_wording_pools.py` — **44/44 pool lines pass guardrails**
+- `tests/test_auth.py` — **14/14 pass** — now isolated on a temp DB (`SAHAARA_DB_PATH`), no longer wipes the live `users` table
+- `tests/test_voice_ws_wiring.py` — **3/3 pass** · `tests/test_voice_turn_taking.py` — **5/5 pass** (mic gate, Deepgram keepalive, turn pause)
+- **Voice orb E2E (live server, port 8000, auth enabled):** first turn → `thinking → speaking → listening`; **1.51 s pause** between last TTS byte and `listening`; **103,832 bytes of TTS echoed back as mic audio during the turn → 0 self-triggered turns over the following 7 s**; a real second utterance immediately after `listening` was answered. **12 s idle with zero mic audio → socket survives** (Deepgram KeepAlive) and a real turn still starts afterwards.
 - `tests/guardrail_baseline.py` — **38/38 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
 - **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
-- `tsc --noEmit` — clean · `import main` — clean (31 routes registered)
-- **Auth flow verified:** caregiver/person login, role-based access, logout, cookie + header auth all working
+- `tsc --noEmit` — clean
+- **M2 complete:** Caregiver accounts, opaque tokens, role-based access, retention policies, delete-my-data, SQLite keyed by profile_id
+- **M3 Steps 1-8 complete:** trigger engine, skip rules, quiet hours, expiry, dedupe, wording rotation, guardrail gate, response tracking, no-response flow, delivery, intro + identity, caregiver controls, **simulated day** (read-only preview, nothing persisted). Gated by `SAHAARA_PROACTIVE_V2` (default OFF; env gate verified both states).
+- **Step 8 E2E (live server, port 8010):** custom check-in times honored by simulator; quiet hours honored; invalid inputs → 400; `include_history` dedupes already-persisted slots; intro override applied and guardrail-rejected text returns 400; history endpoint returns typed rows; live loop persisted 3 expired slots once and was idempotent on re-run (DB-flood bug fixed); `POST /chat` works with `record_user_turn` wiring.
+- **Step 7 bugs fixed during E2E:** settings JSON double-encoding corrupted `checkin_times`/`intro_overrides` (now normalized + legacy auto-repair); `GET checkin-times` IndexError with ≠5 times; caregiver edits now apply to the live loop without restart.
 
 **Milestones:**
 
@@ -36,7 +43,8 @@
 | W4a | Cartesia TTS schema modernization | ✅ Done `259a438` |
 | W4b | Voice tuning (Orange/Red calmer pace/softness) | ⬜ |
 | W5 | Metrics + blind naturalness review | ⬜ |
-| M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), JWT-like opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
+| M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
+| M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -51,10 +59,11 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-1. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
-2. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
-3. ⏸ **WAITING ON OWNER REVIEW of W2b** (table + untruncated replies reported). On approval: W2c only after owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → W3 full adversarial re-run → W4b → W5 (metrics + blind naturalness). One at a time, never batched.
-4. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
+1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
+2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
+3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
+4. ⏸ **WAITING ON OWNER REVIEW of W2b** (table + untruncated replies reported). On approval: W2c only after owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → W3 full adversarial re-run → W4b → W5 (metrics + blind naturalness). One at a time, never batched.
+5. Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
 
 ---
 
@@ -103,13 +112,26 @@ cd backend && .venv/bin/python -m tests.harness --scenario all --runs 5
 cd backend && .venv/bin/python -m tests.harness --scenario "Anxious Evening" --runs 1 --verbose
 
 # Unit tests — run files directly (pytest is NOT installed)
-cd backend && .venv/bin/python tests/unit_e2e.py           # 143 tests — the main suite
+cd backend && .venv/bin/python tests/unit_e2e.py           # 157 tests — the main suite
 cd backend && .venv/bin/python tests/test_guardrails.py     # 13 adversarial guardrail tests
 cd backend && .venv/bin/python tests/test_offer_rate.py     # 23 offer_rate metric tests
 cd backend && .venv/bin/python tests/guardrail_baseline.py # 17 adversarial cases -> saves baseline_guardrails_pre.json
 cd backend && .venv/bin/python tests/guardrail_baseline.py --verify tests/baseline_guardrails_pre.json  # drift check
 cd backend && .venv/bin/python tests/test_policy_engine.py  # prompt-template tests
 cd backend && .venv/bin/python tests/test_repetition_handling.py
+cd backend && .venv/bin/python tests/test_simulated_day.py  # 16 M3 simulated-day / engine tests
+cd backend && .venv/bin/python tests/test_response_tracking.py
+cd backend && .venv/bin/python tests/test_wording_pools.py
+cd backend && .venv/bin/python tests/test_auth.py           # isolated temp DB (SAHAARA_DB_PATH)
+cd backend && .venv/bin/python tests/test_voice_ws_wiring.py # orb WS: stream is async generator
+cd backend && .venv/bin/python tests/test_voice_turn_taking.py # voice mic gate, Deepgram keepalive, turn pause
+
+# M3 simulated day (read-only preview; nothing persisted)
+# Requires a caregiver token when auth is enabled: POST /auth/login first.
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{}' http://localhost:8000/auth/scheduler/simulate-day
+# Optional: "date":"YYYY-MM-DD", "start_time":"07:00", "end_time":"09:00",
+# "step_minutes":15, "include_history":true
 
 # Voice timing analysis
 cd backend && .venv/bin/python -m tests.analyze_voice_timing
@@ -150,8 +172,10 @@ Voice adds: Deepgram Nova-3 ASR (`utterance_end_ms=1000`) → pipeline above →
 |---|---|
 | `conversation.py` | Single turn orchestrator — both /chat and /ws/voice call this; uses per-profile sessions via `session_manager` |
 | `session_manager.py` | Per-profile state (`ProfileSession`: escalation, consent, session notes, event log, alert store…); replaced the old global singletons. **`demo_mode=True, demo_multiplier=300.0` hardcoded here (lines 99/104)** |
-| `database.py` | SQLite (`backend/data/sahaara.db`): profiles, events, session_summaries, suggestions; auto-migrates `asha_profile.json` on first run |
-| `scheduler.py` | Proactive initiatives: morning greeting, evening check-in, medication reminders (no dosing), meal nudges; dedup per day+category; `/scheduler/toggle` |
+| `database.py` | SQLite (`backend/data/sahaara.db`; override with `SAHAARA_DB_PATH`): profiles, events, session_summaries, suggestions, users/auth_tokens, scheduler_settings/checkin_fired_history; auto-migrates `asha_profile.json` on first run |
+| `scheduler.py` | Live loop wrapper: env gate, settings reload per tick (caregiver edits apply without restart), persistence, response tracking, audio delivery, `/scheduler/toggle`; `simulate_day()` is read-only |
+| `scheduling/engine.py` | Pure trigger engine (injectable clock, no I/O): due/expiry, quiet hours, recent-conversation gap, tier gate, dedupe, daily cap, wording rotation + overrides, `simulate_day()` |
+| `scheduling/models.py` | `SchedulerSettings`, `CheckinSlot`, `CheckinFiredRecord`, `EngineDecision`, wording pools (draft), simulation result dataclasses |
 | `actions.py` | Safe actions: `tell_time()`, `play_song()` (local music dir), `set_reminder()`; results injected into prompt as facts — Sahaara only claims actions that succeeded |
 | `llm/response_policy.py` | Prompt template (Listen → Validate → Ground → Offer one choice → Escalate) + `check_response_structure()` + structure checker internals |
 | `llm/intent_emotion.py` | Regex-based emotion + danger + physical-distress classifier (`classify_with_llm()` exists, unwired) |
@@ -173,8 +197,9 @@ Voice adds: Deepgram Nova-3 ASR (`utterance_end_ms=1000`) → pipeline above →
 | `memory/summarizer.py` | Session summaries → `{session_context_block}` ("yesterday") in the system prompt |
 | `memory/suggestions.py` | Suggested Facts queue (approve/reject in dashboard → writes to profile); nothing auto-added |
 | `tests/harness.py` | 10-scenario LLM harness with regression thresholds (§10) |
-| `tests/unit_e2e.py` | 143-test main suite — **run directly; still UNTRACKED in git (commit it)** |
-| `tests/voice_ab.py` | Blind 3-model Cartesia A/B renderer |
+| `tests/unit_e2e.py` | 157-test main suite — run directly |
+| `tests/test_simulated_day.py` | 16 engine/simulated-day tests (fake clock, gating, dedupe, wording, idempotence) |
+| `voice_ab.py` (tests/) | Blind 3-model Cartesia A/B renderer |
 
 **Frontend (`frontend/src/`, flat — no subfolders):** `App.tsx` (4 tabs: Live / Summary / Suggestions / Profile + text chat), `VoiceOrb.tsx`, `EscalationLadder.tsx` (+ `AlertCenter.tsx` bell/ack), `DailySummaryScreen.tsx`, `ProfileForm.tsx` (caregiver "About" editor), `SuggestedFacts.tsx`.
 
@@ -217,7 +242,7 @@ Physical symptoms (added Oct 19):
 ## 8. Data & storage
 
 - **Profile:** `backend/memory/data/asha_profile.json` (flat JSON; keys: name, profile_id, family, life_story, likes, avoid, daily_routine, meta; `"editable": true`). Auto-migrated into SQLite on first run; edited live via `PUT /profile/{id}`.
-- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions (Phase 4). Tracked in git and modified at runtime (repo hygiene pending — see §9).
+- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions, `users`/`auth_tokens` (M2), `scheduler_settings`/`checkin_fired_history` (M3). Path overridable with `SAHAARA_DB_PATH` (used by tests). Tracked in git and modified at runtime (repo hygiene pending — see §9).
 - **Event log:** `backend/events/data/asha_demo_001.jsonl` (append-only JSONL + in-memory list; **6,372 events as of 2026-10-23**)
 - **State:** per-profile `ProfileSession` objects via `session_manager.py` — still in-memory, single-process, deliberate hackathon scope.
 - **Demo time compression:** 300× (5 min real → 1 sec), hardcoded `EscalationConfig(demo_mode=True, demo_multiplier=300.0)` in `session_manager.py`. Must stay demo-only, never production.
@@ -241,6 +266,15 @@ When credits are exhausted, every harness turn returns an error dict — Guard/S
 ### .env is committed
 The `.env` file is tracked in git despite `.gitignore`. It contains real API keys (NEBIUS_API_KEY, DEEPGRAM_API_KEY, CARTESIA_API_KEY). Accepted for hackathon scope. `.env.example` now exists (placeholder names only).
 
+### Tests must not touch the live DB
+`tests/test_auth.py` truncates the `users` table. It now sets `SAHAARA_DB_PATH` to a throwaway temp DB before importing `database`/`auth`; `database.py` honors that env var. Before this fix the suite wiped the seeded caregiver and every live token started returning 401. If you add another destructive test, do the same.
+
+### Scheduler settings JSON columns
+Each caregiver PUT reads the DB row and writes it back. `database.save_scheduler_settings` normalizes JSON fields (`checkin_times`, `intro_overrides`) and `decode_json_field` auto-repairs legacy double-encoded values. Without this, times become a JSON string and `GET checkin-times` 500s. Do not "simplify" the normalization away.
+
+### M3 scheduler feature gate
+`SAHAARA_PROACTIVE_V2` (default OFF) is an env gate on the live loop only. `POST /auth/scheduler/simulate-day` still previews with the flag off (`feature_enabled: false` in the payload). The live loop reloads caregiver settings each tick, so edits apply without a restart.
+
 ### Dependencies
 - `sse-starlette` and `pydub` are now listed in `requirements.txt` (fixed Oct 20).
 - `ffmpeg` must still be installed system-wide (pydub needs it for MP3 decode). Memory Box playback itself still does not exist (§11.5).
@@ -250,6 +284,15 @@ All suites use plain `assert` and run directly with Python (§4). `pytest backen
 
 ### Dead file: `safety/event_log.py`
 2,254-byte leftover; **nothing imports it** (the real log is `events/event_log.py`). The three old tests that used its API were deleted Oct 20. Do not "fix" imports toward it.
+
+### voice_pipeline.stream() is an async generator
+`voice/voice_pipeline.py::stream()` yields `VoiceEvent`s; it is not a coroutine. Consume it with `async for` (as `main.py::pump_pipeline()` does). Passing it to `asyncio.create_task()` raises `TypeError: a coroutine was expected` and kills the `/ws/voice` connection. This broke the orb at HEAD; fixed 2026-10-26.
+
+### Voice turn-taking: mic gate + pause + Deepgram keepalive
+The orb used to respond to its own TTS: the mic picked up the speaker output, Deepgram transcribed it, and a second turn fired before the person could answer. Three coupled pieces now prevent that:
+1. `VoiceOrb.tsx` gates the **actual WebSocket send path** (`micMutedRef` checked in `onaudioprocess`) while the state is `thinking`/`speaking` or playback is pending, and unmutes 500 ms after `listening` (`MIC_UNMUTE_DELAY_MS`). The old code adjusted a `GainNode` on the silent speaker branch — that never affected `ws.send`, so it did nothing for ASR. Do not "simplify" back to a GainNode mute.
+2. `voice_pipeline.run_cascaded()` flips `mic_gate["enabled"] = False` at UtteranceEnd and back on only after `TURN_PAUSE_SECONDS` (default 1.5 s, env `SAHAARA_TURN_PAUSE_SECONDS`); `asr.py` drops (never buffers) gated chunks. The orb deliberately stays `speaking` during the pause so the frontend stays muted.
+3. Deepgram closes a streaming socket after ~10 s with no audio/text. Because both gates can silence the mic during a slow turn, `asr.py` sends `{"type": "KeepAlive"}` every 5 s while idle (`KEEPALIVE_INTERVAL_SECONDS`). Removing it reintroduces `1011 ... did not receive audio data ... timeout` and kills `/ws/voice`.
 
 ### Voice pipeline run location
 `voice_pipeline.py` resolves `.env` relative to its own path (`Path(__file__).resolve().parent.parent.parent`). Running from repo root fails. Always: `cd backend && .venv/bin/python -m voice.voice_pipeline`.
@@ -541,12 +584,137 @@ Multiple prompt/guardrail changes applied together:
 - **5-run results (pre → post):** Guard 1.000 → 1.000 (0 fallbacks both) · **Struct avg 0.723 → 0.855** · Physical Urgent struct 0.000 → 1.000 · Casual 0.800 → 1.000 · Anxious 0.800 → 0.950 · offer_rate 0.900 → 0.936 (**unchanged by design** — prompt untouched; the <0.50 M1 gate is judged after W2c).
 - **Findings reported to owner (not fixed here — W2c/owner territory):** (1) intermittent weather fabrication on "How is the weather today?" turns — guardrail CAUGHT both times, honest "I don't know what the sky looks like" replies also observed; (2) one Vikram reply offered "I can call him for you" about the deceased spouse — guardrail's call-promise pattern targets claims, not offers; (3) one "Priya's picture… play his favorite song" pronoun slip; (4) claims heuristic 2 → 3 candidates in Casual Chat (broad patterns like "in the kitchen"; zero guardrail breaches, within ceiling).
 
-### 2026-10-25 — M2: Login & persistent storage (this change)
-- **Goal:** Make it safe to hold real transcripts — caregiver accounts, role-based access, retention, delete-my-data.
-- **Database (`backend/database.py`):** Schema v2 migration (PRAGMA user_version). Added tables: `users` (email, bcrypt password_hash, role, profile_id), `auth_tokens` (SHA256 token hash, user_id, expires_at, revoked), `retention_policies` (profile_id, retention_days=90 default, auto_cleanup), `memory_box_clips` (clip metadata for auth-protected serving). All existing tables unchanged. Migration from v1→v2 automatic on startup.
-- **Auth package (`backend/auth/`):** New modules — `models.py` (User, TokenData), `security.py` (bcrypt hash/verify, opaque token create/verify/revoke), `deps.py` (FastAPI dependencies: `get_current_user`, `require_caregiver`, `require_person`, `require_profile_access`, WS variants), `routes.py` (`POST /auth/login`, `/auth/logout`, `/auth/register`, `/auth/me`, `/auth/users/{profile_id}`). Tokens: 32-byte URL-safe random, stored as SHA256 hash, 30-day expiry, HttpOnly cookie + Bearer header support.
-- **Main (`backend/main.py`):** All endpoints protected with role guards. Caregiver endpoints (`/escalation/*`, `/alerts*`, `/daily-summary`, `/suggestions*`, `/turn/context`, `/monitoring/*`, `/scheduler*`, `/profiles`, `/profile/*`) require `require_caregiver` + profile access. Person endpoints (`/chat`, `/ws/voice`, `/demo/reset`) require `require_person`. WS endpoints (`/ws/alerts`, `/ws/escalation`, `/ws/voice`) use query-param/header token auth with same role checks. `_get_session()` replaced with `get_session_for_profile(profile_id)` for multi-profile isolation.
-- **Conversation (`backend/conversation.py`):** Added `get_session_for_profile(profile_id)` for profile-scoped turn processing.
-- **Session manager (`backend/session_manager.py`):** Already per-profile (Phase 4) — no changes needed. Verified isolation works.
-- **Initial users:** Created `caregiver@example.com` (caregiver) and `asha@example.com` (person) for `asha_demo_001` via `scripts/create_initial_users.py`.
-- **Verification:** All 157 unit tests pass; guardrail baseline no drift (38/38); auth flow tested — login/logout, role separation (caregiver 403 on /chat, person 403 on /escalation), cookie + header auth, token revocation on logout, profile isolation (caregiver A cannot see profile B data). Frontend `tsc --noEmit` clean.
+### 2026-10-25 — M2 Step 1: Add users and auth_tokens tables (commit `994fffd`)
+- **Goal:** Additive schema migration for caregiver authentication.
+- **`database.py`:** Added `users` (id, username unique, password_hash, salt, role, profile_id, created_at) and `auth_tokens` (token_hash, user_id, created_at, expires_at, revoked) tables with indexes.
+- Migration is idempotent (CREATE TABLE IF NOT EXISTS), existing tables and data unchanged (2 profiles, 1092 events intact).
+- All test suites pass (157 unit, 13 guardrails, 23 offer_rate, 9 policy_engine, guardrail baseline no drift).
+- Route count unchanged at 31. `/chat` works without auth.
+
+### 2026-10-25 — M2 Step 2: Add auth module (commit `4b1fac5`)
+- **`backend/auth.py`:** scrypt password hashing (hashlib, N=16384), opaque token management (secrets, SHA256 stored), in-memory rate limiter (5/min), seed user from env vars.
+- **`backend/tests/test_auth.py`:** 14 unit tests covering hashing, tokens, rate limiting, user CRUD, seed logic.
+- All existing test suites pass (157 unit, 13 guardrails, 23 offer_rate, 9 policy_engine, guardrail baseline no drift).
+- Route count unchanged at 31. `/chat` works without auth (SAHAARA_AUTH_ENABLED=false by default).
+
+### 2026-10-25 — M2 Step 3: Auth endpoints + require_caregiver dependency (commit `5fd03dd`)
+- **`backend/auth_routes.py`:** POST /auth/login (HttpOnly cookie + token), POST /auth/logout, GET /auth/me, GET /auth/status.
+- **`backend/main.py`:** Applied `require_caregiver` to all caregiver routes: /escalation/*, /alerts/*, /daily-summary, /suggestions/*, /turn/context, /monitoring/*, /scheduler/*, /profiles, /demo/reset.
+- **`/chat` and `/ws/voice` remain UNGUARDED** (person's side).
+- Auth flag `SAHAARA_AUTH_ENABLED` default OFF (false).
+- With flag OFF: all endpoints work exactly as before, no login required. With flag ON: caregiver endpoints require valid token, /chat and /ws/voice still work without auth.
+- All test suites pass (157 unit, 13 guardrails, 23 offer_rate, 9 policy_engine, guardrail baseline no drift).
+- Harness 1-run works with flag OFF (default).
+- Route count: 28 (4 auth + 24 existing).
+
+### 2026-10-25 — M2 Step 4: Frontend login screen + auth gating (commit `3b6cd5d`)
+- **`AuthContext.tsx`:** React context for auth state (user, isLoading, authEnabled, login, logout).
+- **`LoginPage.tsx` + `LoginPage.css`:** Login form shown only when auth enabled and no user.
+- **`AuthProvider.tsx`:** Checks `/auth/status` on load, manages token via HttpOnly cookie.
+- **`App.tsx`:** Wraps app in AuthProvider, shows LoginPage when auth enabled and no user.
+- Gate caregiver tabs (Live dashboard, Summary, Suggestions, Profile) behind `authEnabled/user.role`.
+- Asha's VoiceOrb and text chat always accessible (person role never logs in).
+- Logout button in header when authenticated.
+- Uses credentials: 'include' for cookie auth; handles 401 by returning to login.
+- Keeps existing ErrorBoundary and low-arousal palette.
+- All tests pass: frontend `tsc --noEmit` clean, build passes; backend 157/157 unit tests, 13 guardrails, 23 offer_rate, 9 policy_engine, guardrail baseline no drift; harness 1-run works with auth disabled; frontend serves and connects to backend (auth disabled by default).
+
+### 2026-10-25 — M2 Step 5: End-to-end verification + docs (this change)
+- **All test suites pass:** 157/157 unit_e2e, 13/13 guardrails, 23/23 offer_rate, 9/9 policy_engine, guardrail baseline no drift (38/38).
+- **Auth ENABLED verification:** caregiver/person login, role-based access (caregiver 200 on all 11 endpoints, 401 without token; person 200 on /chat, 403 on caregiver endpoints), logout revokes token, cookie auth works.
+- **Auth DISABLED verification:** all endpoints behave exactly as before (no login required), harness 1-run works, /chat works.
+- **Frontend:** `tsc --noEmit` clean, build passes; LoginPage shown when auth enabled, caregiver tabs gated, Asha's orb always accessible; logout works.
+- **M2 Complete:** Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id.
+- **M2 Status:** ✅ **Done 2026-10-25** — not merged to main (branch `m2-auth`).
+- **Next:** Awaiting owner review. M1 W2c (prompt loosening) still blocked on W1 caregiver exchanges.
+
+### 2026-10-26 — M3 Step 1-2: Trigger engine core + settings schema, skip rules, quiet hours, expiry, dedupe (commit `b1df40b`)
+- **Goal:** Build the trigger engine core with injectable clock, settings schema, and all skip rules.
+- **`backend/scheduling/engine.py`:** Pure trigger engine with injectable clock — no I/O, no LLM, no sleep. Evaluates check-in slots against skip rules (quiet hours, recent conversation, consent pending, tier yellow/orange/red, monitoring paused, scheduler disabled, daily cap, expiry, dedupe) and outputs fire/skip/expire decisions.
+- **`backend/scheduling/models.py`:** Settings schema (`SchedulerSettings`), slot definitions (`CheckinSlot`), fired history records (`CheckinFiredRecord`), engine decisions (`EngineDecision`), skip reasons (`SkipReason`), check-in types (`CheckinType`).
+- **`backend/database.py`:** Added `scheduler_settings` table (per-profile settings with defaults) and `checkin_fired_history` table (persisted fired history for dedupe across restarts, with response tracking and audio delivery status). Migration is additive and idempotent.
+- **`backend/scheduler.py`:** Refactored to use `SchedulingEngine` and database settings. Loads settings/history on init, runs engine every `CHECK_INTERVAL` seconds, processes decisions (fire/skip/expire), records fired history, manages wording rotation, tracks response windows, handles audio delivery status.
+- **`backend/main.py`:** Wires engine at startup, passes LLM caller, SSE/WebSocket endpoints accept token query param for auth.
+- **Feature flag:** `SAHAARA_PROACTIVE_V2` (default OFF). When OFF, all endpoints behave exactly as before.
+- **All test suites pass:** 157/157 unit_e2e, 13/13 guardrails, 23/23 offer_rate, 9/9 policy_engine, guardrail baseline no drift (38/38).
+- Frontend build passes, harness works.
+
+### 2026-10-26 — M3 Step 6: Introduction + "Who are you?" handling (commit `...`)
+- **`backend/llm/intent_emotion.py`:** Added `IDENTITY_PATTERNS` regex list for identity questions ("who are you", "who am i talking to", "what are you", "what is your name", "identify yourself", "what kind of assistant are you", "who is this", "what is sahaara"). Added `is_identity_ask` field to `IntentResult` dataclass.
+- **`backend/llm/intent_emotion.py`:** Updated `classify_intent()` to detect identity questions via `IDENTITY_PATTERNS` and set `is_identity_ask` flag.
+- **`backend/conversation.py`:** Added identity question handling in `process_turn()` before LLM call. When `intent.is_identity_ask` is true, returns a deterministic response from the intro wording pool (rotated, guardrail-checked) with `model: "deterministic"` and `structure_check_passed: True`.
+- **Tests:** Verified "who are you", "who am i talking to", "what are you", "what is your name", "identify yourself", "what kind of assistant are you", "who is this", "what is sahaara" all correctly set `is_identity_ask=true`. Non-identity questions like "hello" correctly return `is_identity_ask=false`.
+- All test suites pass: 157/157 unit_e2e, 13/13 guardrails, 23/23 offer_rate, 9/9 policy_engine, 44/44 wording pool lines pass guardrails, 4/4 response tracking, harness 10/10 scenarios, frontend build passes.
+
+### 2026-10-26 — M3 Step 3-4: Wording pools + guardrail gate, response tracking + no-response flow (commit `86fe763`)
+- **`backend/scheduling/models.py`:** Added `WORDING_POOLS` (draft: true) for intro, morning_greeting, daytime_checkin, evening_checkin, medication, meal, retry. Rotation with K=4, guardrail validation at import time.
+- **`backend/tests/test_wording_pools.py`:** New test validating all 44 pool lines pass `check_guardrails()`.
+- **`backend/scheduling/models.py`:** Added `get_wording_pool()`, `validate_all_pools()` helpers.
+- **`backend/scheduling/engine.py`:** Uses `context.now` consistently, fixed slot_id format for intro (added _0 suffix for dedupe consistency), added `_log_skip`/`_log_expire`.
+- **`backend/tests/test_wording_pools.py`:** New test suite validating all 44 pool lines pass guardrails.
+- **`backend/tests/test_response_tracking.py`:** Tests for response tracking, no-response retry flow, retry_once limit, response window tracking.
+- **`backend/scheduling/engine.py`:** Fixed expiry check to use `context.now`, fixed intro slot_id format (added _0 suffix for dedupe consistency), added `_log_skip`/`_log_expire`.
+- All test suites pass: 157 unit, 13 guardrails, 23 offer_rate, 9 policy_engine, 44 wording pool lines, 4 response tracking, guardrail baseline no drift.
+- Frontend build passes, harness works.
+
+### 2026-10-26 — M3 Step 6: Introduction + "Who are you?" handling (commit `...`)
+- **`backend/llm/intent_emotion.py`:** Added `IDENTITY_PATTERNS` regex list for identity questions ("who are you", "who am i talking to", "what are you", "what is your name", "identify yourself", "what kind of assistant are you", "who is this", "what is sahaara"). Added `is_identity_ask` field to `IntentResult` dataclass.
+- **`backend/llm/intent_emotion.py`:** Updated `classify_intent()` to detect identity questions via `IDENTITY_PATTERNS` and set `is_identity_ask` flag.
+- **`backend/conversation.py`:** Added identity question handling in `process_turn()` before LLM call. When `intent.is_identity_ask` is true, returns a deterministic response from the intro wording pool (rotated, guardrail-checked) with `model: "deterministic"` and `structure_check_passed: True`.
+- **Tests:** Verified "who are you", "who am i talking to", "what are you", "what is your name", "identify yourself", "what kind of assistant are you", "who is this", "what is sahaara" all correctly set `is_identity_ask=true`. Non-identity questions like "hello" correctly return `is_identity_ask=false`.
+- All test suites pass: 157/157 unit_e2e, 13/13 guardrails, 23/23 offer_rate, 9/9 policy_engine, 44/44 wording pool lines pass guardrails, 4/4 response tracking, harness 10/10 scenarios, frontend build passes.
+
+### 2026-10-26 — M3 Step 3-4: Wording pools + guardrail gate, response tracking + no-response flow (commit `86fe763`)
+
+### 2026-10-26 — M3 Step 7: Caregiver Controls (API + UI) (commit `a91f570`)
+- **`backend/auth_routes.py`:** Added caregiver control endpoints (all under `/auth`, caregiver token required):
+  - `GET /auth/scheduler/checkin-times` — configured check-in times
+  - `PUT /auth/scheduler/checkin-times` — update check-in times (HH:MM validation)
+  - `GET /auth/scheduler/quiet-hours` — quiet hours
+  - `PUT /auth/scheduler/quiet-hours` — update quiet hours (HH:MM validation)
+  - `GET /auth/scheduler/intro-overrides` — intro wording overrides
+  - `PUT /auth/scheduler/intro-override` — set custom intro wording (guardrail-validated)
+  - `GET /auth/scheduler/history` — check-in history (fired/skipped/no-response)
+  - `GET /auth/scheduler/status` — scheduler status
+- All test suites pass: 157/157 unit_e2e, 13/13 guardrails, 23/23 offer_rate, 9/9 policy_engine, 44/44 wording pool lines pass guardrails, 4/4 response tracking, harness 10/10 scenarios, frontend build passes.
+- Frontend `tsc --noEmit` clean, build passes.
+- M2 Status: Done (caregiver accounts, role-based access, retention, delete-my-data).
+- M3 Status at the time: Steps 1-7 complete; Step 8 pending. Feature flag `SAHAARA_PROACTIVE_V2` (default OFF).
+
+### 2026-10-26 — M3 Step 8: Simulated day + E2E hardening (this change)
+- **Goal:** a read-only "simulated day" preview over the scheduling engine, plus end-to-end verification of the caregiver controls.
+- **`backend/scheduling/engine.py`:** complete engine rewrite — all decisions use the injected `context.now` (fixed `self._now()` leaks), slots derive from caregiver `checkin_times` (first = morning, last = evening, middles = daytime; `DEFAULT_SLOTS` fallback), due-time semantics (future slots emit nothing), expiry/quiet-hours/recent-conversation/tier/dedupe/cap gates, pool-based wording with per-type overrides, and `simulate_day()` (in-memory history only; nothing persisted).
+- **`backend/scheduling/models.py`:** `SimulatedDayStep` / `SimulatedDayResult`, `wording_text`, summary split into slot-level `total_skipped` vs global `total_gated_steps` (so a clean day doesn't report 16 fake "skips").
+- **`backend/scheduler.py`:** `simulate_day()` wrapper; missing `get_profile` import; `time` module shadowing fixed (`datetime.now().timestamp()`); unknown-profile guard; deduplicated `get_status`; global "all" skip decisions no longer persisted (this was flooding `checkin_fired_history` — 196 junk rows observed); settings reloaded each tick so caregiver edits apply live; env feature gate honored.
+- **`backend/auth_routes.py`:** new `POST /auth/scheduler/simulate-day` (date, start/end, step 1-1440 min, `include_history`; 400 on invalid input); missing `datetime` import fixed (Step 7 `PUT checkin-times` / `PUT quiet-hours` / `GET history` crashed without it); duplicate Step 7 routes removed (`POST /scheduler/intro-override` and the loose duplicate `GET /scheduler/history`) so the typed history handler is the one actually served.
+- **`backend/database.py`:** `SAHAARA_DB_PATH` override; JSON settings normalization + legacy double-encoding auto-repair (`decode_json_field`); this fixed corrupted `checkin_times` and the `GET /auth/scheduler/checkin-times` 500 (IndexError from iterating a JSON string); `fired_at` normalized to epoch seconds on write + read (legacy ISO rows auto-converted/re-sorted) — fixes the `GET /auth/scheduler/history` 500 after Step 7 rows were persisted as ISO strings.
+- **`backend/conversation.py`:** `record_user_turn()` wired into `process_turn` (stamps last user turn + marks in-window check-ins responded).
+- **`backend/tests/test_simulated_day.py` (new):** 16 tests — full-day fires, exact times, custom times, quiet hours, expiry, not-due silence, dedupe, recent conversation, tier, cap, clock-derived slot ids, wording text/override, summary math, invalid inputs, no input mutation.
+- **`backend/tests/test_response_tracking.py`:** due-time expectations updated; `record_user_turn` wiring test added.
+- **`backend/tests/test_auth.py`:** now isolated on a temp DB via `SAHAARA_DB_PATH` (it used to `DELETE FROM users` on the live DB and silently kill the running login/token).
+- **Live E2E (port 8010, auth enabled + `SAHAARA_PROACTIVE_V2=true`):** simulate-day defaults → intro 07:30, morning 08:00, daytime 14:00, evening 19:00; custom `09:15/12:45` honored; quiet hours honored; invalid time/step/date → 400; `include_history` dedupes persisted slots; live loop persisted 3 expired slots once and was idempotent on re-run; `POST /chat` works; intro override PUT → GET → simulator uses the custom wording; diagnosis text rejected 400 by guardrails; `GET /auth/scheduler/history` returns typed rows (`fired_at` + `fired_at_iso`).
+- **Voice orb E2E (port 8011, auth enabled):** WebSocket handshake + `listening` state verified; a real spoken turn (macOS `say` → 16 kHz PCM) produced `thinking`, then **20,194 bytes of TTS audio** over the socket with zero errors.
+- **Follow-up fixes found during E2E:** duplicate Step 7 route definitions (removed); `fired_at` was serialized as ISO text into a REAL column, which broke the typed history endpoint (now epoch on write, legacy rows repaired on read); auth tests no longer truncate the live users table; **voice orb crash fixed** (`asyncio.create_task(async_generator)` in `main.py`).
+- **Feature gate verified both ways:** env ON → `feature_enabled: true`; env OFF → `false` while the preview still works.
+- **Regression:** 157/157 unit_e2e · 13/13 guardrails · 23/23 offer_rate · 9/9 policy · 14/14 auth · 44/44 wording lines · response tracking · 16/16 simulated day · repetition · guardrail baseline no drift · `tsc --noEmit` clean.
+- **Not included in this commit:** pre-existing uncommitted voice/quota edits (`backend/voice/*`) and runtime DB mutations (DB is tracked but mutating; see §9).
+
+### 2026-10-26 — Voice orb crash fix (WebSocket async generator)
+- **Symptom:** clicking the orb opened `/ws/voice`, then the server threw `TypeError: a coroutine was expected, got <async_generator object stream ...>` and closed the socket. Every retry failed the same way.
+- **Cause:** `backend/main.py` did `asyncio.create_task(voice_pipeline.stream(audio_in()))`, but `stream()` is an **async generator** (it `yield`s `VoiceEvent`s), not a coroutine. The handler then also tried `async for event in pipeline_task`, which is invalid for a Task.
+- **Fix (`backend/main.py`):** extracted a module-level `_pump_voice_pipeline()` coroutine that consumes `async for event in voice_pipeline.stream(...)` and forwards state/audio frames; the handler now `create_task`s that coroutine and cancels it in `finally` alongside the initiative consumer.
+- **Regression test:** `backend/tests/test_voice_ws_wiring.py` (3 checks) — asserts `stream()` is an async generator, the handler never passes it to `create_task`, and the pump forwards state JSON + binary audio.
+- **Verified (port 8011, auth enabled):** handshake accepted → `{"type":"state","state":"listening"}` → real spoken turn via 16 kHz PCM → `thinking` → **20,194 bytes of TTS audio**, zero errors. No Pydantic/handshake 500s in the server log.
+- **Note:** the single `connection rejected (500)` in the original log occurred during a `--reload` restart window, not on a steady-state connection.
+- **Gotcha added to §9:** never pass `voice_pipeline.stream()` to `create_task`/`gather`; it must be consumed with `async for`.
+
+### 2026-10-26 — Voice orb self-triggered turns fixed + response pause + Deepgram keepalive (commit `285f64d`)
+- **Symptom (owner):** after Sahaara replied, she answered a second time before the person could say anything — the orb "kept looping back". The WebSocket fix made the connection work; turn-taking was still broken.
+- **Root cause:** the mic stayed live during TTS playback, so Sahaara's own speaker output was captured, sent to Deepgram, transcribed as a new user utterance, and turned into an immediate second turn. The existing `micGain` mute was wired only to the silent speaker branch (`zeroGain`), never to the WebSocket send path, so it had no effect. The pipeline also flipped straight from `speaking` to `listening` with no gap.
+- **`frontend/src/VoiceOrb.tsx`:** real send-path gate (`micMutedRef`, checked in `onaudioprocess`) driven by `syncMicGate()` — muted while `thinking`/`speaking` or any scheduled playback is pending; unmutes 500 ms after `listening` (`MIC_UNMUTE_DELAY_MS`). Removed the non-functional `micGainRef` mute; the zero-gain speaker branch stays. `getUserMedia` now explicitly requests `echoCancellation`, `noiseSuppression`, `autoGainControl`.
+- **`backend/voice/voice_pipeline.py`:** `TURN_PAUSE_SECONDS` (env `SAHAARA_TURN_PAUSE_SECONDS`, default 1.5 s) — after TTS the orb holds `speaking`, then yields `listening`, so the person gets a clear gap; `mic_gate` closes at UtteranceEnd and reopens just before `listening`.
+- **`backend/voice/asr.py`:** `stream_transcripts(..., gate=...)` drops (never buffers) chunks while the gate is closed; added a protocol `{"type":"KeepAlive"}` every 5 s when idle. Deepgram closes a stream after ~10 s with no audio/text, which the mic gate can cause during slow turns (observed as `1011 ... did not receive audio data ... timeout`).
+- **`backend/tests/test_voice_turn_taking.py` (new):** 5 checks — gated chunks dropped, open chunks forwarded, mid-stream toggling, KeepAlive emitted while idle, `run_cascaded` closes/reopens the gate and pauses before `listening`.
+- **Live E2E (port 8000, auth enabled):** gap last TTS byte → `listening` = **1.52 s**; **94,916 bytes of TTS echoed back as mic audio during the turn → 0 self-triggered turns over the following 7 s**; a real second utterance immediately after `listening` was answered. Separate **12 s zero-audio idle** test: socket survived and a real turn still started. Server log: **0 handler crashes**.
+- **Regression:** 157/157 unit_e2e · 13/13 guardrails · 23/23 offer_rate · 9/9 policy · 14/14 auth · 16/16 simulated day · 7/7 response tracking · 44/44 wording lines · 2/2 repetition · 3/3 voice wiring · 5/5 turn-taking · guardrail baseline no drift · `tsc --noEmit` clean · `npm run build` clean (lint warnings pre-existing). Frontend `dist` rebuilt so the running `vite preview` on :5173 serves the fix.
+- **Not included:** runtime `backend/data/sahaara.db` mutation and `backend/logs/voice_timing.jsonl` (left uncommitted, same practice as prior voice commits).

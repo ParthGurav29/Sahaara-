@@ -12,12 +12,13 @@ import json
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Query, status, HTTPException
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from events.event_log import EventType, EscalationTier
 from safety.escalation import EscalationTier
+from auth import validate_token_and_get_user, auth_enabled
 
 
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -60,6 +61,22 @@ def _format_sse(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
+async def _validate_stream_token(request: Request) -> Optional[dict]:
+    """Validate token from query param for SSE/WebSocket endpoints."""
+    if not auth_enabled():
+        return None
+    
+    token = request.query_params.get("token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    
+    user_data = validate_token_and_get_user(token)
+    if not user_data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    
+    return user_data
+
+
 @router.get("/events")
 async def stream_events(request: Request):
     """
@@ -74,12 +91,15 @@ async def stream_events(request: Request):
     - danger_statement: danger statement detected
     - status: periodic status updates (every 5 seconds)
     """
+    # Validate token if auth is enabled
+    user_data = await _validate_stream_token(request)
+    
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _sse_subscribers.append(queue)
     
-    # Resolve session state
+    # Resolve session state for the authenticated user's profile
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user_data["profile_id"]) if user_data else conversation._get_session()
     _esc_engine = s.escalation_engine
     _event_log = s.event_log
     
@@ -128,7 +148,7 @@ async def stream_events(request: Request):
 
 
 @router.websocket("/ws/events")
-async def websocket_events(websocket: WebSocket):
+async def websocket_events(websocket: WebSocket, token: Optional[str] = Query(None)):
     """
     WebSocket endpoint for real-time bidirectional communication.
     
@@ -143,11 +163,23 @@ async def websocket_events(websocket: WebSocket):
     - {"type": "alert", "data": {...}} - new alert
     - {"type": "error", "data": {"message": "..."}} - error
     """
+    # Validate token if auth is enabled
+    if auth_enabled():
+        if not token:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+            return
+        user_data = validate_token_and_get_user(token)
+        if not user_data:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
+            return
+    else:
+        user_data = None
+    
     await websocket.accept()
     
     # Resolve session state
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user_data["profile_id"]) if user_data else conversation._get_session()
     _event_log = s.event_log
     _esc_engine = s.escalation_engine
     
@@ -189,120 +221,61 @@ async def websocket_events(websocket: WebSocket):
                         "type": "events",
                         "data": [e.to_dict() for e in events],
                     })
-                elif message.get("action") == "ping":
-                    await websocket.send_json({"type": "pong"})
-                    
             except asyncio.TimeoutError:
                 pass
+            except WebSocketDisconnect:
+                break
+            except Exception:
+                pass
             
-            # Periodic status update
-            await asyncio.sleep(2.0)
-            await websocket.send_json({
-                "type": "status",
-                "data": _esc_engine.get_status(),
-            })
-            
+            await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         pass
-    except Exception as e:
+    except Exception:
+        pass
+    finally:
         try:
-            await websocket.send_json({"type": "error", "data": {"message": str(e)}})
-        except:
+            await websocket.close()
+        except Exception:
             pass
 
 
-def _broadcast_to_queues(event_type: str, data: dict):
-    """Thread-safe broadcast to all subscriber queues."""
-    global _main_loop
-    
-    message = {"type": event_type, "data": data, "timestamp": time.time()}
+def _format_sse(event_type: str, data: dict) -> str:
+    """Format data as SSE event."""
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _broadcast_to_queues(event_type: str, data: dict):
+    """Internal helper to broadcast to SSE subscribers."""
+    message = {
+        "type": event_type,
+        "data": data,
+        "timestamp": time.time(),
+    }
     dead_queues = []
     for queue in _sse_subscribers:
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
             dead_queues.append(queue)
+    
     for q in dead_queues:
         if q in _sse_subscribers:
             _sse_subscribers.remove(q)
 
 
-def _schedule_broadcast(event_type: str, data: dict):
-    """Schedule a broadcast on the main event loop from any thread."""
-    global _main_loop
-    if _main_loop and _main_loop.is_running():
-        _main_loop.call_soon_threadsafe(_broadcast_to_queues, event_type, data)
-
-
-async def _broadcast_event(event_type: str, data: dict):
-    """Async version for use in async contexts."""
-    _broadcast_to_queues(event_type, data)
-
-
 def setup_stream_hooks():
-    """Setup hooks on conversation state for SSE broadcasting.
-    Must be called at app startup when a session is active."""
+    """
+    Called at app startup to hook into the default session's event log.
+    This ensures events from the default session are broadcast to SSE subscribers.
+    """
     import conversation
-    from safety.consent import ConsentState as CS
-    
     s = conversation._get_session()
     event_log = s.event_log
-    escalation_engine = s.escalation_engine
-    consent_manager = s.consent_manager
-    alert_builder = s.alert_builder
     
-    # Hook into event_log to broadcast new events
-    _original_append = event_log.append
-    
-    def _broadcast_append(event):
-        _original_append(event)
-        _schedule_broadcast(event.type.value, event.to_dict())
-    
-    event_log.append = _broadcast_append
-    
-    # Also hook consent manager
-    _original_ask = consent_manager.ask_consent
-    
-    def _broadcast_ask(contact_name, contact_relationship, tier, question_text):
-        _original_ask(contact_name, contact_relationship, tier, question_text)
-        _schedule_broadcast("consent_asked", {
-            "contact_name": contact_name,
-            "contact_relationship": contact_relationship,
-            "tier": tier.value,
-            "question": question_text,
-            "timestamp": time.time(),
-        })
-    
-    consent_manager.ask_consent = _broadcast_ask
-    
-    _original_interpret = consent_manager.interpret_response
-    
-    def _broadcast_interpret(user_message):
-        state_before = consent_manager.state
-        result = _original_interpret(user_message)
-        if state_before == CS.PENDING and result != state_before:
-            contact = consent_manager.context.contact_name if consent_manager.context else None
-            if contact:
-                _schedule_broadcast("consent_resolved", {
-                    "contact_name": contact,
-                    "outcome": result.value,
-                    "tier": consent_manager.context.tier_when_asked.value if consent_manager.context else None,
-                    "timestamp": time.time(),
-                })
-        return result
-    
-    consent_manager.interpret_response = _broadcast_interpret
-    
-    # Hook alert builder
-    _original_alert = alert_builder.build_tier_change_alert
-    
-    def _broadcast_alert(tier_from, tier_to, reason, context):
-        alert = _original_alert(tier_from, tier_to, reason, context)
-        _schedule_broadcast("alert", alert.to_dict())
-        return alert
-    
-    alert_builder.build_tier_change_alert = _broadcast_alert
-
-
-# Remove the module-level hooks that break with lazy session proxy
-# Event log hooks are set up by setup_stream_hooks() at startup
+    original_append = event_log.append
+    def hooked_append(event):
+        original_append(event)
+        # Broadcast to all SSE subscribers
+        asyncio.run_coroutine_threadsafe(_broadcast_to_queues(event.type.value, event.to_dict()), _main_loop)
+    event_log.append = hooked_append

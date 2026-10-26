@@ -18,18 +18,21 @@ wrapper.
 import asyncio
 import logging
 import os
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from conversation import process_turn, provider, _get_session, get_session_for_profile
+from conversation import process_turn, provider, _get_session
 from dashboard.stream import router as stream_router, set_main_loop
 from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
-from database import init_db, get_profile
-from auth import auth_router, get_current_user, require_caregiver, require_person, require_profile_access
-from auth.deps import get_current_user_ws, require_caregiver_ws, require_person_ws, require_profile_access_ws
+from auth_routes import router as auth_router, require_caregiver, auth_enabled
+import scheduler
 
 logger = logging.getLogger("main")
 
@@ -41,10 +44,6 @@ app.include_router(auth_router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database and start background services."""
-    # Initialize database (creates tables, runs migrations)
-    init_db()
-    
     """Capture the main event loop for thread-safe broadcasting."""
     set_main_loop(asyncio.get_running_loop())
     
@@ -122,12 +121,14 @@ def health():
     }
 
 
+# Caregiver-only routes (require authentication when SAHAARA_AUTH_ENABLED=true)
+# These are the routes that expose caregiver dashboard data and controls
+
 @app.get("/escalation/status")
-def escalation_status(user: User = Depends(require_caregiver)):
+def escalation_status(user: dict = Depends(require_caregiver)):
     """Current escalation tier and status for dashboard."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    return s.escalation_engine.get_status()
+    return conversation._get_session().escalation_engine.get_status()
 
 
 @app.get("/escalation/events")
@@ -135,11 +136,11 @@ def escalation_events(
     event_type: str = None,
     since: float = None,
     limit: int = 100,
-    user: User = Depends(require_caregiver),
+    user: dict = Depends(require_caregiver),
 ):
     """Get recent events from the event log."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     event_log = s.event_log
     from events.event_log import EventType
     
@@ -167,27 +168,26 @@ def escalation_events(
 
 
 @app.get("/escalation/summary")
-def escalation_summary(user: User = Depends(require_caregiver)):
+def escalation_summary(user: dict = Depends(require_caregiver)):
     """Session summary for daily summary screen."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    return s.event_log.summary()
+    return conversation._get_session().event_log.summary()
 
 
 @app.get("/daily-summary")
-def daily_summary(user: User = Depends(require_caregiver)):
+def daily_summary(user: dict = Depends(require_caregiver)):
     """Generate daily summary from event log for caregiver dashboard."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     summary = generate_daily_summary(s.event_log, s.profile)
     return summary.__dict__
 
 
 @app.post("/demo/reset")
-def demo_reset(user: User = Depends(require_person)):
+def demo_reset(user: dict = Depends(require_caregiver)):
     """Reset all demo state for a clean re-run."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     event_log = s.event_log
     session_notes = s.session_notes
     escalation_engine = s.escalation_engine
@@ -229,12 +229,11 @@ def demo_reset(user: User = Depends(require_person)):
 def get_alerts(
     status: str = None,
     limit: int = 50,
-    user: User = Depends(require_caregiver),
+    user: dict = Depends(require_caregiver),
 ):
     """Get alerts for the dashboard. Now backed by AlertStore."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    alert_store = s.alert_store
+    alert_store = conversation._get_session().alert_store
     alerts = alert_store.get_all(status=status)
     return {
         "alerts": [a.to_dict() for a in alerts[-limit:]],
@@ -243,10 +242,10 @@ def get_alerts(
 
 
 @app.post("/alerts/{alert_id}/acknowledge")
-def acknowledge_alert(alert_id: str, body: dict = None, user: User = Depends(require_caregiver)):
+def acknowledge_alert(alert_id: str, body: dict = None, user: dict = Depends(require_caregiver)):
     """Acknowledge an alert with an optional note."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     alert_store = s.alert_store
     event_log = s.event_log
     
@@ -260,10 +259,10 @@ def acknowledge_alert(alert_id: str, body: dict = None, user: User = Depends(req
 
 
 @app.get("/alerts/test")
-def test_alert(user: User = Depends(require_caregiver)):
+def test_alert(user: dict = Depends(require_caregiver)):
     """Test endpoint to build a sample alert."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     alert_builder = s.alert_builder
     alert_store = s.alert_store
     escalation_engine = s.escalation_engine
@@ -282,12 +281,10 @@ def test_alert(user: User = Depends(require_caregiver)):
 
 
 @app.get("/alerts/{alert_id}/context")
-def alert_context(alert_id: str, turns: int = 10, user: User = Depends(require_caregiver)):
+def alert_context(alert_id: str, turns: int = 10, user: dict = Depends(require_caregiver)):
     """Get an alert with surrounding conversation turns for detail view."""
     import conversation
     s = conversation._get_session()
-    if user.profile_id != s.profile_id:
-        raise HTTPException(status_code=403, detail="Access denied to this profile")
     alert_store = s.alert_store
     event_log = s.event_log
     from events.event_log import EventType
@@ -317,7 +314,7 @@ def alert_context(alert_id: str, turns: int = 10, user: User = Depends(require_c
     
     # Build tier path
     tier_events = sorted(event_log.get_events(EventType.TIER_CHANGE), key=lambda e: e.timestamp)
-    tier_path = [f"{e.detail.get('old_tier', '?')} → {e.detail.get('new_tier', '?')}" for e in tier_events]
+    tier_path = [f"{e.detail.get('old_tier', '?')} \u2192 {e.detail.get('new_tier', '?')}" for e in tier_events]
     
     return {
         "alert": alert.to_dict(),
@@ -329,11 +326,10 @@ def alert_context(alert_id: str, turns: int = 10, user: User = Depends(require_c
 
 
 @app.get("/suggestions")
-def get_suggestions(user: User = Depends(require_caregiver)):
+def get_suggestions(user: dict = Depends(require_caregiver)):
     """Get pending profile fact suggestions for caregiver review."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    suggestion_queue = s.suggestion_queue
+    suggestion_queue = conversation._get_session().suggestion_queue
     return {
         "suggestions": [s.to_dict() for s in suggestion_queue.get_all()],
         "total": len(suggestion_queue.get_all()),
@@ -341,10 +337,10 @@ def get_suggestions(user: User = Depends(require_caregiver)):
 
 
 @app.post("/suggestions/{suggestion_id}/approve")
-def approve_suggestion(suggestion_id: str, user: User = Depends(require_caregiver)):
+def approve_suggestion(suggestion_id: str, user: dict = Depends(require_caregiver)):
     """Approve a suggested fact and apply it to the profile."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
+    s = conversation._get_session()
     suggestion_queue = s.suggestion_queue
     profile = s.profile
     event_log = s.event_log
@@ -397,11 +393,10 @@ def approve_suggestion(suggestion_id: str, user: User = Depends(require_caregive
 
 
 @app.post("/suggestions/{suggestion_id}/reject")
-def reject_suggestion(suggestion_id: str, user: User = Depends(require_caregiver)):
+def reject_suggestion(suggestion_id: str, user: dict = Depends(require_caregiver)):
     """Reject a suggested fact."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    suggestion_queue = s.suggestion_queue
+    suggestion_queue = conversation._get_session().suggestion_queue
     
     suggestion = suggestion_queue.get_by_id(suggestion_id)
     if suggestion is None:
@@ -412,11 +407,10 @@ def reject_suggestion(suggestion_id: str, user: User = Depends(require_caregiver
 
 
 @app.get("/turn/context")
-def turn_context(turn_index: int = -1, user: User = Depends(require_caregiver)):
+def turn_context(turn_index: int = -1, user: dict = Depends(require_caregiver)):
     """Get the explainability context for a Sahaara turn."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    event_log = s.event_log
+    event_log = conversation._get_session().event_log
     from events.event_log import EventType
     
     turns = event_log.get_events(EventType.CONVERSATION_TURN)
@@ -478,28 +472,24 @@ def _build_explanation_text(context: dict) -> str:
 
 
 @app.post("/monitoring/pause")
-def pause_monitoring(user: User = Depends(require_caregiver)):
+def pause_monitoring(user: dict = Depends(require_caregiver)):
     """Pause escalation monitoring."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    s.escalation_engine.config.demo_mode = False  # effectively pauses
+    conversation._get_session().escalation_engine.config.demo_mode = False  # effectively pauses
     return {"status": "ok", "monitoring": "paused"}
 
 
 @app.post("/monitoring/resume")
-def resume_monitoring(user: User = Depends(require_caregiver)):
+def resume_monitoring(user: dict = Depends(require_caregiver)):
     """Resume escalation monitoring."""
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    s.escalation_engine.config.demo_mode = True
+    conversation._get_session().escalation_engine.config.demo_mode = True
     return {"status": "ok", "monitoring": "active"}
 
 
 @app.post("/scheduler/toggle")
-def toggle_scheduler(user: User = Depends(require_caregiver)):
+def toggle_scheduler(user: dict = Depends(require_caregiver)):
     """Pause or resume proactive reminders."""
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
     global scheduler
     if scheduler:
         paused = scheduler.toggle()
@@ -508,10 +498,8 @@ def toggle_scheduler(user: User = Depends(require_caregiver)):
 
 
 @app.get("/scheduler/status")
-def scheduler_status(user: User = Depends(require_caregiver)):
+def scheduler_status(user: dict = Depends(require_caregiver)):
     """Get scheduler status for dashboard."""
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
     global scheduler
     if scheduler:
         return scheduler.get_status()
@@ -519,150 +507,54 @@ def scheduler_status(user: User = Depends(require_caregiver)):
 
 
 @app.get("/profiles")
-def list_profiles(user: User = Depends(require_caregiver)):
+def list_profiles(user: dict = Depends(require_caregiver)):
     """List all available profiles."""
     import database
     return {"profiles": database.list_profiles()}
 
 
-@app.get("/profile/current")
-def get_current_profile(user: User = Depends(get_current_user)):
-    """Get the active profile's data."""
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    return {"profile_id": s.profile_id, "data": s.profile._data}
-
-
-@app.put("/profile/{profile_id}")
-def update_profile(profile_id: str, body: dict, user: User = Depends(require_caregiver)):
-    """Update a profile's data.
-
-    Shape-validated: a malformed payload must never corrupt the session
-    or the DB. History (Oct 23 black-screen bug): this handler blindly did
-    `s.profile._data = data`, so a partial/malformed PUT replaced object
-    sections with empty strings and crashed the Profile tab's render.
-    """
-    import database
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    if user.profile_id != s.profile_id:
-        raise HTTPException(status_code=403, detail="Access denied to this profile")
-    data = body.get("data", body)
-
-    # --- Shape validation (422 on anything that could poison consumers) ---
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=422, detail="profile data must be an object")
-    for section in ("name", "life_story", "likes", "avoid", "daily_routine"):
-        if section in data and not isinstance(data[section], dict):
-            raise HTTPException(status_code=422, detail=f"profile section '{section}' must be an object")
-    for section in ("family",):
-        if section in data and not isinstance(data[section], list):
-            raise HTTPException(status_code=422, detail=f"profile section '{section}' must be an array")
-    if "likes" in data:
-        for k, v in data["likes"].items():
-            if not isinstance(v, list):
-                raise HTTPException(status_code=422, detail=f"likes.{k} must be an array")
-    if "daily_routine" in data:
-        dr = data["daily_routine"]
-        if "meals" in dr and not isinstance(dr["meals"], dict):
-            raise HTTPException(status_code=422, detail="daily_routine.meals must be an object")
-        if "medication_times" in dr and not isinstance(dr["medication_times"], list):
-            raise HTTPException(status_code=422, detail="daily_routine.medication_times must be an array")
-    if "avoid" in data and "topics" in data["avoid"] and not isinstance(data["avoid"]["topics"], list):
-        raise HTTPException(status_code=422, detail="avoid.topics must be an array")
-
-    # Merge with the existing profile so a partial PUT cannot DELETE
-    # sections the client didn't send (unknown keys pass through).
-    if s.profile_id == profile_id:
-        merged = {**s.profile._data, **data}
-    else:
-        merged = data
-    database.save_profile(profile_id, merged)
-    # Refresh active session only AFTER a successful DB write
-    if s.profile_id == profile_id:
-        s.profile._data = merged
-
-    return {"status": "ok", "profile_id": profile_id}
-
-
-@app.websocket("/ws/alerts")
-async def alerts_ws(websocket: WebSocket, user: User = Depends(require_caregiver_ws)):
-    """WebSocket for real-time alert updates (caregiver only)."""
-    await websocket.accept()
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    escalation_engine = s.escalation_engine
-    try:
-        while True:
-            await websocket.send_json({
-                "type": "status",
-                "data": escalation_engine.get_status(),
-            })
-            await asyncio.sleep(1.0)
-    except WebSocketDisconnect:
-        logger.info("Alerts WebSocket client disconnected.")
-    except Exception:
-        logger.exception("Alerts WebSocket handler crashed.")
-    finally:
-        try:
-            await websocket.close()
-        except Exception:
-            pass
-
-
-@app.websocket("/ws/escalation")
-async def escalation_ws(websocket: WebSocket, user: User = Depends(require_caregiver_ws)):
-    """WebSocket for real-time escalation updates (SSE alternative, caregiver only)."""
-    await websocket.accept()
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    event_log = s.event_log
-    escalation_engine = s.escalation_engine
-    last_event_count = len(event_log.get_all())
-    
-    try:
-        while True:
-            # Check for new events
-            current_events = event_log.get_all()
-            if len(current_events) > last_event_count:
-                new_events = current_events[last_event_count:]
-                for event in new_events:
-                    await websocket.send_json(event.to_dict())
-                last_event_count = len(current_events)
-            
-            # Also send current status periodically
-            await websocket.send_json({
-                "type": "status",
-                "data": escalation_engine.get_status(),
-            })
-            
-            await asyncio.sleep(1.0)
-    except WebSocketDisconnect:
-        logger.info("Escalation WebSocket client disconnected.")
-    except Exception:
-        logger.exception("Escalation WebSocket handler crashed.")
-    finally:
-        try:
-            await websocket.close()
-        except Exception:
-            pass
-
-
+# Public routes (no auth required) - Person's side
 @app.post("/chat")
-async def chat(request: ChatRequest, user: User = Depends(require_person)):
-    import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    # Set active session for this request
-    conversation._session_manager._active_profile_id = user.profile_id
+async def chat(request: ChatRequest):
     return process_turn(request.message)
 
 
+async def _pump_voice_pipeline(websocket: WebSocket, audio_in) -> None:
+    """Consume the voice pipeline's async generator and forward its events.
+
+    `voice_pipeline.stream()` is an async generator (it yields VoiceEvent), so
+    it must be consumed with `async for`. Passing it directly to
+    `asyncio.create_task()` raises "a coroutine was expected" and kills the
+    orb — see tests/test_voice_ws_wiring.py.
+    """
+    async for event in voice_pipeline.stream(audio_in):
+        if event.kind == "state":
+            await websocket.send_json({"type": "state", "state": event.state})
+        elif event.kind == "audio" and event.audio:
+            await websocket.send_bytes(event.audio)
+
+
 @app.websocket("/ws/voice")
-async def voice_ws(websocket: WebSocket, user: User = Depends(require_person_ws)):
+async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
+    # Validate token if auth is enabled
+    if auth_enabled():
+        if not token:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+            return
+        from auth import validate_token_and_get_user
+        user_data = validate_token_and_get_user(token)
+        if not user_data:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
+            return
+    else:
+        user_data = None
+    
     await websocket.accept()
+
     import conversation
-    s = conversation.get_session_for_profile(user.profile_id)
-    conversation._session_manager._active_profile_id = user.profile_id
+    s = conversation.get_session_for_profile(user_data["profile_id"]) if user_data else conversation._get_session()
+    conversation._session_manager._active_profile_id = user_data["profile_id"] if user_data else "asha_demo_001"
+    profile_id = user_data["profile_id"] if user_data else "asha_demo_001"
 
     async def audio_in():
         """Wraps incoming WebSocket binary frames as an async byte
@@ -677,11 +569,69 @@ async def voice_ws(websocket: WebSocket, user: User = Depends(require_person_ws)
             yield data
 
     try:
-        async for event in voice_pipeline.stream(audio_in()):
-            if event.kind == "state":
-                await websocket.send_json({"type": "state", "state": event.state})
-            elif event.kind == "audio" and event.audio:
-                await websocket.send_bytes(event.audio)
+        # Start the voice pipeline. stream() is an async generator, so it is
+        # consumed by the pump coroutine — create_task() cannot take a generator.
+        pipeline_task = asyncio.create_task(
+            _pump_voice_pipeline(websocket, audio_in())
+        )
+        
+        # Start consuming proactive initiatives from scheduler
+        import scheduler
+        voice_queue = scheduler.get_scheduler_for_profile(profile_id).get_voice_initiative_queue()
+        
+        async def initiative_consumer():
+            """Consume proactive initiatives from scheduler and send to WebSocket."""
+            while True:
+                try:
+                    initiative = await voice_queue.get()
+                    await websocket.send_json({
+                        "type": "initiative",
+                        "text": initiative["text"],
+                        "slot_id": initiative["slot_id"],
+                        "wording_id": initiative["wording_id"],
+                        "category": initiative["category"],
+                    })
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    logger.exception("Error consuming voice initiative")
+                    break
+        
+        initiative_task = asyncio.create_task(initiative_consumer())
+        
+        try:
+            await pipeline_task
+        except WebSocketDisconnect:
+            logger.info("Voice WebSocket client disconnected.")
+        except voice_pipeline.VoiceBackendUnavailable as e:
+            logger.error("Voice backend unavailable: %s", e)
+            try:
+                await websocket.send_json({"type": "error", "message": str(e)})
+            except Exception:
+                pass
+        except Exception:
+            logger.exception("Voice WebSocket handler crashed.")
+            try:
+                await websocket.send_json({"type": "error", "message": "internal error"})
+            except Exception:
+                pass
+        finally:
+            pipeline_task.cancel()
+            try:
+                await pipeline_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+            initiative_task.cancel()
+            try:
+                await initiative_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await websocket.close()
+            except Exception:
+                pass
     except WebSocketDisconnect:
         logger.info("Voice WebSocket client disconnected.")
     except voice_pipeline.VoiceBackendUnavailable as e:

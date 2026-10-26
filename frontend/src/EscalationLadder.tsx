@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "./AuthContext";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
 
@@ -187,6 +188,7 @@ function EventItem({ event, isAlert = false }: { event: Event | Alert; isAlert?:
 }
 
 export default function EscalationLadder() {
+  const { token, authEnabled } = useAuth();
   const [status, setStatus] = useState<EscalationStatus | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -196,8 +198,12 @@ export default function EscalationLadder() {
   const esRef = useRef<EventSource | null>(null);
 
   const fetchWhyContext = async () => {
+    if (!authEnabled || !token) return;
+    
     try {
-      const res = await fetch("http://127.0.0.1:8000/turn/context");
+      const res = await fetch(`http://127.0.0.1:8000/turn/context`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.explanation) {
         setWhyExplanation(data.explanation);
@@ -206,10 +212,16 @@ export default function EscalationLadder() {
   };
 
   const fetchData = async () => {
+    if (!authEnabled || !token) return;
+    
     try {
       const [statusRes, eventsRes] = await Promise.all([
-        fetch("http://127.0.0.1:8000/escalation/status"),
-        fetch("http://127.0.0.1:8000/escalation/events?limit=20"),
+        fetch("http://127.0.0.1:8000/escalation/status", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("http://127.0.0.1:8000/escalation/events?limit=20", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
       const statusData = await statusRes.json();
       const eventsData = await eventsRes.json();
@@ -223,7 +235,11 @@ export default function EscalationLadder() {
   useEffect(() => {
     fetchData();
 
-    const es = new EventSource("http://127.0.0.1:8000/stream/events");
+    if (!authEnabled || !token) {
+      return;
+    }
+
+    const es = new EventSource(`http://127.0.0.1:8000/stream/events?token=${encodeURIComponent(token)}`);
     esRef.current = es;
 
     es.onopen = () => setSseConnected(true);

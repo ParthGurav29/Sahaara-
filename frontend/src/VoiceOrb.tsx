@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "./AuthContext";
 import "./VoiceOrb.css";
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -29,6 +30,9 @@ const WS_URL =
 const MIC_SAMPLE_RATE = 16000;
 // Must match voice/tts.py's Cartesia output_format (pcm_s16le, 22050Hz, mono).
 const PLAYBACK_SAMPLE_RATE = 22050;
+// Keep the mic closed briefly after Sahaara stops speaking. The speaker tail
+// would otherwise be captured by the mic and re-transcribed as a new turn.
+const MIC_UNMUTE_DELAY_MS = 500;
 
 function floatTo16BitPCM(input: Float32Array): Int16Array {
   const output = new Int16Array(input.length);
@@ -55,8 +59,10 @@ function downsampleTo16k(input: Float32Array, inputSampleRate: number): Int16Arr
 }
 
 export default function VoiceOrb() {
+  const { token, authEnabled } = useAuth();
   const [state, setState] = useState<OrbState>("idle");
   const activeRef = useRef(false);
+  const [initiativePrompt, setInitiativePrompt] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
@@ -66,6 +72,41 @@ export default function VoiceOrb() {
 
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const nextPlaybackTimeRef = useRef(0);
+  const stateRef = useRef<OrbState>("idle");
+  const micMutedRef = useRef(false);
+  const pendingPlaybackRef = useRef(0);
+  const unmuteTimerRef = useRef<number | null>(null);
+
+  // Single source of truth for "should the mic be sent to Deepgram?".
+  // The old code adjusted a GainNode that was only wired to the silent
+  // speaker path, so it never actually muted the WebSocket send — Sahaara's
+  // own TTS was picked up by the mic and triggered a second turn.
+  const syncMicGate = useCallback(() => {
+    const busy =
+      stateRef.current === "thinking" ||
+      stateRef.current === "speaking" ||
+      pendingPlaybackRef.current > 0;
+
+    if (busy) {
+      if (unmuteTimerRef.current !== null) {
+        window.clearTimeout(unmuteTimerRef.current);
+        unmuteTimerRef.current = null;
+      }
+      micMutedRef.current = true;
+      return;
+    }
+
+    if (!micMutedRef.current) return;
+    if (unmuteTimerRef.current !== null) {
+      window.clearTimeout(unmuteTimerRef.current);
+    }
+    unmuteTimerRef.current = window.setTimeout(() => {
+      unmuteTimerRef.current = null;
+      if (stateRef.current === "listening" && pendingPlaybackRef.current === 0) {
+        micMutedRef.current = false;
+      }
+    }, MIC_UNMUTE_DELAY_MS);
+  }, []);
 
   const stop = useCallback((nextState: OrbState = "idle") => {
     activeRef.current = false;
@@ -74,6 +115,14 @@ export default function VoiceOrb() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     micCtxRef.current?.close().catch(() => {});
     wsRef.current?.close();
+
+    if (unmuteTimerRef.current !== null) {
+      window.clearTimeout(unmuteTimerRef.current);
+      unmuteTimerRef.current = null;
+    }
+    pendingPlaybackRef.current = 0;
+    micMutedRef.current = false;
+    stateRef.current = nextState;
 
     processorRef.current = null;
     sourceRef.current = null;
@@ -102,18 +151,38 @@ export default function VoiceOrb() {
     source.buffer = buffer;
     source.connect(ctx.destination);
 
+    // Keep the mic closed while any Sahaara audio is scheduled. The old
+    // GainNode mute was on a silent branch and never affected the WebSocket
+    // send, so the speaker tail leaked back into Deepgram.
+    pendingPlaybackRef.current += 1;
+    syncMicGate();
+
     // Schedule chunks back-to-back so playback is gapless even though
     // they arrive over the network as separate messages.
     const startAt = Math.max(nextPlaybackTimeRef.current, ctx.currentTime);
     source.start(startAt);
     nextPlaybackTimeRef.current = startAt + buffer.duration;
-  }, []);
+
+    source.onended = () => {
+      pendingPlaybackRef.current = Math.max(0, pendingPlaybackRef.current - 1);
+      syncMicGate();
+    };
+  }, [syncMicGate]);
 
   const start = useCallback(async () => {
+    if (authEnabled && !token) {
+      setState("error");
+      return;
+    }
+
     setState("listening");
+    stateRef.current = "listening";
+    micMutedRef.current = false;
+    pendingPlaybackRef.current = 0;
     activeRef.current = true;
 
-    const ws = new WebSocket(WS_URL);
+    const wsUrl = authEnabled && token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+    const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
@@ -122,10 +191,19 @@ export default function VoiceOrb() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "state" && msg.state) {
-            setState(msg.state as OrbState);
+            const nextState = msg.state as OrbState;
+            stateRef.current = nextState;
+            setState(nextState);
+            syncMicGate();
           } else if (msg.type === "error") {
             console.error("Voice pipeline error:", msg.message);
             stop("error");
+          } else if (msg.type === "initiative") {
+            // Proactive initiative from scheduler (text-only; the orb gate
+            // stays under the turn-state machine's control).
+            if (msg.text) {
+              setInitiativePrompt(msg.text);
+            }
           }
         } catch {
           // ignore malformed control messages
@@ -149,7 +227,16 @@ export default function VoiceOrb() {
       );
     });
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        // Browser-level echo cancellation is the first line of defence
+        // against Sahaara's speaker output re-entering the mic; the
+        // turn-state gate below is the deterministic backstop.
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     streamRef.current = stream;
 
     const audioContext = new AudioContext();
@@ -165,21 +252,24 @@ export default function VoiceOrb() {
 
     processor.onaudioprocess = (event) => {
       if (ws.readyState !== WebSocket.OPEN) return;
+      // This is the actual ASR send path. Muting a GainNode on the silent
+      // speaker branch (the old code) never stopped these bytes from being
+      // sent, which is why Sahaara's own TTS triggered a second turn.
+      if (micMutedRef.current) return;
       const input = event.inputBuffer.getChannelData(0);
       const pcm16 = downsampleTo16k(input, audioContext.sampleRate);
       ws.send(pcm16.buffer as ArrayBuffer);
     };
 
-    // Zero-gain node prevents mic audio from reaching speakers (echo).
-    // NOTE: When Memory Box clip playback is added, mute the mic during
-    // clip playback to prevent the clip audio from being picked up by ASR
-    // and fed back as a new user turn.
+    // Zero-gain node prevents mic audio from reaching speakers and keeps
+    // the ScriptProcessorNode pulling audio. The real mute happens in
+    // onaudioprocess above.
     const zeroGain = audioContext.createGain();
     zeroGain.gain.value = 0;
     source.connect(processor);
     processor.connect(zeroGain);
     zeroGain.connect(audioContext.destination);
-  }, [playPcmChunk, stop]);
+  }, [syncMicGate, playPcmChunk, stop]);
 
   // Stop everything if the component unmounts mid-session.
   useEffect(() => () => stop(), [stop]);
@@ -210,6 +300,18 @@ export default function VoiceOrb() {
         <span className="voice-orb__core" />
       </button>
       <p className="voice-orb__label">{STATE_LABEL[state]}</p>
+      {initiativePrompt && (
+        <div className="voice-initiative-prompt" role="status" aria-live="polite">
+          {initiativePrompt}
+          <button
+            className="voice-initiative-dismiss"
+            onClick={() => setInitiativePrompt(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

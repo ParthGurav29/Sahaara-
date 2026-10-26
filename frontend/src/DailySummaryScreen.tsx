@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
 import "./DailySummary.css";
 
 interface DailySummary {
@@ -33,18 +34,23 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 export default function DailySummaryScreen() {
+  const { token, authEnabled } = useAuth();
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSummary();
-  }, []);
+  }, [token, authEnabled]);
 
   const fetchSummary = async () => {
+    if (!authEnabled || !token) return;
+    
     try {
       setLoading(true);
-      const res = await fetch("http://127.0.0.1:8000/daily-summary");
+      const res = await fetch("http://127.0.0.1:8000/daily-summary", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error("Failed to fetch summary");
       const data = await res.json();
       setSummary(data);

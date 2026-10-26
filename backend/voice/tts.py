@@ -97,4 +97,12 @@ async def stream_speech(text: str) -> AsyncIterator[bytes]:
             elif msg.get("type") == "done":
                 break
             elif msg.get("type") == "error":
-                raise RuntimeError(f"Cartesia TTS error: {msg}")
+                error_code = msg.get("error_code", "")
+                error_message = msg.get("message", str(msg))
+                if error_code == "quota_exceeded":
+                    raise RuntimeError(
+                        f"Cartesia TTS quota exceeded: {error_message}. "
+                        f"Please upgrade your Cartesia subscription at https://play.cartesia.ai/subscription "
+                        f"or use a different voice provider."
+                    )
+                raise RuntimeError(f"Cartesia TTS error: {error_message} (code: {error_code})")

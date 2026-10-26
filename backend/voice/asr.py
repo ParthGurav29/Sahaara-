@@ -18,13 +18,19 @@ import asyncio
 import json
 import logging
 import os
-from typing import AsyncIterator, Tuple
+import time
+from typing import AsyncIterator, Dict, Optional, Tuple
 
 import websockets
 
 logger = logging.getLogger("voice.asr")
 
 DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY")
+# Deepgram closes a streaming socket after ~10s with no audio or text.
+# A protocol-level KeepAlive is sent when the mic has been gated/idle for
+# this long, so slow LLM/TTS turns can't kill the session.
+KEEPALIVE_INTERVAL_SECONDS = 5.0
+KEEPALIVE_IDLE_THRESHOLD_SECONDS = 5.0
 DEEPGRAM_WS_URL = (
     "wss://api.deepgram.com/v1/listen"
     "?model=nova-3&encoding=linear16&sample_rate=16000&interim_results=true"
@@ -43,7 +49,16 @@ def is_configured() -> bool:
 
 async def stream_transcripts(
     audio_in: AsyncIterator[bytes],
+    gate: Optional[Dict[str, bool]] = None,
 ) -> AsyncIterator[Tuple[str, bool]]:
+    """Stream transcripts from Deepgram.
+
+    ``gate`` is an optional mutable dict with an ``enabled`` key. When the
+    pipeline is handling a turn (LLM/TTS), it flips the gate off so
+    Sahaara's own speaker audio cannot be captured by the mic, re-sent
+    here, and mistaken for a new user turn. Chunks are *dropped* while the
+    gate is closed — never buffered — so no stale echo can surface later.
+    """
     if not DEEPGRAM_API_KEY:
         raise RuntimeError("DEEPGRAM_API_KEY is not set.")
 
@@ -56,10 +71,16 @@ async def stream_transcripts(
 
     async with websockets.connect(DEEPGRAM_WS_URL, **{header_kwarg: headers}) as ws:
 
+        last_audio_sent = time.monotonic()
+
         async def sender():
+            nonlocal last_audio_sent
             try:
                 async for chunk in audio_in:
+                    if gate is not None and not gate.get("enabled", True):
+                        continue
                     await ws.send(chunk)
+                    last_audio_sent = time.monotonic()
             except asyncio.CancelledError:
                 pass
             finally:
@@ -68,7 +89,26 @@ async def stream_transcripts(
                 except Exception:
                     pass
 
+        async def keepalive():
+            # Deepgram closes a streaming socket after ~10s with no audio or
+            # text. While a turn is being handled the gate is closed (and the
+            # browser stops sending), so send a protocol KeepAlive instead of
+            # audio: no echo risk, and the socket survives slow LLM/TTS turns.
+            try:
+                while True:
+                    await asyncio.sleep(KEEPALIVE_INTERVAL_SECONDS)
+                    if (
+                        time.monotonic() - last_audio_sent
+                        >= KEEPALIVE_IDLE_THRESHOLD_SECONDS
+                    ):
+                        await ws.send(json.dumps({"type": "KeepAlive"}))
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
         send_task = asyncio.create_task(sender())
+        keepalive_task = asyncio.create_task(keepalive())
         try:
             async for raw in ws:
                 msg = json.loads(raw)
@@ -89,4 +129,5 @@ async def stream_transcripts(
                         yield final_text, True
         finally:
             send_task.cancel()
-            await asyncio.gather(send_task, return_exceptions=True)
+            keepalive_task.cancel()
+            await asyncio.gather(send_task, keepalive_task, return_exceptions=True)

@@ -46,6 +46,12 @@ HARD_FAILURE_FILLER = {
     "text": SAFE_FALLBACK_RESPONSE,
 }
 
+# Quota exceeded fallback — played when TTS quota is exceeded
+QUOTA_EXCEEDED_FILLER = {
+    "key": "quota_exceeded",
+    "text": "I'm having trouble with my voice right now. Let me try again in a moment.",
+}
+
 _cache: Dict[str, bytes] = {}
 _locks: Dict[str, asyncio.Lock] = {}
 
@@ -92,6 +98,10 @@ async def get_mild_delay_audio() -> bytes:
 
 async def get_hard_failure_audio() -> bytes:
     return await _load_or_render(HARD_FAILURE_FILLER["key"], HARD_FAILURE_FILLER["text"])
+
+
+async def get_quota_exceeded_audio() -> bytes:
+    return await _load_or_render(QUOTA_EXCEEDED_FILLER["key"], QUOTA_EXCEEDED_FILLER["text"])
 
 
 async def prewarm_all() -> None:

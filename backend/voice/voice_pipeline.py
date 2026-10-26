@@ -47,6 +47,15 @@ VoiceOrbState = Literal["listening", "thinking", "speaking"]
 
 
 @dataclass
+class InitiativeEvent:
+    """Proactive initiative from scheduler to be delivered to the person."""
+    text: str
+    slot_id: str
+    wording_id: str
+    category: str
+
+
+@dataclass
 class VoiceEvent:
     """
     One item from the pipeline's output stream. `kind` says which field is
@@ -54,17 +63,25 @@ class VoiceEvent:
       - "state": orb-facing state change (listening/thinking/speaking) —
         the WebSocket handler forwards this as a JSON text frame.
       - "audio": raw PCM bytes to play — forwarded as a binary frame.
+      - "initiative": proactive initiative from scheduler — JSON text frame
     Two kinds in one stream (rather than two separate streams) because
     order matters: the state change has to reach the client before the
     audio it explains, and a single ordered stream guarantees that.
     """
-    kind: Literal["state", "audio"]
+    kind: Literal["state", "audio", "initiative"]
     state: Optional[VoiceOrbState] = None
     audio: Optional[bytes] = None
+    initiative: Optional[InitiativeEvent] = None
 
 # Standby ladder timing thresholds (seconds after ack sound fires)
 MILD_DELAY_THRESHOLD = 2.5
 REAL_DELAY_THRESHOLD = 5.0
+
+# After Sahaara finishes speaking, hold the "speaking" state for a beat
+# before handing the turn back. The mic gate stays closed during this pause,
+# so the speaker tail decays with no chance of becoming a new turn, and the
+# person gets a clear gap instead of an instant flip to "listening".
+TURN_PAUSE_SECONDS = float(os.environ.get("SAHAARA_TURN_PAUSE_SECONDS", "1.5"))
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
 VOICECHAT_AVAILABILITY_TTL_SECONDS = 300
@@ -165,11 +182,15 @@ async def _delayed_filler(seconds: float, filler_fn):
 
 async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEvent]:
     turn_counter = 0
-    async for text, is_utterance_end in asr.stream_transcripts(audio_in):
+    # Turn-taking gate: closed while we think/speak so the mic cannot feed
+    # Sahaara's own TTS back into Deepgram as a new user turn.
+    mic_gate: dict[str, bool] = {"enabled": True}
+    async for text, is_utterance_end in asr.stream_transcripts(audio_in, gate=mic_gate):
         if not is_utterance_end:
             continue  # interim result, not a finished turn — orb stays "listening"
 
         turn_counter += 1
+        mic_gate["enabled"] = False
         turn_id = f"turn_{turn_counter}"
         timings: dict[str, float] = {}
         
@@ -252,20 +273,30 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
                     event_log.log_timing(turn_id, timings)
                     
             except Exception as e:
-                # LLM error (provider failure, guardrail violation, etc.)
-                # Treat as hard failure — play safe fallback
-                logger.error("LLM call failed, playing hard failure fallback: %s", e)
-                logger.info(
-                    "standby_ladder_fallback tier=hard_failure latency_ms=%d",
-                    int(REAL_DELAY_THRESHOLD * 1000),
-                )
-                # Log to event log
-                event_log = get_event_log()
-                if event_log:
-                    event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
-                yield VoiceEvent(
-                    kind="audio", audio=await fillers.get_hard_failure_audio()
-                )
+                # Check if it's a TTS quota exceeded error
+                error_msg = str(e)
+                if "quota_exceeded" in error_msg.lower() or "quota exceeded" in error_msg.lower() or "402" in str(e):
+                    logger.error("TTS quota exceeded: %s", e)
+                    logger.info("TTS quota exceeded, playing quota exceeded fallback")
+                    yield VoiceEvent(
+                        kind="audio", 
+                        audio=await fillers.get_quota_exceeded_audio()
+                    )
+                else:
+                    # LLM error (provider failure, guardrail violation, etc.)
+                    # Treat as hard failure — play safe fallback
+                    logger.error("LLM call failed, playing hard failure fallback: %s", e)
+                    logger.info(
+                        "standby_ladder_fallback tier=hard_failure latency_ms=%d",
+                        int(REAL_DELAY_THRESHOLD * 1000),
+                    )
+                    # Log to event log
+                    event_log = get_event_log()
+                    if event_log:
+                        event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
+                    yield VoiceEvent(
+                        kind="audio", audio=await fillers.get_hard_failure_audio()
+                    )
         elif mild_delay_task in done:
             # Mild delay fired — play filler, turn ends
             logger.info("Standby ladder: mild delay triggered")
@@ -291,7 +322,15 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
                 event_log.log_fallback(FallbackType.STANDBY_REAL_DELAY)
             yield VoiceEvent(kind="audio", audio=await fillers.get_hard_failure_audio())
 
-        # speaking -> listening, ready for the next turn
+        # Hold the turn briefly after the reply audio. The orb stays
+        # "speaking" here, so the frontend keeps the mic gated while the
+        # speaker tail decays — that tail is what previously got picked up
+        # as an immediate second user turn. Then hand the turn back with a
+        # deliberate gap, rather than the old instant flip to "listening".
+        await asyncio.sleep(TURN_PAUSE_SECONDS)
+
+        # Reopen the mic only when it is genuinely the person's turn.
+        mic_gate["enabled"] = True
         yield VoiceEvent(kind="state", state="listening")
 
 

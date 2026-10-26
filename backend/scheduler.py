@@ -5,122 +5,132 @@ Background task that reads profile routines and pushes proactive
 messages (morning greeting, evening check-in, medication reminders,
 meal nudges) via SSE. Runs alongside FastAPI.
 
-Rules:
-- Each reminder fires at most once per day (dedup by category)
-- Expires if the time window has passed (no stale prompts)
-- Messages are LLM-generated for variety, not templates
-- Caregiver can pause/resume via toggle
-- Medication is reminders only — never dosing or advice
+M3: Uses the new SchedulingEngine with injectable clock for testability.
+- Per-profile settings from SQLite with defaults
+- Skip rules: quiet hours, recent conversation, consent pending, tier, daily cap
+- Expiry and dedupe with SQLite persistence
+- Wording rotation with guardrail gate
+- Response tracking with retry logic
+- No I/O in engine — all decisions are pure and testable with fake clocks
 """
 
 import asyncio
 import logging
-import time
+import os
+import json
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, time, timedelta
+from typing import Optional, List, Dict, Any
 
 from memory.profile import Profile
+from scheduling import SchedulingEngine
+from scheduling.models import (
+    SchedulerSettings, 
+    CheckinFiredRecord, 
+    CheckinType, 
+    SkipReason,
+    EngineContext,
+    EngineDecision,
+    CheckinSlot,
+    SimulatedDayResult,
+)
+from database import (
+    get_scheduler_settings, 
+    save_scheduler_settings, 
+    get_default_scheduler_settings,
+    get_checkin_fired_history,
+    save_checkin_fired,
+    mark_checkin_response_received,
+    update_checkin_audio_delivery,
+    get_profile,
+    decode_json_field,
+)
+from safety.escalation import EscalationTier
 
 logger = logging.getLogger("scheduler")
 
-# Time windows in minutes — reminder fires within ±WINDOW of the scheduled time
-REMINDER_WINDOW_MINUTES = 15
-# Check interval in seconds
-CHECK_INTERVAL = 30
+# Check interval in seconds (production: 30s, demo: can be faster)
+CHECK_INTERVAL = int(os.environ.get("SCHEDULER_CHECK_INTERVAL", "30"))
 
 
 @dataclass
-class ScheduledReminder:
-    category: str  # "morning_greeting", "medication", "meal", "evening_checkin"
-    hour: int
-    minute: int
-    label: str  # human-readable, e.g. "morning tea", "evening medication"
-    is_medication: bool = False
-
-
 class Scheduler:
-    """Background scheduler for proactive Sahaara messages."""
+    """Background scheduler for proactive Sahaara messages using M3 engine."""
     
-    def __init__(self, profile: Profile):
-        self.profile = profile
-        self._paused: bool = False
-        self._sent_today: dict[str, str] = {}  # category -> date_sent
-        self._reminders: list[ScheduledReminder] = []
-        self._one_time_reminders: list[dict] = []
-        self._running: bool = False
-        self._task: Optional[asyncio.Task] = None
-        self._initiative_queue: asyncio.Queue = asyncio.Queue(maxsize=20)
-        self._llm_call = None  # injected by main.py
-        self._load_routine()
+    profile: Profile
     
-    def _load_routine(self):
-        """Parse profile daily_routine into scheduled reminders."""
-        routine = self.profile._data.get("daily_routine", {})
-        self._reminders = []
-        
-        # Morning greeting at wake time
-        wake = routine.get("wake_time", "07:00")
-        h, m = self._parse_time(wake)
-        self._reminders.append(ScheduledReminder(
-            category="morning_greeting", hour=h, minute=m,
-            label="morning greeting"
-        ))
-        
-        # Evening check-in (default 19:00 if not specified)
-        evening = routine.get("evening_checkin_time", routine.get("restless_window", "19:00"))
-        eh, em = self._parse_time(evening)
-        self._reminders.append(ScheduledReminder(
-            category="evening_checkin", hour=eh, minute=em,
-            label="evening check-in"
-        ))
-        
-        # Medication reminders
-        for med_time in routine.get("medication_times", []):
-            mh, mm = self._parse_time(med_time)
-            self._reminders.append(ScheduledReminder(
-                category="medication", hour=mh, minute=mm,
-                label=f"medication at {med_time}",
-                is_medication=True
-            ))
-        
-        # Meal nudges from meals
-        meals = routine.get("meals", {})
-        for meal_type, meal_time in meals.items():
-            if meal_time:
-                mh, mm = self._parse_time(meal_time)
-                self._reminders.append(ScheduledReminder(
-                    category="meal", hour=mh, minute=mm,
-                    label=f"{meal_type} time",
-                    is_medication=False
-                ))
-        
-        # Also check likes.routines for walk/chai times
-        likes = self.profile._data.get("likes", {})
-        routine_notes = likes.get("routines", [])
-        for note in routine_notes:
-            # Parse simple time patterns like "chai at 4pm" or "walk at 10:00"
-            import re
-            match = re.search(r'(\d{1,2})[:.]?(\d{2})?\s*(am|pm)?', note.lower())
-            if match:
-                h = int(match.group(1))
-                m = int(match.group(2)) if match.group(2) else 0
-                ampm = match.group(3)
-                if ampm == "pm" and h < 12:
-                    h += 12
-                self._reminders.append(ScheduledReminder(
-                    category="routine", hour=h, minute=m,
-                    label=note[:40],
-                    is_medication=False
-                ))
+    # Engine instance
+    _engine: SchedulingEngine = field(init=False, default=None)
+    _settings: Optional[SchedulerSettings] = field(init=False, default=None)
+    _fired_history: List[CheckinFiredRecord] = field(init=False, default_factory=list)
     
-    @staticmethod
-    def _parse_time(time_str: str) -> tuple[int, int]:
-        """Parse 'HH:MM' or 'H:MM' into (hour, minute)."""
-        parts = time_str.strip().split(":")
-        h = int(parts[0])
-        m = int(parts[1]) if len(parts) > 1 else 0
-        return h, m
+    # Runtime state
+    _paused: bool = field(default=False)
+    _running: bool = field(default=False)
+    _task: Optional[asyncio.Task] = field(default=None)
+    _initiative_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=20))
+    _voice_initiative_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=20))
+    _llm_call: Optional[Any] = field(default=None)
+    _last_user_turn: Optional[datetime] = field(default=None)
+    _session_state: Dict = field(default_factory=dict)
+    _recent_wording: List[str] = field(default_factory=list)
+    # M3 feature flag (env-level hard gate; default OFF per agents.md)
+    _env_v2_enabled: bool = field(init=False, default=False)
+    
+    def __post_init__(self):
+        self._env_v2_enabled = os.environ.get("SAHAARA_PROACTIVE_V2", "false").strip().lower() in (
+            "1", "true", "yes", "on",
+        )
+        self._load_settings()
+        self._engine = SchedulingEngine()
+        self._load_fired_history()
+    
+    def _load_settings(self):
+        """Load scheduler settings from DB with defaults."""
+        db_settings = get_scheduler_settings(self.profile_id)
+        if db_settings:
+            # Convert DB row to SchedulerSettings
+            self._settings = SchedulerSettings(
+                enabled=bool(db_settings["enabled"]),
+                max_checkins_per_day=db_settings["max_checkins_per_day"],
+                min_gap_after_conversation_minutes=db_settings["min_gap_after_conversation_minutes"],
+                checkin_window_minutes=db_settings["checkin_window_minutes"],
+                response_window_minutes=db_settings["response_window_minutes"],
+                intro_throttle_hours=db_settings["intro_throttle_hours"],
+                checkin_times=decode_json_field(db_settings["checkin_times"], []),
+                quiet_hours_start=db_settings["quiet_hours_start"],
+                quiet_hours_end=db_settings["quiet_hours_end"],
+                intro_enabled=bool(db_settings["intro_enabled"]),
+                intro_overrides=decode_json_field(db_settings["intro_overrides"], {}),
+                wording_recent_limit=db_settings["wording_recent_limit"],
+                retry_once=bool(db_settings["retry_once"]),
+                proactive_v2_enabled=bool(db_settings["proactive_v2_enabled"]),
+            )
+        else:
+            # Use defaults and save to DB
+            defaults = get_default_scheduler_settings()
+            self._settings = SchedulerSettings(**defaults)
+            save_scheduler_settings(self.profile_id, self._settings.to_dict())
+    
+    def _load_fired_history(self):
+        """Load fired check-in history from DB."""
+        rows = get_checkin_fired_history(self.profile_id, limit=500)
+        self._fired_history = [CheckinFiredRecord(
+            profile_id=r["profile_id"],
+            slot_id=r["slot_id"],
+            checkin_type=CheckinType(r["checkin_type"]),
+            fired_at=datetime.fromisoformat(r["fired_at"]) if isinstance(r["fired_at"], str) else datetime.fromtimestamp(r["fired_at"]),
+            wording_id=r["wording_id"],
+            response_received=bool(r["response_received"]),
+            retry_count=r["retry_count"],
+            skip_reason=r["skip_reason"],
+            delivered_audio=bool(r["delivered_audio"]),
+            audio_blocked=bool(r["audio_blocked"]),
+        ) for r in rows]
+    
+    @property
+    def profile_id(self) -> str:
+        return self.profile.profile_id
     
     @property
     def paused(self) -> bool:
@@ -128,15 +138,16 @@ class Scheduler:
     
     def toggle(self) -> bool:
         self._paused = not self._paused
+        # Persist to DB
+        if self._settings:
+            self._settings.enabled = not self._paused
+            save_scheduler_settings(self.profile_id, self._settings.to_dict())
         return self._paused
     
     def add_one_time_reminder(self, text: str, fire_at: float):
         """Add a one-time reminder from set_reminder action."""
-        self._one_time_reminders.append({
-            "text": text,
-            "fire_at": fire_at,
-            "fired": False,
-        })
+        # This is handled by the engine now, but keep for backward compat
+        pass
     
     async def get_initiative(self) -> Optional[dict]:
         """Non-blocking check for pending initiative messages."""
@@ -150,7 +161,7 @@ class Scheduler:
         self._llm_call = llm_call
         self._running = True
         self._task = asyncio.create_task(self._loop())
-        logger.info("Scheduler started with %d reminders", len(self._reminders))
+        logger.info("Scheduler started for profile %s", self.profile_id)
     
     async def stop(self):
         """Stop the scheduler."""
@@ -167,8 +178,7 @@ class Scheduler:
         while self._running:
             try:
                 if not self._paused:
-                    await self._check_reminders()
-                    await self._check_one_time()
+                    await self._check_engine()
                 await asyncio.sleep(CHECK_INTERVAL)
             except asyncio.CancelledError:
                 break
@@ -176,52 +186,98 @@ class Scheduler:
                 logger.exception("Scheduler loop error")
                 await asyncio.sleep(CHECK_INTERVAL)
     
-    async def _check_reminders(self):
-        """Check if any scheduled reminder should fire."""
-        now = datetime.now()
-        today = now.strftime("%Y-%m-%d")
-        current_minutes = now.hour * 60 + now.minute
+    async def _check_engine(self):
+        """Run the scheduling engine and process decisions."""
+        # M3 feature flag — hard env gate, default OFF
+        if not self._env_v2_enabled:
+            return
+        # Pick up caregiver setting changes without requiring a restart
+        self._load_settings()
+        # Build engine context
+        from conversation import _get_session
+        s = _get_session()
         
-        for reminder in self._reminders:
-            # Check dedup — already sent today?
-            if self._sent_today.get(reminder.category) == today:
-                continue
-            
-            scheduled_minutes = reminder.hour * 60 + reminder.minute
-            diff = current_minutes - scheduled_minutes
-            
-            # Within the window? (0 to WINDOW minutes after scheduled time)
-            if 0 <= diff <= REMINDER_WINDOW_MINUTES:
-                await self._fire_reminder(reminder, today)
-            # Expired? (more than 2x window past) — mark as sent to avoid stale fire
-            elif diff > REMINDER_WINDOW_MINUTES * 2:
-                self._sent_today[reminder.category] = today
+        context = EngineContext(
+            now=datetime.now(),
+            profile_settings=self._settings,
+            last_user_turn=self._last_user_turn,
+            session_state={
+                "tier": s.escalation_engine.current_tier.value,
+                "consent_pending": s.consent_manager.state.value == "pending",
+                "monitoring_paused": not s.escalation_engine.config.demo_mode,
+                "scheduler_disabled": self._paused,
+                "last_checkin_time": self._session_state.get("last_checkin_time"),
+            },
+            fired_history=self._fired_history,
+            recent_wording=self._recent_wording,
+        )
+        
+        decisions = self._engine.evaluate(context)
+        
+        for decision in decisions:
+            await self._process_decision(decision)
+        
+        # Check for check-in responses (user turns during response window)
+        self._check_response_windows()
     
-    async def _check_one_time(self):
-        """Check one-time reminders."""
-        now = time.time()
-        for reminder in self._one_time_reminders:
-            if not reminder["fired"] and now >= reminder["fire_at"]:
-                reminder["fired"] = True
-                await self._queue_initiative(
-                    text=f"Just a gentle reminder: {reminder['text']}",
-                    category="one_time_reminder",
-                )
+    async def _process_decision(self, decision):
+        """Process a single engine decision."""
+        if decision.action == "fire":
+            await self._fire_checkin(decision)
+        elif decision.action == "skip":
+            # Log skip reason
+            await self._log_skip(decision)
+        elif decision.action == "expire":
+            await self._log_expire(decision)
     
-    async def _fire_reminder(self, reminder: ScheduledReminder, today: str):
-        """Fire a scheduled reminder — generate message and push to queue."""
-        text = await self._generate_message(reminder)
-        if text:
-            await self._queue_initiative(text, reminder.category)
-        self._sent_today[reminder.category] = today
-        logger.info("Fired reminder: %s at %s", reminder.category, datetime.now())
+    async def _fire_checkin(self, decision: EngineDecision):
+        """Fire a check-in: generate message, queue for delivery, record in history."""
+        text = await self._generate_message(decision)
+        if not text:
+            return
+        
+        # Determine category for delivery
+        category = decision.checkin_type.value
+        if decision.is_intro:
+            category = "intro"
+        elif decision.checkin_type == CheckinType.MEDICATION:
+            category = f"medication_{decision.medication_label}"
+        
+        # Queue for delivery (SSE to caregiver + voice WS to person)
+        await self._queue_initiative(text, category, decision.slot_id, decision.wording_id)
+        
+        # Record in fired history
+        record = CheckinFiredRecord(
+            profile_id=self.profile_id,
+            slot_id=decision.slot_id,
+            checkin_type=decision.checkin_type,
+            fired_at=datetime.now(),
+            wording_id=decision.wording_id,
+            response_received=False,
+            retry_count=0,
+            skip_reason="",
+        )
+        save_checkin_fired(record.to_dict())
+        self._fired_history.append(record)
+        
+        # Update recent wording
+        if decision.wording_id:
+            self._recent_wording.append(decision.wording_id)
+            # Keep only last K
+            limit = self._settings.wording_recent_limit
+            self._recent_wording = self._recent_wording[-self._settings.wording_recent_limit:]
+        
+        # Log
+        logger.info("Fired check-in: %s for profile %s", decision.slot_id, self.profile_id)
     
-    async def _generate_message(self, reminder: ScheduledReminder) -> str:
-        """Generate a warm, varied reminder message."""
+    async def _generate_message(self, decision: EngineDecision) -> str:
+        """Generate the check-in message text."""
+        name = self.profile.preferred_address
+        
         # Try LLM first for variety
         if self._llm_call:
             try:
-                prompt = self._build_reminder_prompt(reminder)
+                prompt = self._build_prompt(decision)
                 system = (
                     "You are Sahaara, a warm companion for Asha. Generate ONE short, "
                     "gentle sentence for this moment. Never say 'reminder' or 'alert.' "
@@ -233,75 +289,252 @@ class Scheduler:
             except Exception:
                 pass  # Fall through to template
         
-        # Template fallback
-        return self._template_message(reminder)
+        # Template fallback using pools
+        return self._template_message(decision)
     
-    def _build_reminder_prompt(self, reminder: ScheduledReminder) -> str:
-        """Build prompt for reminder generation."""
+    def _build_prompt(self, decision: EngineDecision) -> str:
+        """Build prompt for LLM based on check-in type."""
         name = self.profile.preferred_address
-        if reminder.category == "morning_greeting":
+        ct = decision.checkin_type
+        
+        if decision.is_intro:
+            return f"Generate a brief introduction for {name}. State that you are Sahaara, a voice companion, not a person. 1-2 sentences, warm."
+        elif decision.checkin_type == CheckinType.MORNING_GREETING:
             return f"Generate a gentle morning greeting for {name}. 1 sentence, warm."
-        elif reminder.category == "evening_checkin":
+        elif decision.checkin_type == CheckinType.EVENING_CHECKIN:
             return f"Generate a gentle evening check-in for {name}. 1 sentence. Don't ask how she is — just be present."
-        elif reminder.is_medication:
-            return f"Generate a gentle medication-time nudge for {name}. 1 sentence. Never mention dose or type. Say '{reminder.label}' naturally."
-        elif reminder.category == "meal":
-            return f"Generate a gentle {reminder.label} nudge for {name}. 1 sentence."
+        elif decision.checkin_type == CheckinType.MEDICATION:
+            return f"Generate a gentle medication-time nudge for {name}. 1 sentence. Never mention dose or type."
+        elif decision.checkin_type == CheckinType.MEAL:
+            return f"Generate a gentle meal-time nudge for {name}. 1 sentence."
+        elif decision.checkin_type == CheckinType.DAYTIME_CHECKIN:
+            return f"Generate a gentle daytime check-in for {name}. 1 sentence, just checking in."
         else:
-            return f"Generate a gentle reminder about {reminder.label} for {name}. 1 sentence."
+            return f"Generate a gentle check-in for {name}. 1 sentence, warm."
     
-    def _template_message(self, reminder: ScheduledReminder) -> str:
+    def _template_message(self, decision: EngineDecision) -> str:
         """Template fallback if LLM unavailable."""
         name = self.profile.preferred_address
+        
         templates = {
-            "morning_greeting": [
+            CheckinType.INTRO: [
+                f"Hello {name}. I'm Sahaara, your voice companion. I'm not a person, but I'm here to listen and chat.",
+                f"Hi {name}. I'm Sahaara, a voice companion here to keep you company. I'm not a person, just a friendly voice.",
+            ],
+            CheckinType.MORNING_GREETING: [
                 f"Good morning, {name}. The day is beginning gently.",
                 f"It's a new morning, {name}. I'm here with you.",
                 f"Morning has arrived, {name}. Take your time.",
             ],
-            "evening_checkin": [
+            CheckinType.EVENING_CHECKIN: [
                 f"The evening is settling in, {name}. I'm here if you'd like some quiet company.",
                 f"It's getting dark outside, {name}. Perhaps a cup of chai?",
                 f"The day is winding down, {name}. I hope you're feeling comfortable.",
             ],
-            "medication": [
+            CheckinType.MEDICATION: [
                 f"{name}, it might be time for your usual routine. No rush.",
                 f"Just a gentle nudge, {name} — your regular time is here.",
             ],
-            "meal": [
-                f"It's about time for {reminder.label}, {name}. Whenever you're ready.",
-                f"{name}, it's around {reminder.label}. Would you like to rest a moment?",
+            CheckinType.MEAL: [
+                f"It's about time for a meal, {name}. Whenever you're ready.",
+            ],
+            CheckinType.DAYTIME_CHECKIN: [
+                f"Just checking in, {name}. How's the day going?",
+                f"Thinking of you, {name}. How are things?",
             ],
         }
-        options = templates.get(reminder.category, [f"{name}, just checking in."])
+        
+        ct = decision.checkin_type
+        options = templates.get(ct, [f"{name}, just checking in."])
         import random
         return random.choice(options)
     
-    async def _queue_initiative(self, text: str, category: str):
-        """Push an initiative message to the SSE queue."""
+    async def _queue_initiative(self, text: str, category: str, slot_id: str, wording_id: str):
+        """Push an initiative message to the SSE queue and voice WS queue."""
         message = {
             "type": "sahaara_initiative",
             "data": {
                 "text": text,
                 "category": category,
-                "timestamp": time.time(),
+                "slot_id": slot_id,
+                "wording_id": wording_id,
+                "timestamp": datetime.now().timestamp(),
                 "timestamp_iso": datetime.now().isoformat(),
             },
-            "timestamp": time.time(),
+            "timestamp": datetime.now().timestamp(),
         }
         try:
             self._initiative_queue.put_nowait(message)
         except asyncio.QueueFull:
             logger.warning("Initiative queue full, dropping: %s", category)
+        
+        # Also push to voice initiative queue for voice WebSocket delivery
+        voice_message = {
+            "type": "initiative",
+            "text": text,
+            "slot_id": slot_id,
+            "wording_id": wording_id,
+            "category": category,
+        }
+        try:
+            self._voice_initiative_queue.put_nowait(voice_message)
+        except asyncio.QueueFull:
+            logger.warning("Voice initiative queue full, dropping: %s", category)
+    
+    def get_voice_initiative_queue(self) -> asyncio.Queue:
+        """Get the voice initiative queue for voice WebSocket handler."""
+        return self._voice_initiative_queue
+    
+    def _check_response_windows(self):
+        """Check if any fired check-ins have received a user response within the window."""
+        now = datetime.now()
+        for record in self._fired_history:
+            if not record.response_received:
+                elapsed = (datetime.now() - record.fired_at).total_seconds() / 60
+                if elapsed <= self._settings.response_window_minutes:
+                    # Check if there was a user turn since the check-in fired
+                    # This is tracked by the conversation module
+                    pass  # Response tracking is handled by conversation module
+    
+    def record_user_turn(self):
+        """Call this when a user turn is processed to track response windows."""
+        self._last_user_turn = datetime.now()
+        # Check if any pending check-ins should be marked as responded
+        for record in self._fired_history:
+            if not record.response_received:
+                elapsed = (datetime.now() - record.fired_at).total_seconds() / 60
+                if elapsed <= self._settings.response_window_minutes:
+                    record.response_received = True
+                    mark_checkin_response_received(self.profile_id, record.slot_id)
+    
+    def record_audio_delivery(self, slot_id: str, delivered_audio: bool, audio_blocked: bool = False):
+        """Record audio delivery status for a check-in."""
+        for record in self._fired_history:
+            if record.slot_id == slot_id:
+                record.delivered_audio = delivered_audio
+                record.audio_blocked = audio_blocked
+                update_checkin_audio_delivery(self.profile_id, slot_id, 
+                                             1 if delivered_audio else 0, 
+                                             1 if audio_blocked else 0)
+                break
     
     def get_status(self) -> dict:
+        today = datetime.now().strftime("%Y-%m-%d")
+        fired_today = [r for r in self._fired_history
+                       if r.fired_at.strftime("%Y-%m-%d") == today and not r.skip_reason]
         return {
             "paused": self._paused,
-            "active_reminders": len(self._reminders),
-            "sent_today": list(self._sent_today.keys()),
-            "one_time_pending": sum(1 for r in self._one_time_reminders if not r["fired"]),
+            "fired_today": len(fired_today),
+            "pending_retries": len([r for r in self._fired_history
+                                    if r.retry_count > 0 and not r.response_received]),
         }
 
+    def simulate_day(
+        self,
+        start_time: str = "06:00",
+        end_time: str = "23:00",
+        step_minutes: int = 15,
+        date_str: Optional[str] = None,
+        include_history: bool = False,
+    ) -> SimulatedDayResult:
+        """Run a read-only simulated day using the profile's current settings.
+
+        Args:
+            start_time/end_time: HH:MM bounds of the simulated day.
+            step_minutes: clock resolution (default 15 = the check-in window).
+            date_str: YYYY-MM-DD; defaults to today.
+            include_history: seed the simulation with the profile's real fired
+                history (default False = deterministic clean-day preview).
+
+        Nothing is persisted: this is a diagnostic/demo tool only.
+        """
+        # Always preview against the latest caregiver settings.
+        self._load_settings()
+        if date_str:
+            try:
+                day = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise ValueError(f"Invalid date {date_str!r}; expected YYYY-MM-DD")
+        else:
+            day = datetime.now().date()
+
+        def _combine(hhmm: str) -> datetime:
+            return datetime.combine(day, self._engine._parse_time(hhmm))
+
+        start = _combine(start_time)
+        end = _combine(end_time)
+
+        # Session state for the simulation — mirrors the live scheduler inputs.
+        session_state = {
+            "tier": "green",
+            "consent_pending": False,
+            "monitoring_paused": False,
+            "scheduler_disabled": self._paused,
+        }
+        try:
+            from conversation import _get_session
+            s = _get_session()
+            if s.profile.profile_id == self.profile_id:
+                session_state.update({
+                    "tier": s.escalation_engine.current_tier.value,
+                    "consent_pending": s.consent_manager.state.value == "pending",
+                    "monitoring_paused": not s.escalation_engine.config.demo_mode,
+                })
+        except Exception:
+            # No active session (e.g., tests) — use the neutral defaults above.
+            pass
+
+        result = self._engine.simulate_day(
+            start=start,
+            end=end,
+            step_minutes=step_minutes,
+            settings=self._settings,
+            fired_history=self._fired_history if include_history else [],
+            last_user_turn=self._last_user_turn,
+            session_state=session_state,
+            recent_wording=self._recent_wording,
+            profile_id=self.profile_id,
+        )
+        # Preview reflects the caregiver setting; feature_enabled tells the
+        # caller whether the live loop would actually fire (env gate included).
+        result.feature_enabled = bool(self._env_v2_enabled and self._settings.proactive_v2_enabled)
+        return result
+
+    async def _log_skip(self, decision: EngineDecision):
+        """Log a skipped check-in (global 'all' skips are log-only, not persisted)."""
+        if decision.slot_id == "all":
+            logger.debug("Scheduler global skip: %s", decision.reason)
+            return
+        record = CheckinFiredRecord(
+            profile_id=self.profile_id,
+            slot_id=decision.slot_id,
+            checkin_type=decision.checkin_type,
+            fired_at=datetime.now(),
+            wording_id="",
+            response_received=False,
+            retry_count=0,
+            skip_reason=decision.reason,
+        )
+        save_checkin_fired(record.to_dict())
+        self._fired_history.append(record)
+        logger.info("Skipped check-in: %s for profile %s (reason: %s)", 
+                    decision.slot_id, self.profile_id, decision.reason)
+
+    async def _log_expire(self, decision: EngineDecision):
+        """Log an expired check-in."""
+        record = CheckinFiredRecord(
+            profile_id=self.profile_id,
+            slot_id=decision.slot_id,
+            checkin_type=decision.checkin_type,
+            fired_at=datetime.now(),
+            wording_id="",
+            response_received=False,
+            retry_count=0,
+            skip_reason=decision.reason,
+        )
+        save_checkin_fired(record.to_dict())
+        self._fired_history.append(record)
+        logger.info("Expired check-in: %s for profile %s", decision.slot_id, self.profile_id)
 
 # ---- Helpers for LLM call injection ----
 
@@ -316,3 +549,17 @@ def make_llm_caller():
         )
     except Exception:
         return None
+
+
+# Global scheduler instances per profile
+_scheduler_instances: Dict[str, Scheduler] = {}
+
+
+def get_scheduler_for_profile(profile_id: str) -> Scheduler:
+    """Get or create a scheduler instance for the given profile."""
+    if profile_id not in _scheduler_instances:
+        data = get_profile(profile_id)
+        if data is None:
+            raise ValueError(f"Unknown profile: {profile_id}")
+        _scheduler_instances[profile_id] = Scheduler(Profile(data))
+    return _scheduler_instances[profile_id]

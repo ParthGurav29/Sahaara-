@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
 import "./DailySummary.css";
 
 interface Suggestion {
@@ -23,12 +24,17 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export default function SuggestedFacts() {
+  const { token, authEnabled } = useAuth();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSuggestions = async () => {
+    if (!authEnabled || !token) return;
+    
     try {
-      const res = await fetch("http://127.0.0.1:8000/suggestions");
+      const res = await fetch("http://127.0.0.1:8000/suggestions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setSuggestions(data.suggestions);
     } catch (err) {
@@ -40,11 +46,16 @@ export default function SuggestedFacts() {
 
   useEffect(() => {
     fetchSuggestions();
-  }, []);
+  }, [token, authEnabled]);
 
   const approve = async (id: string) => {
+    if (!authEnabled || !token) return;
+    
     try {
-      await fetch(`http://127.0.0.1:8000/suggestions/${id}/approve`, { method: "POST" });
+      await fetch(`http://127.0.0.1:8000/suggestions/${id}/approve`, { 
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchSuggestions();
     } catch (err) {
       console.error("Approve failed:", err);
@@ -52,8 +63,13 @@ export default function SuggestedFacts() {
   };
 
   const reject = async (id: string) => {
+    if (!authEnabled || !token) return;
+    
     try {
-      await fetch(`http://127.0.0.1:8000/suggestions/${id}/reject`, { method: "POST" });
+      await fetch(`http://127.0.0.1:8000/suggestions/${id}/reject`, { 
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchSuggestions();
     } catch (err) {
       console.error("Reject failed:", err);

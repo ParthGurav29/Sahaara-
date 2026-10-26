@@ -1,5 +1,7 @@
 import { Component, useState } from "react";
 
+import { AuthProvider, useAuth } from "./AuthContext";
+import LoginPage from "./LoginPage";
 import VoiceOrb from "./VoiceOrb";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
@@ -34,12 +36,16 @@ class ErrorBoundary extends Component<
   }
 }
 
-function App() {
+function AppContent() {
+  const { user, isLoading, authEnabled, logout } = useAuth();
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"live" | "summary" | "suggestions" | "profile">("live");
   const [showChat, setShowChat] = useState(false);
+
+  // When auth is enabled, check if we should show caregiver tabs
+  const showCaregiverTabs = !authEnabled || (user?.role === "caregiver");
 
   async function sendMessage() {
     if (!message.trim()) return;
@@ -51,6 +57,7 @@ function App() {
       const res = await fetch("http://127.0.0.1:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ message }),
       });
 
@@ -69,43 +76,65 @@ function App() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="app-container loading">
+        <div className="loading-spinner" />
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Show login page if auth is enabled and no user logged in
+  if (authEnabled && !user) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="app-container">
       <header className="app-header">
         <h1>Sahaara</h1>
         <p className="app-subtitle">Consent-based AI companion for dementia care</p>
+        {authEnabled && user && (
+          <div className="header-actions">
+            <span className="user-badge">{user.username} ({user.role})</span>
+            <button onClick={logout} className="logout-button">Logout</button>
+          </div>
+        )}
       </header>
 
-      <nav className="app-tabs">
-        <button
-          className={`tab ${view === "live" ? "active" : ""}`}
-          onClick={() => { setView("live"); setShowChat(false); }}
-        >
-          Live Session
-        </button>
-        <button
-          className={`tab ${view === "summary" ? "active" : ""}`}
-          onClick={() => { setView("summary"); setShowChat(false); }}
-        >
-          Daily Summary
-        </button>
-        <button
-          className={`tab ${view === "suggestions" ? "active" : ""}`}
-          onClick={() => { setView("suggestions"); setShowChat(false); }}
-        >
-          Suggested Facts
-        </button>
-        <button
-          className={`tab ${view === "profile" ? "active" : ""}`}
-          onClick={() => { setView("profile"); setShowChat(false); }}
-        >
-          Profile
-        </button>
-      </nav>
+      {showCaregiverTabs && (
+        <nav className="app-tabs">
+          <button
+            className={`tab ${view === "live" ? "active" : ""}`}
+            onClick={() => { setView("live"); setShowChat(false); }}
+          >
+            Live Session
+          </button>
+          <button
+            className={`tab ${view === "summary" ? "active" : ""}`}
+            onClick={() => { setView("summary"); setShowChat(false); }}
+          >
+            Daily Summary
+          </button>
+          <button
+            className={`tab ${view === "suggestions" ? "active" : ""}`}
+            onClick={() => { setView("suggestions"); setShowChat(false); }}
+          >
+            Suggested Facts
+          </button>
+          <button
+            className={`tab ${view === "profile" ? "active" : ""}`}
+            onClick={() => { setView("profile"); setShowChat(false); }}
+          >
+            Profile
+          </button>
+        </nav>
+      )}
 
       {view === "live" && (
         <div className="app-main">
-          {/* Asha's view - Voice Orb */}
+          {/* Asha's view - Voice Orb (always accessible) */}
           <section className="asha-view">
             <h2 className="view-title">Asha's View</h2>
             <ErrorBoundary name="VoiceOrb">
@@ -113,23 +142,25 @@ function App() {
             </ErrorBoundary>
           </section>
 
-          {/* Rohan's view - Escalation Ladder */}
-          <section className="caregiver-view">
-            <h2 className="view-title">Rohan's View</h2>
-            <ErrorBoundary name="EscalationLadder">
-              <EscalationLadder />
-            </ErrorBoundary>
-          </section>
+          {/* Rohan's view - Escalation Ladder (caregiver only) */}
+          {showCaregiverTabs && (
+            <section className="caregiver-view">
+              <h2 className="view-title">Rohan's View</h2>
+              <ErrorBoundary name="EscalationLadder">
+                <EscalationLadder />
+              </ErrorBoundary>
+            </section>
+          )}
         </div>
       )}
 
-      {view === "summary" && (
+      {showCaregiverTabs && view === "summary" && (
         <ErrorBoundary name="DailySummary">
           <DailySummaryScreen />
         </ErrorBoundary>
       )}
 
-      {view === "suggestions" && (
+      {showCaregiverTabs && view === "suggestions" && (
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
           <h2 className="view-title">Suggested Facts</h2>
           <ErrorBoundary name="SuggestedFacts">
@@ -138,7 +169,7 @@ function App() {
         </div>
       )}
 
-      {view === "profile" && (
+      {showCaregiverTabs && view === "profile" && (
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
           <h2 className="view-title">Profile</h2>
           <ErrorBoundary name="ProfileForm">
@@ -147,7 +178,7 @@ function App() {
         </div>
       )}
 
-      {/* Collapsible chat fallback */}
+      {/* Collapsible chat fallback - always accessible for Asha */}
       <button
         className="chat-toggle"
         onClick={() => setShowChat(!showChat)}
@@ -175,6 +206,14 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
