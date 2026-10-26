@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-26, HEAD `2be66aa` on `main`)
+## 0. Current Status (as of 2026-10-26, HEAD `0258194` on `main`; Step 1 code commit)
 
 **Verification snapshot (all run 2026-10-26):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
@@ -25,8 +25,9 @@
 - **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
 - `tsc --noEmit` — clean
 - **Android baseline (real device, 2026-10-26):** Motorola Edge 70 Fusion, Android 17 (SDK 37), Chrome 155.0.8059.84. Login, dashboard, SSE, alerts, Daily Summary, Suggested Facts, and logout pass over USB `adb reverse`; `isSecureContext` is true for `127.0.0.1`, `serviceWorker`/`PushManager` are present, and notification permission is still `default`.
-- **M5 Step 0 complete; Step 1 is still only a proposal:** no PWA manifest, service worker, VAPID keys, or push code exists yet. Android Chrome supports Web Push; no delivery can be claimed.
-- **Two pre-existing caregiver bugs found on device:** `GET /profile/current` returns 404 (Profile tab blank; backend has no `/profile` route), and `POST /scheduler/toggle` returns 401 because the fetch omits credentials. Not fixed in the main sync; owner decision needed.
+- **M5 Step 1 implemented (2026-10-26, commit `0258194`):** one API base via `frontend/src/api.ts` (default `/api`), Vite `/api` proxy with WebSocket + `.trycloudflare.com` allowed host, all API callers migrated, voice WS derived from the page origin, and `/auth/me` now restores the HttpOnly-cookie session and returns the current opaque token. Verified through Vite at :5174: `/api/auth/status` 200, login token issued (43 chars), `/auth/me` cookie restore (43 chars), no-cookie `/auth/me` 401, local SSE streams, WSS connects. The Android phone loaded the app over the HTTPS quick tunnel and restored the caregiver session.
+- **M5 Step 1 tunnel caveat:** Cloudflare Quick Tunnel returns SSE headers but buffers the SSE body (0 bytes in 12 s); the `vite preview` tunnel behaves the same. Local Vite/preview SSE works and tunnel WSS works. Live dashboard updates over the quick tunnel are therefore unreliable; owner decision needed (adb reverse, WebSocket live updates, or a streaming tunnel). No PWA manifest, service worker, VAPID keys, or push code exists yet; no delivery can be claimed.
+- **Pre-existing caregiver bugs found on device:** `GET /profile/current` returns 404 (Profile tab blank; backend has no `/profile` route). `POST /scheduler/toggle` previously returned 401; the `apiFetch` credential fix is verified with a cookie-only call (paused true/false). Profile 404 still needs owner direction.
 - **M2 complete:** Caregiver accounts, opaque tokens, role-based access, retention policies, delete-my-data, SQLite keyed by profile_id
 - **M3 Steps 1-8 complete:** trigger engine, skip rules, quiet hours, expiry, dedupe, wording rotation, guardrail gate, response tracking, no-response flow, delivery, intro + identity, caregiver controls, **simulated day** (read-only preview, nothing persisted). Gated by `SAHAARA_PROACTIVE_V2` (default OFF; env gate verified both states).
 - **Step 8 E2E (live server, port 8010):** custom check-in times honored by simulator; quiet hours honored; invalid inputs → 400; `include_history` dedupes already-persisted slots; intro override applied and guardrail-rejected text returns 400; history endpoint returns typed rows; live loop persisted 3 expired slots once and was idempotent on re-run (DB-flood bug fixed); `POST /chat` works with `record_user_turn` wiring.
@@ -48,7 +49,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
-| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 complete 2026-10-26** — real Android device baseline verified. Step 1 (PWA shell, same-origin `/api`, HTTPS tunnel test) is still a proposal; **no push code yet**. Android only; iOS out of scope. |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 1 implemented 2026-10-26 (commit `0258194`)** — Step 0 device baseline plus same-origin `/api`, cookie session restore, Vite proxy, and HTTPS quick-tunnel checks. HTTPS/API/login/WSS verified; SSE body is buffered by Quick Tunnel. **No PWA/push code yet**; Step 2 blocked on owner review. Android only; iOS out of scope. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -56,8 +57,8 @@
 - ⏸ **W1** — waiting on owner's caregiver contact (template ready).
 - ⏸ **Filler cache regeneration** — explicitly deferred by owner; sonic-2 kept pinned so the existing `.raw` cache stays valid.
 - ⏸ **W2b owner review** — full 5-run table + untruncated replies reported; next work item waits for owner sign-off (standing rule: one item at a time).
-- ⏸ **M5 Step 1 approval** — Android-only PWA/Web Push proposal waiting; do not add push code or claims until approved.
-- ⏸ **Profile 404 / Reminders 401** — pre-existing caregiver dashboard bugs found on Android; not fixed in the main sync.
+- ⏸ **M5 Step 1 owner review** — code committed; do not add PWA/push code until approved. Quick Tunnel SSE buffering needs a decision (adb reverse, WebSocket live updates, or a streaming tunnel).
+- ⏸ **Profile 404** — `GET /profile/current` still 404s; Profile tab blank. Scheduler toggle 401 is fixed and verified. Owner direction needed for the remaining route.
 
 **Critical alerts (read before ANY voice work):**
 - **sonic-2 is sunsetted (Oct 20, 2026).** Cartesia docs: *"sonic-2 and all sonic-2-* snapshots will stop working after October 20, 2026."* It still returns audio (Cartesia enforcing lazily) but is degraded — one A/B render took **29.3s wall vs ~1s** for other models. Pinned only for demo voice continuity. **Do not ship on sonic-2.**
@@ -65,7 +66,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-0. ⏸ **M5:** Step 0 is device-verified (Motorola Edge 70 Fusion, Android 17, Chrome 155.0.8059.84). Step 1 (PWA shell + same-origin `/api` + HTTPS tunnel test) is still a proposal; **do not add push code until the owner approves**.
+0. ⏸ **M5 Step 1 review:** Step 0 is device-verified (Motorola Edge 70 Fusion, Android 17, Chrome 155.0.8059.84). Step 1 is implemented and committed (`0258194`): same-origin `/api`, cookie restore, Vite proxy, HTTPS tunnel checks. HTTPS/API/login/WSS pass; Quick Tunnel buffers SSE, so live dashboard updates need a decision. **Do not add PWA/push code until the owner approves Step 1.**
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -735,3 +736,15 @@ Multiple prompt/guardrail changes applied together:
 - **Pre-existing bugs found, not fixed:** `GET /profile/current` 404 (Profile tab blank; no `/profile` route exists), and `POST /scheduler/toggle` 401 (fetch omits credentials). Both need owner direction; neither blocks M5.
 - **Regression:** unit_e2e 157/157 · guardrails 13/13 · offer_rate 23/23 · policy 9/9 · auth 14/14 · simulated_day 16/16 · response_tracking 7/7 · wording_pools 44/44 · voice_ws 3/3 · voice_turn 5/5 · guardrail baseline no drift · `tsc --noEmit` clean · 34 HTTP paths + `/ws/voice`.
 - **M5 status:** Step 0 complete; Step 1 (PWA shell, same-origin `/api`, HTTPS tunnel test) is still a proposal. No manifest, service worker, VAPID keys, or push delivery exists yet.
+
+### 2026-10-26 — M5 Step 1: same-origin API base + cookie session restore (commit `0258194`)
+- **Goal:** one configurable API base and a phone-reachable HTTPS path before any PWA/push work.
+- **`frontend/src/api.ts` (new):** `API_BASE` defaults to `/api` (override `VITE_API_BASE_URL`); `apiFetch()` adds `credentials: "include"`; `eventSourceUrl()` appends the existing SSE `token` query only when needed; `wsUrl()` derives `ws://`/`wss://` from the page and honors `VITE_VOICE_WS_URL`.
+- **`frontend/vite.config.ts`:** `/api` proxy to `http://127.0.0.1:8000` with `ws: true` and `/api` rewrite; `allowedHosts` includes `.trycloudflare.com` for both dev and preview; `host: true` for phone/LAN access.
+- **Migrated seven frontend callers:** `App.tsx`, `AlertCenter.tsx`, `AuthContext.tsx`, `DailySummaryScreen.tsx`, `EscalationLadder.tsx`, `ProfileForm.tsx`, `SuggestedFacts.tsx`; `VoiceOrb.tsx` now uses `wsUrl("/ws/voice")`. The unused `AuthProvider.tsx` was deliberately left untouched.
+- **`backend/auth_routes.py`:** `GET /auth/me` now returns the current opaque `token` alongside the user (Option A approved). It reads the HttpOnly cookie first, then `Authorization: Bearer`; no token is stored in browser storage.
+- **`.env.example`:** documents `VITE_API_BASE_URL` and optional `VITE_VOICE_WS_URL` as `frontend/.env.local` names.
+- **Verified through Vite (:5174):** `/api/auth/status` 200; login issues a 43-char token; `/auth/me` with the cookie restores the same 43-char token; `/auth/me` without a cookie is 401; local SSE emits `session_start`/`status`; WSS `/api/ws/voice` connects; `/scheduler/toggle` with cookie only returns paused true then false (401 fix confirmed).
+- **Android/HTTPS tunnel:** phone loaded the app over Cloudflare Quick Tunnel and restored the caregiver session. **Caveat:** the tunnel returns SSE headers but buffers the body (0 bytes in 12 s); `vite preview` through the tunnel behaves the same, while local SSE and tunnel WSS work. This is a Quick Tunnel streaming limitation, not a frontend/backend regression; live dashboard updates need a decision (adb reverse, WebSocket live updates, or a different tunnel).
+- **Checks:** `tsc --noEmit` clean; `npm run build` clean; lint warnings only (pre-existing); unit_e2e 157/157; guardrails 13/13; offer_rate 23/23; policy 9/9; auth 14/14; simulated day 16/16; response tracking 7/7; wording pools 44/44; voice WS 3/3; voice turn-taking 5/5; guardrail baseline no drift.
+- **Not included:** PWA manifest, service worker, VAPID keys, push tables, `pywebpush` requirements, or delivery claims. Runtime `backend/data/sahaara.db`, `backend/logs/voice_timing.jsonl`, and `backend/memory/data/session_summaries.json` remain uncommitted working-tree changes.
