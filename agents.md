@@ -830,12 +830,25 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
   | gate ON + backend OFF | unregistered, cache cleared, manifest removed, exactly one reload |
   | `?pwa=off` | unregisters, caches cleared |
   | opt-out persists | later reload with both gates ON stays disabled |
-- **Not tested:** the Android install prompt requires a real device (headless cannot verify it). `adb devices` is empty as of 2026-10-27, so Step 2 is **not device-tested yet**.
+- **Device-tested 2026-10-27** — see the entry *M5 Step 2 device verification*. The Android install **prompt** itself was not observed because the app is already installed on the phone (standalone WebAPK); installing it again would mean uninstalling the existing one.
 - **Known limitations:** SW registers only in a secure context (`localhost`, `127.0.0.1`, HTTPS) — `http://<LAN-IP>:5173` gets no worker and no install; the shell is installability only, not offline-first (a cached `index.html` may reference hashed assets that no longer exist); icons are placeholders; Quick Tunnel still buffers SSE, so live dashboard updates are unclaimed over the tunnel — use `adb reverse`.
 
 ### 2026-10-27 — M5 device scope: Android Chrome only
 - **Owner (2026-10-27):** M5 device scope is **Android Chrome only**. **iOS push is not tested and not claimed.**
 - **Step 8 rule:** any Step 8 item that depends on iOS Home-Screen install is marked **"not tested (iOS excluded)"**.
 - **UI rule:** the "needs-install (iOS)" state must **stay in the code** when Step 8 adds it — harmless path, never tested, never claimed. (It does not exist yet; nothing to remove today.)
-- **Device on record:** Motorola Edge 70 Fusion, **Android 17 (SDK 37)**, **Chrome 155.0.8059.84** (baseline 2026-10-26). `adb devices` was **empty on 2026-10-27**, so those versions are from the last attached session, not re-read. iPhone/iOS version: **none on record — never connected**.
+- **Device confirmed on 2026-10-27** over USB (serial `ZA223N5RJK`): Motorola Edge 70 Fusion, **Android 17 (SDK 37)**, security patch `2026-08-01`, **Chrome 155.0.8059.84** — the 2026-10-26 baseline is correct. iPhone/iOS version: **none on record — never connected**.
 - **Step 8 push test matrix (to run when a device is attached):** in-browser Chrome vs installed PWA; installed with screen locked + app closed (Doze delay noted); installed with battery saver ON; report brand/model + Android + Chrome versions with every claim. Motorola is not in the aggressive-killer group (Xiaomi/Oppo/Vivo/Realme) — recorded as "no OEM battery-killer mitigation tested", never as "push is reliable on all Android".
+
+### 2026-10-27 — M5 Step 2 device verification (Motorola Edge 70 Fusion, Android 17, Chrome 155)
+- **Device:** USB serial `ZA223N5RJK`, Motorola Edge 70 Fusion, **Android 17 (SDK 37)**, security patch `2026-08-01`, **Chrome 155.0.8059.84**. `adb devices` reports `product:marvel_gh model:motorola_edge_70_fusion`.
+- **Method (nothing added to the repo):** throwaway Node server in the OS temp dir serving `frontend/dist` on `:4180`, proxying `/api/*` to the backend on `:8000` but answering `GET /api/config` itself, so `push_enabled` could be flipped without touching the real server. Phone driven over `adb reverse tcp:4180 tcp:4180`; state read over CDP (`adb forward tcp:9222 localabstract:chrome_devtools_remote`).
+- **Build gate ON (`VITE_PUSH_ENABLED=true`) + `push_enabled: true`:**
+  - registration `active` at `http://127.0.0.1:4180/sw.js`, page **controlled** by that worker (`navigator.serviceWorker.controller` matches);
+  - manifest link present; cache `sahaara-shell-v1` holds exactly `/`, `/manifest.webmanifest`, and the three icons;
+  - `display-mode: standalone` → **the app is already installed on the phone**; a real WebAPK exists (`org.chromium.webapk.a579103b0b046951a_v2`), so `beforeinstallprompt` correctly does **not** fire.
+- **Flag OFF on the device:** worker **unregistered**, cache **cleared**, manifest link **removed** — the unregister path works on hardware, not just in headless Chrome. Flipping back to ON re-registers and rebuilds the cache.
+- **Note (not a defect):** `controller: null` appears only when the page is reloaded with a cache-bypassing reload (DevTools-style). A normal reload is controlled by `/sw.js`. Don't "fix" this.
+- **Not observed / not claimed:** the **install prompt itself** — the app is already installed; seeing it again means uninstalling the existing WebAPK (owner decision, not done). No push delivery of any kind is claimed.
+- **Left on the phone (not cleaned, owner decision):** one stale service-worker target for `http://127.0.0.1:5174/sw.js` from the earlier Step 2 session, and the WebAPK above. Both are harmless (different origins) but they are stale state.
+- **Known limitation confirmed:** `http://<LAN-IP>:4180` is not a secure context, so the shell only registers on `127.0.0.1`/`localhost` or HTTPS.
