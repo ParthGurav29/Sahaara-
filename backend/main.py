@@ -254,10 +254,21 @@ def get_alerts(
 ):
     """Get alerts for the dashboard. Now backed by AlertStore."""
     import conversation
-    alert_store = conversation._get_session().alert_store
-    alerts = alert_store.get_all(status=status)
+    from push import push_attempts_by_alert
+
+    s = conversation._get_session()
+    alert_store = s.alert_store
+    # M5 Step 6: attach the push attempt recorded for each alert, so the
+    # dashboard can show what the push service answered. `None` when nothing
+    # was attempted (e.g. the send gate is OFF) — the UI renders nothing then.
+    attempts = push_attempts_by_alert(s.event_log)
+    items = []
+    for alert in alert_store.get_all(status=status)[-limit:]:
+        item = alert.to_dict()
+        item["push"] = attempts.get(alert.alert_id)
+        items.append(item)
     return {
-        "alerts": [a.to_dict() for a in alerts[-limit:]],
+        "alerts": items,
         "unread_count": alert_store.unread_count(),
     }
 
@@ -336,13 +347,24 @@ def alert_context(alert_id: str, turns: int = 10, user: dict = Depends(require_c
     # Build tier path
     tier_events = sorted(event_log.get_events(EventType.TIER_CHANGE), key=lambda e: e.timestamp)
     tier_path = [f"{e.detail.get('old_tier', '?')} \u2192 {e.detail.get('new_tier', '?')}" for e in tier_events]
-    
+
+    # M5 Step 6: the push record for this alert (same source as /alerts).
+    from push import push_attempts_by_alert
+
+    push_attempts = [
+        e.to_dict()
+        for e in event_log.get_events(EventType.ALERT_SENT)
+        if e.detail.get("alert_id") == alert_id
+    ]
+
     return {
         "alert": alert.to_dict(),
         "surrounding_turns": surrounding_turns[-turns:],
         "trigger_event": trigger_event,
         "tier_path": tier_path,
         "recommended_action": alert.message,
+        "push": push_attempts_by_alert(event_log).get(alert_id),
+        "push_attempts": push_attempts,
     }
 
 

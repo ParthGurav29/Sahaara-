@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch, openEventSource } from "./api";
+import { describePushAttempt } from "./pushStatus";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
 
@@ -55,6 +56,10 @@ const TIER_REASONS: Record<string, string> = {
   session_start: "Session started",
 };
 
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  alert_sent: "PHONE ALERT",
+};
+
 const EVENT_TYPE_COLORS: Record<string, string> = {
   session_start: "#e8e4dc",
   repeat: "#d4e6f1",
@@ -69,6 +74,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   conversation_turn: "#f5f2ed",
   memory_box_played: "#e8f5e9",
   sahaara_initiative: "#e8f0fe",
+  alert_sent: "#eef2f7",
 };
 
 const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
@@ -85,6 +91,7 @@ const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
   conversation_turn: "#5c5650",
   memory_box_played: "#2e7d32",
   sahaara_initiative: "#1a56db",
+  alert_sent: "#475569",
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -110,25 +117,39 @@ function getEventDetailText(event: Event): string {
     case "alert":
       return d.message || d.reason;
     case "consent_asked":
-      return `Asked: ${d.question}`;
+      return d.contact_name ? `Asked to call ${d.contact_name}` : `Asked: ${d.question}`;
+    case "consent_answered":
     case "consent_resolved":
       return `Outcome: ${d.outcome} for ${d.contact_name}`;
     case "fallback":
       return `Type: ${d.fallback_type}`;
     case "danger_statement":
       return `Phrase: ${d.phrase}`;
+    case "physical_symptom":
+      return `${d.phrase} — ${d.urgency}`;
     case "system_health":
       return d.message;
-    case "consent_asked":
-      return `Asked to call ${d.contact_name}`;
+    case "session_start":
+      return "Session started";
+    case "session_end":
+      return "Session ended";
+    case "alert_acknowledged":
+      return d.note ? `Alert acknowledged — "${d.note}"` : "Alert acknowledged";
     case "conversation_turn":
       return `${d.speaker === "user" ? "Asha" : "Sahaara"}: ${(d.text || "").slice(0, 80)}`;
     case "memory_box_played":
       return `Played: ${d.clip_filename} (${d.triggered_by})`;
     case "sahaara_initiative":
       return `${d.text?.slice(0, 80) || ""}`;
-    default:
-      return JSON.stringify(d).slice(0, 100);
+    case "alert_sent":
+      return describePushAttempt(d)?.label || "Phone alert recorded";
+    default: {
+      // Never dump raw JSON into the caregiver timeline: prefer a short text
+      // field, otherwise the event name itself.
+      const text = d.message || d.reason || d.text;
+      if (typeof text === "string" && text.trim()) return text.slice(0, 100);
+      return event.type.replace(/_/g, " ").toLowerCase();
+    }
   }
 }
 
@@ -175,7 +196,7 @@ function EventItem({ event, isAlert = false }: { event: Event | Alert; isAlert?:
   const bgColor = isAlert ? "#fef2f2" : EVENT_TYPE_COLORS[e.type] || "#faf9f6";
   const textColor = isAlert ? "#991b1b" : EVENT_TYPE_TEXT_COLORS[e.type] || "#4a4642";
   const time = formatTime(isAlert ? (event as Alert).timestamp_iso : e.timestamp_iso);
-  const typeLabel = isAlert ? "ALERT" : e.type.toUpperCase();
+  const typeLabel = isAlert ? "ALERT" : EVENT_TYPE_LABELS[e.type] || e.type.toUpperCase();
   const detail = isAlert ? (event as Alert).message : getEventDetailText(e);
   
   return (
@@ -269,6 +290,7 @@ export default function EscalationLadder() {
       },
       memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
       sahaara_initiative: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "sahaara_initiative" }, ...prev].slice(0, 40)); } catch {} },
+      alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); } catch {} },
     };
 
     Object.entries(handlers).forEach(([type, handler]) => es.addEventListener(type, handler));

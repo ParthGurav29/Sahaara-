@@ -178,6 +178,26 @@
   font-style: italic;
 }
 
+/* M5 Step 6 — what the push service answered. Deliberately low-key: it is a
+   transport fact, not a claim that anyone saw the alert. */
+.alert-item__push {
+  font-size: 11px;
+  line-height: 1.4;
+  margin: -4px 0 var(--space-sm);
+}
+
+.alert-item__push--neutral {
+  color: #475569;
+}
+
+.alert-item__push--muted {
+  color: var(--text-tertiary, #6b6660);
+}
+
+.alert-item__push--warn {
+  color: #b45309;
+}
+
 .alert-item__ack-btn {
   padding: 5px 14px;
   font-size: 12px;

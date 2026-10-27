@@ -10,11 +10,19 @@ the public key is ever exposed, and only to the caregiver's own browser.
 Two gates exist, both default OFF (owner decision 6):
 - `SAHAARA_PUSH_ENABLED`  — backend send gate (read here)
 - `VITE_PUSH_ENABLED`     — frontend build gate (read in the browser bundle)
+
+`push_attempts_by_alert()` is the read side used by the caregiver dashboard
+(M5 Step 6). It joins `ALERT_SENT` events back to their alert so the dashboard
+can show what happened. It never sends anything — sending lives in
+`push_notify.py`.
 """
 
 import base64
 import os
+from datetime import datetime
 from typing import Optional
+
+from events.event_log import EventType
 
 TRUTHY = {"1", "true", "yes", "on"}
 
@@ -93,3 +101,47 @@ def public_push_config() -> dict:
         if key:
             config["vapid_public_key"] = key
     return config
+
+
+def push_attempts_by_alert(event_log) -> dict:
+    """
+    Latest push attempt per alert id, for the caregiver dashboard.
+
+    Reads the session's `ALERT_SENT` events — the same source as the Day
+    Timeline — and keeps the last attempt for each alert (events are appended
+    in order). Never raises; a record without an `alert_id` is skipped so a
+    malformed event cannot break `/alerts`.
+
+    The returned block describes what the **push service** answered, never what
+    a phone did with it: `status` is `sent` (2xx accepted), `skipped` (gate,
+    cooldown, no devices) or `error` (nothing accepted).
+    """
+    attempts: dict[str, dict] = {}
+    if event_log is None:
+        return attempts
+
+    try:
+        events = event_log.get_events(EventType.ALERT_SENT)
+    except Exception:
+        return attempts
+
+    for event in events:
+        detail = getattr(event, "detail", None)
+        if not isinstance(detail, dict):
+            continue
+        alert_id = detail.get("alert_id")
+        if not alert_id:
+            continue
+
+        timestamp = getattr(event, "timestamp", 0) or 0
+        attempts[str(alert_id)] = {
+            "status": detail.get("status", ""),
+            "reason": detail.get("reason", ""),
+            "sent": detail.get("sent", 0),
+            "failed": detail.get("failed", 0),
+            "revoked": detail.get("revoked", 0),
+            "at": timestamp,
+            "at_iso": datetime.fromtimestamp(timestamp).isoformat() if timestamp else "",
+        }
+
+    return attempts

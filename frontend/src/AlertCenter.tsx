@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
+import { describePushAttempt, type PushAttempt } from "./pushStatus";
 import "./AlertCenter.css";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
@@ -16,6 +17,8 @@ interface Alert {
   status: "new" | "acknowledged" | "resolved";
   acknowledged_at: number | null;
   acknowledged_note: string | null;
+  /** M5 Step 6: what the push service answered, or null when nothing was sent. */
+  push?: PushAttempt | null;
 }
 
 const TIER_COLORS: Record<EscalationTier, string> = {
@@ -44,6 +47,20 @@ function formatTime(iso: string): string {
 function formatAckTime(ts: number | null): string {
   if (!ts) return "";
   return new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * M5 Step 6: one honest line about the push attempt for this alert.
+ * Renders nothing when no attempt exists (send gate off, or older alerts).
+ */
+function PushLine({ push }: { push?: PushAttempt | null }) {
+  const info = describePushAttempt(push);
+  if (!info) return null;
+  return (
+    <p className={`alert-item__push alert-item__push--${info.tone}`}>
+      {info.label}
+    </p>
+  );
 }
 
 export default function AlertCenter() {
@@ -154,6 +171,8 @@ export default function AlertCenter() {
                 </p>
 
                 <p className="alert-item__message">{alert.message}</p>
+
+                <PushLine push={alert.push} />
 
                 {alert.status === "acknowledged" && alert.acknowledged_at && (
                   <p className="alert-item__ack-info">
