@@ -34,13 +34,17 @@
   margin-top: 4px;
 }
 
+/* Kept in the flow rather than absolutely positioned in the corner: the
+   caregiver badge, Logout and the alerts control together are wider than the
+   space beside the centred title, so a corner placement overlaps the title at
+   phone widths (and at desktop widths once the alerts note is present). */
 .header-actions {
-  position: absolute;
-  top: var(--space-lg);
-  right: var(--space-lg);
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: var(--space-md);
+  margin-top: var(--space-md);
 }
 
 .user-badge {
@@ -143,6 +147,16 @@
 @media (max-width: 900px) {
   .app-main {
     grid-template-columns: 1fr;
+  }
+
+  /* The alerts note gets its own line so the row stays centred and short. */
+  .push-alerts {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .push-alerts-note {
+    text-align: center;
   }
 }
 
