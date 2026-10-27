@@ -47,17 +47,15 @@ function formatAckTime(ts: number | null): string {
 }
 
 export default function AlertCenter() {
-  const { token, authEnabled } = useAuth();
+  const { authEnabled } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
   const fetchAlerts = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       const res = await apiFetch("/alerts?limit=20", {
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setAlerts(data.alerts.reverse());
@@ -71,15 +69,14 @@ export default function AlertCenter() {
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 3000);
     return () => clearInterval(interval);
-  }, [token, authEnabled]);
+  }, [authEnabled]);
 
   const acknowledge = async (alertId: string) => {
-    if (!authEnabled || !token) return;
     
     try {
       await apiFetch(`/alerts/${alertId}/acknowledge`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: "" }),
       });
       fetchAlerts();

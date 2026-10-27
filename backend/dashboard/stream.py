@@ -62,11 +62,20 @@ def _format_sse(event_type: str, data: dict) -> str:
 
 
 async def _validate_stream_token(request: Request) -> Optional[dict]:
-    """Validate token from query param for SSE/WebSocket endpoints."""
+    """
+    Resolve the SSE subscriber's user.
+
+    The browser authenticates with the same HttpOnly session cookie as every
+    other request, so no secret has to travel in the URL (a `?token=` ends up
+    in server logs, browser history and Referer headers). The query parameter
+    is still accepted for non-browser clients and test tooling.
+    """
     if not auth_enabled():
         return None
-    
-    token = request.query_params.get("token")
+
+    from auth_routes import session_token_from_request
+
+    token = session_token_from_request(request) or request.query_params.get("token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     
@@ -163,8 +172,11 @@ async def websocket_events(websocket: WebSocket, token: Optional[str] = Query(No
     - {"type": "alert", "data": {...}} - new alert
     - {"type": "error", "data": {"message": "..."}} - error
     """
-    # Validate token if auth is enabled
+    # Validate token if auth is enabled: session cookie first, `?token=` second
     if auth_enabled():
+        from auth_routes import session_token_from_websocket
+
+        token = session_token_from_websocket(websocket)
         if not token:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
             return

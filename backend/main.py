@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -91,6 +91,13 @@ async def shutdown_event():
         await scheduler.stop()
 
 
+# CORS is a no-op for the shipped app: the frontend calls the backend through
+# the same-origin `/api` proxy (Vite dev server, `vite preview`, or any reverse
+# proxy), so no request is ever cross-origin. The allow-list below only covers
+# the one case that *is* cross-origin — calling :8000 directly from the Vite dev
+# server on :5173 — and it must stay credential-scoped: the session cookie is
+# SameSite=Lax, so a real cross-site frontend would still not receive it.
+# Do not widen `allow_origins` to "*" while `allow_credentials=True`.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -550,13 +557,17 @@ async def _pump_voice_pipeline(websocket: WebSocket, audio_in) -> None:
 
 @app.websocket("/ws/voice")
 async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
-    # Validate token if auth is enabled
+    # The browser authenticates with the same HttpOnly session cookie as every
+    # other request; `?token=` stays supported for non-browser clients.
     if auth_enabled():
-        if not token:
+        from auth_routes import session_token_from_websocket
+
+        session_token = session_token_from_websocket(websocket)
+        if not session_token:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
             return
         from auth import validate_token_and_get_user
-        user_data = validate_token_and_get_user(token)
+        user_data = validate_token_and_get_user(session_token)
         if not user_data:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
             return

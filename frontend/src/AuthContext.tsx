@@ -10,7 +10,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   authEnabled: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -21,7 +20,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authEnabled, setAuthEnabled] = useState(false);
 
@@ -38,17 +36,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!enabled) {
         setUser(null);
-        setToken(null);
         return;
       }
 
-      // Restore the cookie session. /auth/me returns the current opaque
-      // token as well, so SSE and the voice WebSocket can reconnect after
-      // a page reload without storing the token in browser storage.
+      // Restore the cookie session. The token itself never reaches JavaScript:
+      // it stays in the HttpOnly cookie, and HTTP, SSE and the voice WebSocket
+      // all authenticate from that cookie.
       const meRes = await apiFetch("/auth/me");
       if (!meRes.ok) {
         setUser(null);
-        setToken(null);
         return;
       }
 
@@ -59,11 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: me.role,
         profile_id: me.profile_id,
       });
-      setToken(me.token || null);
     } catch {
       setAuthEnabled(false);
       setUser(null);
-      setToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -81,8 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(error.detail || "Login failed");
     }
 
+    // The response still carries a token for non-browser clients; the browser
+    // deliberately ignores it and relies on the HttpOnly cookie.
     const data = await res.json();
-    setToken(data.token);
     setUser({
       user_id: data.user_id,
       username: data.username,
@@ -100,13 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout errors
     } finally {
-      setToken(null);
       setUser(null);
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, authEnabled, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, authEnabled, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

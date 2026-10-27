@@ -17,12 +17,20 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
   });
 }
 
-/** EventSource URL; the SSE endpoint still accepts its query token. */
-export function eventSourceUrl(path: string, token?: string | null): string {
-  const url = apiUrl(path);
-  if (!token) return url;
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
+/**
+ * EventSource URL.
+ *
+ * The SSE endpoint authenticates from the session cookie (condition 1 of M5
+ * Step 1), so no token goes in the URL any more — query tokens leak into
+ * access logs, browser history and `Referer` headers for no benefit.
+ */
+export function eventSourceUrl(path: string): string {
+  return apiUrl(path);
+}
+
+/** Open the SSE stream with the session cookie attached. */
+export function openEventSource(path: string): EventSource {
+  return new EventSource(eventSourceUrl(path), { withCredentials: true });
 }
 
 /** WebSocket URL derived from the current page (https -> wss). */

@@ -38,21 +38,19 @@ const emptyProfile: ProfileData = {
 };
 
 export default function ProfileForm() {
-  const { token, authEnabled } = useAuth();
+  const { authEnabled } = useAuth();
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchProfile();
-  }, [token, authEnabled]);
+  }, [authEnabled]);
 
   const fetchProfile = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       const res = await apiFetch("/profile/current", {
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.data) {
@@ -74,12 +72,11 @@ export default function ProfileForm() {
   };
 
   const save = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       await apiFetch(`/profile/${profile.profile_id || "asha_demo_001"}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: profile }),
       });
       setSaved(true);

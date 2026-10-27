@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthContext";
 import { wsUrl } from "./api";
 import "./VoiceOrb.css";
 
@@ -59,7 +58,6 @@ function downsampleTo16k(input: Float32Array, inputSampleRate: number): Int16Arr
 }
 
 export default function VoiceOrb() {
-  const { token, authEnabled } = useAuth();
   const [state, setState] = useState<OrbState>("idle");
   const activeRef = useRef(false);
   const [initiativePrompt, setInitiativePrompt] = useState<string | null>(null);
@@ -170,19 +168,14 @@ export default function VoiceOrb() {
   }, [syncMicGate]);
 
   const start = useCallback(async () => {
-    if (authEnabled && !token) {
-      setState("error");
-      return;
-    }
-
     setState("listening");
     stateRef.current = "listening";
     micMutedRef.current = false;
     pendingPlaybackRef.current = 0;
     activeRef.current = true;
 
-    const wsUrl = authEnabled && token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
-    const ws = new WebSocket(wsUrl);
+    // The session cookie authenticates the upgrade; no token in the URL.
+    const ws = new WebSocket(WS_URL);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 

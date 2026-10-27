@@ -8,7 +8,7 @@ Feature-gated by SAHAARA_AUTH_ENABLED.
 import os
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, WebSocket, status
 from pydantic import BaseModel
 
 from auth import (
@@ -40,12 +40,58 @@ class MeResponse(BaseModel):
     username: str
     role: str
     profile_id: str
-    token: str
 
 
 def auth_enabled() -> bool:
     """Check if auth feature flag is enabled."""
     return os.environ.get("SAHAARA_AUTH_ENABLED", "false").lower() == "true"
+
+
+def cookie_secure() -> bool:
+    """
+    Whether the session cookie carries the `Secure` attribute.
+
+    Default OFF so plain-HTTP localhost/adb-reverse development keeps working.
+    Set `SAHAARA_COOKIE_SECURE=true` wherever the app is served over HTTPS: the
+    browser then refuses to send the cookie over http:// at all.
+    """
+    return os.environ.get("SAHAARA_COOKIE_SECURE", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def session_token_from_request(request: Request) -> str | None:
+    """
+    The session token for this request: cookie first, bearer header second.
+
+    The browser never stores the token itself — it lives only in the HttpOnly
+    cookie — but command-line/API clients may still send a bearer header.
+    """
+    token = request.cookies.get("auth_token")
+    if token:
+        return token
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    return None
+
+
+def session_token_from_websocket(websocket: WebSocket) -> str | None:
+    """
+    The session token for a WebSocket handshake: session cookie first, then
+    `?token=`.
+
+    Browsers attach the cookie to a same-origin upgrade automatically, so the
+    app never has to put a long-lived credential in a URL. The query parameter
+    stays supported for non-browser clients and test tooling.
+    """
+    token = websocket.cookies.get("auth_token")
+    if token:
+        return token
+    return websocket.query_params.get("token")
 
 
 # Stub user for when auth is disabled (maintains backward compatibility)
@@ -66,12 +112,8 @@ async def get_current_user_optional(request: Request) -> dict:
         return STUB_CAREGIVER
     
     # Try cookie first (for browser), then Authorization header
-    token = request.cookies.get("auth_token")
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-    
+    token = session_token_from_request(request)
+
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -156,12 +198,14 @@ async def login(request: LoginRequest, response: Response, req: Request):
     # Successful login
     raw_token, expires_at = create_token(user["id"])
     
-    # Set HttpOnly cookie (SameSite=Lax for CSRF protection, works with 127.0.0.1)
+    # Set HttpOnly cookie (SameSite=Lax for CSRF protection, works with 127.0.0.1).
+    # `secure` is opt-in via SAHAARA_COOKIE_SECURE: turning it on unconditionally
+    # would drop the cookie on plain-HTTP localhost and adb-reverse testing.
     response.set_cookie(
         key="auth_token",
         value=raw_token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=cookie_secure(),
         samesite="lax",
         max_age=12 * 3600,  # 12 hours
         path="/",
@@ -183,13 +227,8 @@ async def logout(request: Request, response: Response):
         # Even if auth disabled, clear cookie for cleanliness
         response.delete_cookie(key="auth_token", path="/")
         return {"message": "Logged out"}
-    
-    token = request.cookies.get("auth_token")
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-    
+
+    token = session_token_from_request(request)
     if token:
         revoke_token(token)
     
@@ -198,15 +237,14 @@ async def logout(request: Request, response: Response):
 
 
 @router.get("/me", response_model=MeResponse)
-async def get_me(request: Request, user: dict = Depends(get_current_user_optional)):
-    """Get current user info and the current opaque token."""
-    token = request.cookies.get("auth_token")
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+async def get_me(user: dict = Depends(get_current_user_optional)):
+    """
+    Current session user.
 
-    return MeResponse(**user, token=token or "")
+    Deliberately does **not** return the token: it lives only in the HttpOnly
+    cookie, and SSE/WebSocket authenticate from that cookie too.
+    """
+    return MeResponse(**user)
 
 
 @router.get("/status")

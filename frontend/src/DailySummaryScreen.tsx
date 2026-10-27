@@ -35,22 +35,20 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 export default function DailySummaryScreen() {
-  const { token, authEnabled } = useAuth();
+  const { authEnabled } = useAuth();
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSummary();
-  }, [token, authEnabled]);
+  }, [authEnabled]);
 
   const fetchSummary = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       setLoading(true);
       const res = await apiFetch("/daily-summary", {
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch summary");
       const data = await res.json();

@@ -25,16 +25,14 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export default function SuggestedFacts() {
-  const { token, authEnabled } = useAuth();
+  const { authEnabled } = useAuth();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSuggestions = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       const res = await apiFetch("/suggestions", {
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setSuggestions(data.suggestions);
@@ -47,15 +45,13 @@ export default function SuggestedFacts() {
 
   useEffect(() => {
     fetchSuggestions();
-  }, [token, authEnabled]);
+  }, [authEnabled]);
 
   const approve = async (id: string) => {
-    if (!authEnabled || !token) return;
     
     try {
       await apiFetch(`/suggestions/${id}/approve`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       fetchSuggestions();
     } catch (err) {
@@ -64,12 +60,10 @@ export default function SuggestedFacts() {
   };
 
   const reject = async (id: string) => {
-    if (!authEnabled || !token) return;
     
     try {
       await apiFetch(`/suggestions/${id}/reject`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       fetchSuggestions();
     } catch (err) {

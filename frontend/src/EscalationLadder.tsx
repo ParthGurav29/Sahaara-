@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthContext";
-import { apiFetch, eventSourceUrl } from "./api";
+import { apiFetch, openEventSource } from "./api";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
 
@@ -189,7 +188,6 @@ function EventItem({ event, isAlert = false }: { event: Event | Alert; isAlert?:
 }
 
 export default function EscalationLadder() {
-  const { token, authEnabled } = useAuth();
   const [status, setStatus] = useState<EscalationStatus | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -199,11 +197,9 @@ export default function EscalationLadder() {
   const esRef = useRef<EventSource | null>(null);
 
   const fetchWhyContext = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       const res = await apiFetch("/turn/context", {
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.explanation) {
@@ -213,15 +209,12 @@ export default function EscalationLadder() {
   };
 
   const fetchData = async () => {
-    if (!authEnabled || !token) return;
     
     try {
       const [statusRes, eventsRes] = await Promise.all([
         apiFetch("/escalation/status", {
-          headers: { Authorization: `Bearer ${token}` },
         }),
         apiFetch("/escalation/events?limit=20", {
-          headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
       const statusData = await statusRes.json();
@@ -236,11 +229,7 @@ export default function EscalationLadder() {
   useEffect(() => {
     fetchData();
 
-    if (!authEnabled || !token) {
-      return;
-    }
-
-    const es = new EventSource(eventSourceUrl("/stream/events", token));
+    const es = openEventSource("/stream/events");
     esRef.current = es;
 
     es.onopen = () => setSseConnected(true);
