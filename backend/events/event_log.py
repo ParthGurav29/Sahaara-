@@ -46,6 +46,7 @@ class EventType(str, Enum):
     MEMORY_BOX_PLAYED = "memory_box_played"
     CONVERSATION_TURN = "conversation_turn"
     ALERT_ACKNOWLEDGED = "alert_acknowledged"
+    ALERT_SENT = "alert_sent"
 
 
 class EscalationTier(str, Enum):
@@ -387,6 +388,40 @@ class EventLog:
             detail={
                 "alert_id": alert_id,
                 "note": note,
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_alert_sent(
+        self,
+        alert_id: str,
+        tier: str = "",
+        status: str = "",
+        sent: int = 0,
+        failed: int = 0,
+        revoked: int = 0,
+        reason: str = "",
+    ) -> Event:
+        """
+        Log a Web Push attempt for an alert.
+
+        `status` is "sent" (the push service accepted at least one message),
+        "skipped" (gate, cooldown or no subscriptions) or "error". "sent" never
+        means a phone displayed it.
+        """
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.ALERT_SENT,
+            profile_id=self.profile_id,
+            detail={
+                "alert_id": alert_id,
+                "tier": tier,
+                "status": status,
+                "sent": sent,
+                "failed": failed,
+                "revoked": revoked,
+                "reason": reason,
             },
         )
         self.append(event)

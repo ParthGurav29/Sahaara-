@@ -10,11 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+import logging
 import time
 
 from events.event_log import EventLog, EventType, EscalationTier
 from memory.profile import Profile
 from safety.guardrails import check_guardrails, SAFE_FALLBACK_RESPONSE
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -112,6 +115,16 @@ class AlertBuilder:
         """Store alert if a store is configured."""
         if self.alert_store:
             self.alert_store.add(alert)
+            # M5 Step 5: fan the alert out to caregiver devices. Fire-and-forget
+            # and never raises, so a push failure cannot break the turn.
+            try:
+                from push_notify import notify_alert
+
+                notify_alert(alert, self.event_log)
+            except Exception:
+                # Push must never break the turn; still leave a trace, because a
+                # silently missing import would look like "alerts are just quiet".
+                logger.exception("Push dispatch could not start")
         return alert
     
     def _get_contact_name(self, tier: EscalationTier, reason: str, context: dict) -> Optional[str]:
