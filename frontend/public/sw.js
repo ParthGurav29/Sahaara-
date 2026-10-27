@@ -116,15 +116,42 @@ const NOTIFICATION_TITLE = "Sahaara";
 const NOTIFICATION_BODY = "Asha needs a check-in";
 const NOTIFICATION_ICON = "/icons/icon-192.png";
 const DASHBOARD_URL = "/";
+/** Alert ids are opaque; anything else is ignored (M5 Step 7). */
+const ALERT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Where a tap should land. The only payload field we trust is `alert_id`, and
+ * only when it looks like an opaque id; the notification body stays fixed and
+ * the payload text is never rendered.
+ */
+function notificationTarget(payloadText) {
+  let alertId = "";
+  try {
+    const parsed = JSON.parse(payloadText || "{}");
+    alertId = typeof parsed.alert_id === "string" ? parsed.alert_id.trim() : "";
+  } catch {
+    alertId = "";
+  }
+  if (!ALERT_ID_RE.test(alertId)) return DASHBOARD_URL;
+  return `/?alert=${encodeURIComponent(alertId)}`;
+}
 
 self.addEventListener("push", (event) => {
+  let raw = "";
+  try {
+    raw = event.data ? event.data.text() : "";
+  } catch {
+    raw = "";
+  }
+  const target = notificationTarget(raw);
+
   event.waitUntil(
     self.registration.showNotification(NOTIFICATION_TITLE, {
       body: NOTIFICATION_BODY,
       icon: NOTIFICATION_ICON,
       badge: NOTIFICATION_ICON,
       tag: "sahaara-checkin",
-      data: { url: DASHBOARD_URL },
+      data: { url: target },
     }),
   );
 });
@@ -147,12 +174,46 @@ self.addEventListener("notificationclick", (event) => {
         }
       });
 
+      let target = DASHBOARD_URL;
+      try {
+        const requested = event.notification.data && event.notification.data.url;
+        const parsed = new URL(requested || DASHBOARD_URL, self.location.origin);
+        if (parsed.origin === self.location.origin) {
+          target = parsed.pathname + parsed.search;
+        }
+      } catch {
+        target = DASHBOARD_URL;
+      }
+
+      // Android note (verified on a Motorola Edge 70 Fusion, Android 17,
+      // Chrome 155): an installed WebAPK handles the tap natively from
+      // `notification.data.url` and does NOT deliver `notificationclick` to the
+      // worker. The `data.url` set in the push handler is therefore the part
+      // that opens the right alert on a phone; this handler covers browser tabs.
       if (existing && typeof existing.focus === "function") {
         await existing.focus();
+        // Route the open window to the alert. Two paths on purpose: `navigate`
+        // reloads the SPA with ?alert=<id>, and postMessage covers the case
+        // where Chrome cancels a navigation that races the focus transition
+        // (observed on an installed WebAPK). The page listens for the message.
+        try {
+          if (typeof existing.postMessage === "function") {
+            existing.postMessage({ type: "sahaara-open-alert", url: target });
+          }
+        } catch {
+          /* the focused dashboard is still correct */
+        }
+        if (typeof existing.navigate === "function") {
+          try {
+            await existing.navigate(target);
+          } catch {
+            /* the postMessage above already delivered the alert id */
+          }
+        }
         return;
       }
 
-      await self.clients.openWindow(DASHBOARD_URL);
+      await self.clients.openWindow(target);
     })(),
   );
 });

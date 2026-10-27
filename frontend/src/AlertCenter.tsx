@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
 import { describePushAttempt, type PushAttempt } from "./pushStatus";
+import { ALERT_NOT_FOUND_MESSAGE } from "./deepLink";
 import "./AlertCenter.css";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
@@ -63,11 +64,28 @@ function PushLine({ push }: { push?: PushAttempt | null }) {
   );
 }
 
-export default function AlertCenter() {
+interface FocusedTurn {
+  speaker: string;
+  text: string;
+}
+
+type FocusState =
+  | { status: "loading" }
+  | { status: "missing" }
+  | { status: "error" }
+  | { status: "ok"; alert: Alert; turns: FocusedTurn[]; push?: PushAttempt | null };
+
+export default function AlertCenter({ focusAlertId = null }: { focusAlertId?: string | null }) {
   const { authEnabled } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(Boolean(focusAlertId));
+  // M5 Step 7: the alert a notification tap asked for, loaded from the
+  // existing context endpoint. A missing alert (server restarted, AlertStore
+  // is in-memory) must say so calmly instead of showing a blank panel.
+  const [focus, setFocus] = useState<FocusState | null>(
+    focusAlertId ? { status: "loading" } : null,
+  );
 
   const fetchAlerts = async () => {
     
@@ -87,6 +105,48 @@ export default function AlertCenter() {
     const interval = setInterval(fetchAlerts, 3000);
     return () => clearInterval(interval);
   }, [authEnabled]);
+
+  useEffect(() => {
+    if (!focusAlertId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `/alerts/${encodeURIComponent(focusAlertId)}/context?turns=4`,
+        );
+        if (cancelled) return;
+        if (res.status === 404) {
+          setFocus({ status: "missing" });
+          return;
+        }
+        if (!res.ok) {
+          setFocus({ status: "error" });
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        // The endpoint answers 200 with `{error: "Alert not found"}` for an id
+        // the in-memory AlertStore no longer has (e.g. after a restart).
+        if (!data || !data.alert) {
+          setFocus({ status: "missing" });
+          return;
+        }
+        const turns: FocusedTurn[] = (data.surrounding_turns || [])
+          .slice(-4)
+          .map((t: any) => ({
+            speaker: t?.detail?.speaker === "user" ? "Asha" : "Sahaara",
+            text: String(t?.detail?.text || "").slice(0, 200),
+          }))
+          .filter((t: FocusedTurn) => t.text);
+        setFocus({ status: "ok", alert: data.alert, turns, push: data.push });
+      } catch {
+        if (!cancelled) setFocus({ status: "error" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusAlertId]);
 
   const acknowledge = async (alertId: string) => {
     
@@ -127,6 +187,55 @@ export default function AlertCenter() {
               <span className="alert-dropdown__unread">({unreadCount} new)</span>
             )}
           </h3>
+
+          {focus && (
+            <div className={`alert-focus alert-focus--${focus.status}`}>
+              {focus.status === "loading" && (
+                <p className="alert-focus__text">Loading the alert…</p>
+              )}
+              {focus.status === "missing" && (
+                <p className="alert-focus__text">{ALERT_NOT_FOUND_MESSAGE}</p>
+              )}
+              {focus.status === "error" && (
+                <p className="alert-focus__text">
+                  That alert could not be loaded. The dashboard below still
+                  works.
+                </p>
+              )}
+              {focus.status === "ok" && (
+                <>
+                  <div className="alert-focus__head">
+                    <span
+                      className="alert-focus__tier"
+                      style={{ color: TIER_COLORS[focus.alert.tier_to] }}
+                    >
+                      {focus.alert.tier_to.toUpperCase()}
+                    </span>
+                    <span className="alert-focus__time">
+                      {formatTime(focus.alert.timestamp_iso)}
+                    </span>
+                  </div>
+                  <p className="alert-focus__message">{focus.alert.message}</p>
+                  <PushLine push={focus.push} />
+                  {focus.turns.length > 0 && (
+                    <ul className="alert-focus__turns">
+                      {focus.turns.map((turn, index) => (
+                        <li key={index}>
+                          <strong>{turn.speaker}:</strong> {turn.text}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    className="alert-focus__dismiss"
+                    onClick={() => setFocus(null)}
+                  >
+                    Dismiss
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {alerts.length === 0 && (
             <p className="alert-dropdown__empty">No alerts yet.</p>

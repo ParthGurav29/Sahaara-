@@ -213,3 +213,68 @@
 .alert-item__ack-btn:hover {
   background: var(--accent-hover);
 }
+/* M5 Step 7 — the alert a notification tap asked for. */
+.alert-focus {
+  border: 1px solid #d8d2c8;
+  border-radius: 8px;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  background: #fffdf8;
+}
+
+.alert-focus--missing,
+.alert-focus--error {
+  background: #faf9f6;
+}
+
+.alert-focus__text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary, #5c5650);
+  margin: 0;
+}
+
+.alert-focus__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.alert-focus__tier {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.alert-focus__time {
+  font-size: 11px;
+  color: var(--text-tertiary, #6b6660);
+}
+
+.alert-focus__message {
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0;
+}
+
+.alert-focus__turns {
+  margin: 4px 0;
+  padding-left: 16px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary, #5c5650);
+}
+
+.alert-focus__turns li {
+  margin-bottom: 2px;
+}
+
+.alert-focus__dismiss {
+  font-size: 11px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #7c93a8;
+  text-decoration: underline;
+  cursor: pointer;
+}

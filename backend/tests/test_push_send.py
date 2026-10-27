@@ -144,7 +144,8 @@ def test_gate_off_sends_nothing_and_logs_nothing():
     sender = RecordingSender()
     event_log = EventLog(PROFILE)
 
-    result = push_notify.send_alert_push(_alert(), event_log, now=1000.0, sender=sender)
+    alert = _alert()
+    result = push_notify.send_alert_push(alert, event_log, now=1000.0, sender=sender)
 
     assert result["status"] == "skipped", result
     assert result["reason"] == "gate_off", result
@@ -159,7 +160,8 @@ def test_no_subscriptions_is_skipped_and_logged():
     event_log = EventLog(PROFILE)
     sender = RecordingSender()
 
-    result = push_notify.send_alert_push(_alert(), event_log, now=1000.0, sender=sender)
+    alert = _alert()
+    result = push_notify.send_alert_push(alert, event_log, now=1000.0, sender=sender)
 
     assert result["status"] == "skipped", result
     assert result["reason"] == "no_subscriptions", result
@@ -177,7 +179,8 @@ def test_single_subscription_is_sent_with_fixed_payload():
     event_log = EventLog(PROFILE)
     sender = RecordingSender(status_code=201)
 
-    result = push_notify.send_alert_push(_alert(), event_log, now=1000.0, sender=sender)
+    alert = _alert()
+    result = push_notify.send_alert_push(alert, event_log, now=1000.0, sender=sender)
 
     assert result == {"status": "sent", "reason": "", "sent": 1, "failed": 0, "revoked": 0}, result
     assert len(sender.calls) == 1
@@ -186,7 +189,7 @@ def test_single_subscription_is_sent_with_fixed_payload():
     assert call["subscription_info"]["endpoint"] == ENDPOINT
     assert call["subscription_info"]["keys"]["p256dh"]
     assert call["subscription_info"]["keys"]["auth"]
-    assert call["data"] == push_notify.PUSH_PAYLOAD
+    assert call["data"] == push_notify.push_payload(alert)
     assert call["vapid_claims"] == {"sub": "mailto:test@example.com"}
     assert call["timeout"] == push_notify.SEND_TIMEOUT_SECONDS
     assert call["ttl"] == push_notify.DEFAULT_TTL_SECONDS, (
@@ -203,15 +206,28 @@ def test_single_subscription_is_sent_with_fixed_payload():
 
 
 def test_payload_carries_no_conversation_content():
-    assert json.loads(push_notify.PUSH_PAYLOAD) == {"v": 1, "type": "caregiver_alert"}
+    alert = _alert()
+    payload = push_notify.push_payload(alert)
+    assert json.loads(payload) == {
+        "v": 1,
+        "type": "caregiver_alert",
+        "alert_id": "alert-1",
+    }, payload
 
     # The alert's own words must never be in the payload that leaves the server.
-    alert = _alert()
-    lowered = push_notify.PUSH_PAYLOAD.lower()
+    lowered = payload.lower()
     for banned in ("bleed", "breathe", "fell", "asha", "orange", "yellow", "red"):
         assert banned not in lowered, f"{banned!r} leaked into the push payload"
     assert alert.message.lower() not in lowered
     assert json.dumps(alert.detail).lower() not in lowered
+
+
+def test_payload_drops_an_unsafe_alert_id():
+    class Hostile:
+        alert_id = 'alert"><script>'
+
+    payload = json.loads(push_notify.push_payload(Hostile()))
+    assert payload == {"v": 1, "type": "caregiver_alert"}, payload
 
 
 def test_vapid_key_is_a_vapid_instance_not_raw_pem():
@@ -257,7 +273,8 @@ def test_server_error_keeps_subscription_and_reports_error():
     event_log = EventLog(PROFILE)
 
     sender = RecordingSender(raise_status=500)
-    result = push_notify.send_alert_push(_alert(), event_log, now=1000.0, sender=sender)
+    alert = _alert()
+    result = push_notify.send_alert_push(alert, event_log, now=1000.0, sender=sender)
 
     assert result["status"] == "error", result
     assert result["failed"] == 1, result
@@ -325,7 +342,8 @@ def test_malformed_vapid_key_reports_error_and_never_raises():
     event_log = EventLog(PROFILE)
     sender = RecordingSender()
 
-    result = push_notify.send_alert_push(_alert(), event_log, now=1000.0, sender=sender)
+    alert = _alert()
+    result = push_notify.send_alert_push(alert, event_log, now=1000.0, sender=sender)
 
     assert result["status"] == "error", result
     assert result["reason"] == "no_vapid_key", result
@@ -464,6 +482,7 @@ def run_all_tests():
         test_no_subscriptions_is_skipped_and_logged,
         test_single_subscription_is_sent_with_fixed_payload,
         test_payload_carries_no_conversation_content,
+        test_payload_drops_an_unsafe_alert_id,
         test_vapid_key_is_a_vapid_instance_not_raw_pem,
         test_dead_endpoint_is_revoked,
         test_server_error_keeps_subscription_and_reports_error,

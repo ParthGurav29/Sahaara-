@@ -208,7 +208,11 @@ function EventItem({ event, isAlert = false }: { event: Event | Alert; isAlert?:
   );
 }
 
-export default function EscalationLadder() {
+export default function EscalationLadder({
+  focusAlertId = null,
+}: {
+  focusAlertId?: string | null;
+}) {
   const [status, setStatus] = useState<EscalationStatus | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -324,7 +328,7 @@ export default function EscalationLadder() {
           <span className={`connection-dot-minimal ${sseConnected ? "connected" : ""}`} />
           <span>{sseConnected ? "Live" : "Connecting"}</span>
         </div>
-        <AlertCenter />
+        <AlertCenter focusAlertId={focusAlertId} />
       </div>
 
       {/* Status Cards */}

@@ -241,3 +241,94 @@ test("a notification click ignores windows from another origin", async () => {
   assert.deepEqual(worker.focused, [], "never focuses a foreign tab");
   assert.deepEqual(worker.opened, ["/"]);
 });
+
+test("a payload alert_id becomes a deep link, never visible text", async () => {
+  const worker = loadWorker();
+  await dispatchPush(worker, JSON.stringify({ v: 1, type: "caregiver_alert", alert_id: "alert_12" }));
+
+  const notification = worker.notifications[0];
+  assert.equal(notification.options.body, "Asha needs a check-in");
+  assert.equal(notification.options.data.url, "/?alert=alert_12");
+  assert.doesNotMatch(JSON.stringify(notification), /alert_12.*alert_12.*alert_12/);
+});
+
+test("an unsafe alert_id is dropped and the tap goes to the dashboard", async () => {
+  for (const id of ["../admin", "alert 1", "alert<script>", "x".repeat(80), ""]) {
+    const worker = loadWorker();
+    await dispatchPush(worker, JSON.stringify({ alert_id: id }));
+    assert.equal(worker.notifications[0].options.data.url, "/", `id ${JSON.stringify(id)} must be ignored`);
+  }
+});
+
+test("clicking an alert notification navigates the open window to that alert", async () => {
+  const focused = [];
+  const navigations = [];
+  const worker = loadWorker({
+    windows: [
+      {
+        url: `${ORIGIN}/`,
+        async focus() {
+          focused.push("called");
+        },
+        async navigate(target) {
+          navigations.push(target);
+        },
+      },
+    ],
+  });
+
+  await dispatchClick(worker, {
+    close() {},
+    data: { url: "/?alert=alert_12" },
+  });
+
+  assert.deepEqual(focused, ["called"]);
+  assert.deepEqual(navigations, ["/?alert=alert_12"], "the SPA is routed to the alert");
+  assert.deepEqual(worker.opened, [], "no second window");
+});
+
+test("a click with a foreign deep link falls back to the dashboard", async () => {
+  const worker = loadWorker({
+    windows: [
+      {
+        url: `${ORIGIN}/`,
+        async focus() {
+          worker.focused.push("called");
+        },
+      },
+    ],
+  });
+
+  await dispatchClick(worker, {
+    close() {},
+    data: { url: "https://evil.example/?alert=alert_1" },
+  });
+
+  assert.deepEqual(worker.opened, [], "still focuses the app");
+  assert.deepEqual(worker.focused, ["called"]);
+});
+
+test("an open window also gets the alert over postMessage", async () => {
+  const messages = [];
+  const worker = loadWorker({
+    windows: [
+      {
+        url: `${ORIGIN}/`,
+        async focus() {},
+        async postMessage(message) {
+          messages.push(message);
+        },
+      },
+    ],
+  });
+
+  await dispatchClick(worker, {
+    close() {},
+    data: { url: "/?alert=alert_12" },
+  });
+
+  // The message object comes from the VM realm, so compare its fields.
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, "sahaara-open-alert");
+  assert.equal(messages[0].url, "/?alert=alert_12");
+});

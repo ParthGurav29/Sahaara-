@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -47,8 +48,26 @@ from push import push_enabled, vapid_private_key_pem, vapid_subject
 
 logger = logging.getLogger(__name__)
 
-#: The only thing a device ever receives. No alert text, no tier, no names.
-PUSH_PAYLOAD = json.dumps({"v": 1, "type": "caregiver_alert"}, separators=(",", ":"))
+#: The only fields a device ever receives. No alert text, no tier, no names.
+PUSH_PAYLOAD_BASE = {"v": 1, "type": "caregiver_alert"}
+
+#: Alert ids are opaque short strings; anything else is dropped (M5 Step 7).
+ALERT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def push_payload(alert: Any) -> str:
+    """
+    The JSON body of one push.
+
+    `alert_id` is included so a tap can open the right alert (Step 7). It is an
+    opaque key — no speech, no tier, no symptom words. The service worker
+    renders a fixed body regardless and validates the id before using it.
+    """
+    payload = dict(PUSH_PAYLOAD_BASE)
+    alert_id = str(getattr(alert, "alert_id", "") or "")
+    if ALERT_ID_RE.match(alert_id):
+        payload["alert_id"] = alert_id
+    return json.dumps(payload, separators=(",", ":"))
 
 DEFAULT_COOLDOWN_SECONDS = 300
 DEFAULT_TTL_SECONDS = 3600
@@ -223,7 +242,7 @@ def send_alert_push(
                         "auth": subscription["auth"],
                     },
                 },
-                data=PUSH_PAYLOAD,
+                data=push_payload(alert),
                 vapid_private_key=vapid,
                 vapid_claims=claims,
                 timeout=SEND_TIMEOUT_SECONDS,

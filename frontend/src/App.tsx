@@ -1,4 +1,4 @@
-import { Component, useState } from "react";
+import { Component, useEffect, useState } from "react";
 
 import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
@@ -9,6 +9,7 @@ import DailySummaryScreen from "./DailySummaryScreen";
 import SuggestedFacts from "./SuggestedFacts";
 import ProfileForm from "./ProfileForm";
 import PushButton from "./PushButton";
+import { parseAlertId, withoutAlertParam } from "./deepLink";
 import "./App.css";
 
 class ErrorBoundary extends Component<
@@ -44,7 +45,39 @@ function AppContent() {
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"live" | "summary" | "suggestions" | "profile">("live");
+  // M5 Step 7: `/?alert=<id>` from a notification tap. Read once, then the
+  // query is stripped so a refresh does not reopen the same alert.
+  const [focusAlertId, setFocusAlertId] = useState<string | null>(() =>
+    parseAlertId(window.location.search),
+  );
   const [showChat, setShowChat] = useState(false);
+
+  useEffect(() => {
+    if (!focusAlertId) return;
+    // The default view is already "live"; only the URL needs cleaning so a
+    // refresh does not reopen the same alert.
+    window.history.replaceState({}, "", withoutAlertParam(window.location.href));
+  }, [focusAlertId]);
+
+  // A notification tap on an already-open app arrives here when the service
+  // worker cannot reload the window (M5 Step 7).
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== "sahaara-open-alert") return;
+      let search = "";
+      try {
+        search = new URL(data.url, window.location.origin).search;
+      } catch {
+        return;
+      }
+      const alertId = parseAlertId(search);
+      if (alertId) setFocusAlertId(alertId);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
 
   // When auth is enabled, check if we should show caregiver tabs
   const showCaregiverTabs = !authEnabled || (user?.role === "caregiver");
@@ -153,7 +186,7 @@ function AppContent() {
             <section className="caregiver-view">
               <h2 className="view-title">Rohan's View</h2>
               <ErrorBoundary name="EscalationLadder">
-                <EscalationLadder />
+                <EscalationLadder focusAlertId={focusAlertId} />
               </ErrorBoundary>
             </section>
           )}
