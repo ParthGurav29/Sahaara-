@@ -121,6 +121,22 @@ def health():
     }
 
 
+def _push_enabled() -> bool:
+    """Read the M5 feature flag. Default OFF; no secrets are exposed."""
+    return os.environ.get("SAHAARA_PUSH_ENABLED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+@app.get("/config")
+def public_config():
+    """Public, non-secret frontend configuration."""
+    return {"push_enabled": _push_enabled()}
+
+
 # Caregiver-only routes (require authentication when SAHAARA_AUTH_ENABLED=true)
 # These are the routes that expose caregiver dashboard data and controls
 
