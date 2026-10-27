@@ -402,13 +402,17 @@ class EventLog:
         failed: int = 0,
         revoked: int = 0,
         reason: str = "",
+        results: Optional[list] = None,
     ) -> Event:
         """
         Log a Web Push attempt for an alert.
 
         `status` is "sent" (the push service accepted at least one message),
-        "skipped" (gate, cooldown or no subscriptions) or "error". "sent" never
-        means a phone displayed it.
+        "skipped" (gate, not pushable, cooldown or no subscriptions) or
+        "error". "sent" never means a phone displayed it.
+
+        `results` is one `{"outcome", "status"}` entry per subscription — never
+        the endpoint itself, which is a bearer URL.
         """
         event = Event(
             timestamp=time.time(),
@@ -422,6 +426,7 @@ class EventLog:
                 "failed": failed,
                 "revoked": revoked,
                 "reason": reason,
+                "results": results or [],
             },
         )
         self.append(event)

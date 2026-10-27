@@ -154,6 +154,16 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_push_subscriptions_profile
             ON push_subscriptions(profile_id, revoked);
+
+        -- M5 Step 5 hardening: the last time a push was accepted for a profile
+        -- and the tier that caused it. Persisted so a restart cannot turn the
+        -- cooldown off, and so an escalation (tier increase) always sends.
+        CREATE TABLE IF NOT EXISTS push_cooldown_state (
+            profile_id TEXT PRIMARY KEY,
+            last_sent_at REAL NOT NULL,
+            last_tier TEXT NOT NULL DEFAULT '',
+            updated_at REAL NOT NULL
+        );
     """)
     
     conn.commit()
@@ -588,3 +598,53 @@ def list_push_subscriptions(profile_id: str, include_revoked: bool = False) -> l
     finally:
         conn.close()
     return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# M5 Step 5 hardening: persisted cooldown / last tier per profile
+# ---------------------------------------------------------------------------
+
+def get_push_cooldown_state(profile_id: str) -> Optional[dict]:
+    """The last accepted push for a profile, or None if none yet."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM push_cooldown_state WHERE profile_id = ?", (profile_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def set_push_cooldown_state(profile_id: str, last_sent_at: float, last_tier: str) -> None:
+    """Record an accepted push (upsert)."""
+    now = time.time()
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO push_cooldown_state (profile_id, last_sent_at, last_tier, updated_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(profile_id) DO UPDATE SET
+                   last_sent_at = excluded.last_sent_at,
+                   last_tier = excluded.last_tier,
+                   updated_at = excluded.updated_at""",
+            (profile_id, float(last_sent_at), str(last_tier or ""), now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_push_cooldown_state(profile_id: Optional[str] = None) -> None:
+    """Forget cooldown state. With no profile, clears every profile (tests)."""
+    conn = get_connection()
+    try:
+        if profile_id is None:
+            conn.execute("DELETE FROM push_cooldown_state")
+        else:
+            conn.execute(
+                "DELETE FROM push_cooldown_state WHERE profile_id = ?", (profile_id,)
+            )
+        conn.commit()
+    finally:
+        conn.close()
