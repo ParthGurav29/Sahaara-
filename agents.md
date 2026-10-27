@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-27, HEAD `83ec2e2` + Step 2 shell commit on `main`; Step 1 APPROVED 2026-10-27)
+## 0. Current Status (as of 2026-10-27, HEAD `5cd6994` on `main`; Step 1 APPROVED and Step 2 shell committed)
 
 > ✅ **APPROVAL STATUS — Step 1 APPROVED 2026-10-27.** Recorded verbatim: *"I read the Step 1 proposal and I approve it. Owner approval, 2026-10-27."* The agent read the proposal (Change Log, *2026-10-27 — M5 Step 1 proposal*) and approved it on the owner's explicit instruction: *"Approve Step 1 yourself. Read the Step 1 proposal in agents.md, then … (owner approval, 2026-10-27)."* Approval covers `0258194` with three conditions, listed below.
 >
@@ -22,7 +22,9 @@
 >
 > **History that stays on the record (do not delete):** before this approval the file said the owner had never approved Step 1 *"on any date"* and that Step 2 was a process deviation (built 2026-10-27 00:20-00:30, ~51 min after `0258194`, against this file's own "do not add PWA/push code until approved" line). That deviation stands; the approval is dated 2026-10-27 and covers Step 1 only.
 >
-> **Step 2 status:** unfrozen 2026-10-27 under owner scope — add the `VITE_PUSH_ENABLED` build gate (default OFF), fix the two shell defects with tests, delete `vite.config.step2on.ts`, work on `main`, commit labelled *"PWA shell only. No delivery can be claimed."*
+> **Step 2 status: COMMITTED `5cd6994`** (tag `before-step-2` marks the tree just before it). Scope delivered exactly as ordered: `VITE_PUSH_ENABLED` build gate (default OFF), both shell defects fixed with tests, `vite.config.step2on.ts` deleted, on `main`, commit labelled *"PWA shell only. No delivery can be claimed."* PWA shell only — no VAPID, no subscription, no `push` handler, **no delivery can be claimed.**
+>
+> **M5 device scope (owner, 2026-10-27): Android Chrome only. iOS is not tested and not claimed.** Any Step 8 item that depends on iOS Home-Screen install is marked **"not tested (iOS excluded)"**. The "needs-install (iOS)" UI state must **stay** in the code when Step 8 adds it — harmless path, never tested, never claimed.
 
 **Verification snapshot (all run 2026-10-26):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
@@ -61,7 +63,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
-| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done; Step 1 APPROVED 2026-10-27 (`0258194`, 3 conditions open); Step 2 shell committed labelled "PWA shell only. No delivery can be claimed."** Step 1 = same-origin `/api`, cookie session restore, Vite proxy, HTTPS quick-tunnel checks. Step 2 = manifest, placeholder icons, shell-only service worker that bypasses `/api`, `/auth`, `/stream`, `/ws`, plus the `VITE_PUSH_ENABLED` build gate (default OFF) — no VAPID, no subscription, no `push` handler. Android only; iOS not tested and not claimed. |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED 2026-10-27 (`0258194`, 3 conditions open) · Step 2 COMMITTED (`5cd6994`, "PWA shell only. No delivery can be claimed.")** Step 2 = manifest, placeholder icons, shell-only SW (`/api`, `/auth`, `/stream`, `/ws` bypass), two gates both default OFF (`VITE_PUSH_ENABLED` build gate + `SAHAARA_PUSH_ENABLED` backend send gate). No VAPID, no subscription, no `push` handler. Android Chrome only; iOS not tested and not claimed. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -80,7 +82,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-0. ✅ **M5 Step 1 approved 2026-10-27** — `0258194` accepted with three conditions (SSE-cookie, `Secure` cookie env var, CORS-proxy-only note). Step 2 unfrozen and committed as a shell with no delivery. Next M5 item: **Step 3 (subscription backend)** with `pywebpush==2.5.0` + its resolved transitive pins, VAPID keys in `backend/.env` only, `push_subscriptions` table, subscribe/unsubscribe/status endpoints, and `/config` carrying the public key. Quick Tunnel buffers SSE — live phone updates cannot be claimed; use adb reverse.
+0. ✅ **M5 Step 1 approved and Step 2 committed** — see `5cd6994` and the 2026-10-27 entries. **Next: Step 3 (subscription backend)** — `pywebpush==2.5.0` pinned with the versions pip actually resolves, VAPID keys in `backend/.env` only (never `.env.example`), `push_subscriptions` table via idempotent migration, `POST /push/subscribe` + `/push/unsubscribe` + `GET /push/status` (caregiver-only), `/config` carrying the **public** VAPID key. No "delivery works" claim without a real notification on the Motorola. Three Step 1 conditions also remain open (SSE-cookie so `/auth/me` stops returning the token, `Secure` cookie env var, CORS-proxy-only note).
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -808,3 +810,32 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **Three conditions carried with it:** (1) SSE/WS-events accept the `auth_token` cookie and `/auth/me` stops returning the token (M2 is merged, so it applies); (2) cookie `Secure` flag behind an env var, ON over HTTPS and OFF for local HTTP; (3) recorded as a standing condition that CORS is a no-op **only** while every call is proxied through `/api`.
 - **History preserved:** the earlier "never approved on any date" record and the Step 2 process-deviation entry both stay in this file. The deviation is not erased by the later approval.
 - **Tag:** `before-step-2` marks the tree immediately before Step 2 work resumes.
+
+### 2026-10-27 — M5 Step 2 committed: PWA shell only (`5cd6994`), tag `before-step-2`
+**PWA shell only. No delivery can be claimed.** No VAPID keys, no push subscription, no `push`/`notificationclick` handler, no push UI.
+- **Files:** `frontend/public/manifest.webmanifest` (new), `frontend/public/sw.js` (new, 103 lines), `frontend/public/icons/{icon-192,icon-512,maskable-512}.png` + `README.md` (placeholders, labelled), `frontend/src/pwa.ts` (new), `frontend/src/pwaGate.ts` (new, pure decision logic), `frontend/tests/{pwaGate.test.ts,swInstall.test.js}` (new), `frontend/src/main.tsx` (+`void initPwa()`), `backend/main.py` (`GET /config` → `{"push_enabled": bool}`), `.env.example` (both flags documented), `frontend/package.json` (`test:pwa`).
+- **Two gates, both default OFF (owner decision B):** `VITE_PUSH_ENABLED` is the **build** gate — with it off no worker registers, no manifest link is added, no push surface renders and `GET /config` is never called; `SAHAARA_PUSH_ENABLED` stays the **backend send** gate read at runtime. Push will require both.
+- **Defect 1 fixed (backend-down uninstall):** a failed `/config` read returns `null` and `decidePwaAction` returns **keep** — the installed shell (worker + manifest link + cache) is left untouched instead of being torn down. Regression test in `pwaGate.test.ts`.
+- **Defect 2 fixed (silent install failure):** `sw.js` install caches each shell asset with `Promise.allSettled` instead of `cache.addAll`, logs `N/5 assets failed`, and still activates. Regression test in `swInstall.test.js`, which also asserts `/api`, `/auth`, `/stream`, `/ws` are never intercepted.
+- **Deleted:** `frontend/vite.config.step2on.ts` (the ON-state test now uses `VITE_PUSH_ENABLED=true npm run build` with the normal config; no second config file exists).
+- **Verification (2026-10-27, default build = gate OFF):** `npm run test:pwa` **8/8** · `tsc --noEmit` exit 0 · `npm run lint` **16 warnings** (unchanged; none from the new files) · `npm run build` ✓ · backend `unit_e2e` **157/157**, `test_guardrails` **13/13**, `test_offer_rate` **23/23**, `test_policy_engine` **9/9**, `test_auth`, `test_simulated_day`, `test_response_tracking`, `test_wording_pools`, `test_voice_ws_wiring`, `test_voice_turn_taking` all pass · `guardrail_baseline.py --verify tests/baseline_guardrails_pre.json` → **no drift**.
+- **Browser matrix (headless Chrome, static `vite preview`, `/api/config` controlled per run):**
+
+  | Case | Result |
+  |---|---|
+  | default build + backend OFF | `/config` calls **0**, no manifest, no registration, no cache, no push controls; app renders |
+  | default build + backend **ON** | build gate wins — still nothing registered |
+  | gate ON + backend ON | registration `active /sw.js` (activated), manifest link, cache `sahaara-shell-v1` |
+  | gate ON + backend **unreachable** | shell survives intact (worker + manifest kept) — defect 1 proof |
+  | gate ON + backend OFF | unregistered, cache cleared, manifest removed, exactly one reload |
+  | `?pwa=off` | unregisters, caches cleared |
+  | opt-out persists | later reload with both gates ON stays disabled |
+- **Not tested:** the Android install prompt requires a real device (headless cannot verify it). `adb devices` is empty as of 2026-10-27, so Step 2 is **not device-tested yet**.
+- **Known limitations:** SW registers only in a secure context (`localhost`, `127.0.0.1`, HTTPS) — `http://<LAN-IP>:5173` gets no worker and no install; the shell is installability only, not offline-first (a cached `index.html` may reference hashed assets that no longer exist); icons are placeholders; Quick Tunnel still buffers SSE, so live dashboard updates are unclaimed over the tunnel — use `adb reverse`.
+
+### 2026-10-27 — M5 device scope: Android Chrome only
+- **Owner (2026-10-27):** M5 device scope is **Android Chrome only**. **iOS push is not tested and not claimed.**
+- **Step 8 rule:** any Step 8 item that depends on iOS Home-Screen install is marked **"not tested (iOS excluded)"**.
+- **UI rule:** the "needs-install (iOS)" state must **stay in the code** when Step 8 adds it — harmless path, never tested, never claimed. (It does not exist yet; nothing to remove today.)
+- **Device on record:** Motorola Edge 70 Fusion, **Android 17 (SDK 37)**, **Chrome 155.0.8059.84** (baseline 2026-10-26). `adb devices` was **empty on 2026-10-27**, so those versions are from the last attached session, not re-read. iPhone/iOS version: **none on record — never connected**.
+- **Step 8 push test matrix (to run when a device is attached):** in-browser Chrome vs installed PWA; installed with screen locked + app closed (Doze delay noted); installed with battery saver ON; report brand/model + Android + Chrome versions with every claim. Motorola is not in the aggressive-killer group (Xiaomi/Oppo/Vivo/Realme) — recorded as "no OEM battery-killer mitigation tested", never as "push is reliable on all Android".
