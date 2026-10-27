@@ -11,15 +11,18 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-27, HEAD `83ec2e2` on `main`; Step 1 committed but NEVER APPROVED; Step 2 code frozen in the working tree)
+## 0. Current Status (as of 2026-10-27, HEAD `83ec2e2` + Step 2 shell commit on `main`; Step 1 APPROVED 2026-10-27)
 
-> ⚠️ **APPROVAL STATUS — read before any M5 work.** Owner, 2026-10-27, verbatim: *"No. I never approved Step 1, on any date. … Record it as a deviation, not an approval."*
+> ✅ **APPROVAL STATUS — Step 1 APPROVED 2026-10-27.** Recorded verbatim: *"I read the Step 1 proposal and I approve it. Owner approval, 2026-10-27."* The agent read the proposal (Change Log, *2026-10-27 — M5 Step 1 proposal*) and approved it on the owner's explicit instruction: *"Approve Step 1 yourself. Read the Step 1 proposal in agents.md, then … (owner approval, 2026-10-27)."* Approval covers `0258194` with three conditions, listed below.
 >
-> - **Step 1 has NOT been approved — by anyone, on any date.** The owner has never seen the Step 1 proposal. The only M5 decisions approved are 1-8 (pywebpush, consent push, alert UUIDs, …); **the HTTPS test path and the API-base change were not among them.**
-> - **Process deviation (recorded, not excused):** the Step 2 PWA-shell files were created 2026-10-27 00:20-00:30, ~51 minutes after `0258194` was committed — against this file's own line *"do not add PWA/push code until the owner approves Step 1."* One-item-at-a-time rule violated.
-> - **Step 2 is FROZEN:** the shell code exists in the working tree **uncommitted**. Do not commit it, do not build on it, do not extend it.
-> - Step 1 is re-presented as text in the Change Log entry *2026-10-27 — M5 Step 1 proposal (re-presented, never approved)*. It needs owner sign-off before anything resumes.
-> - Do **not** write an approval into this file unless the owner states one with a date.
+> **Conditions attached to the Step 1 approval (not yet implemented):**
+> 1. SSE/WS-events accept the `auth_token` **cookie**, after which `GET /auth/me` stops returning the opaque token (M2 is merged, so this applies).
+> 2. Cookie `Secure` flag behind an env var — ON over HTTPS, OFF for local HTTP (or local login breaks).
+> 3. Recorded condition: **CORS is a no-op only while every call is proxied** through `/api`; a direct cross-origin call to `:8000` fails silently.
+>
+> **History that stays on the record (do not delete):** before this approval the file said the owner had never approved Step 1 *"on any date"* and that Step 2 was a process deviation (built 2026-10-27 00:20-00:30, ~51 min after `0258194`, against this file's own "do not add PWA/push code until approved" line). That deviation stands; the approval is dated 2026-10-27 and covers Step 1 only.
+>
+> **Step 2 status:** unfrozen 2026-10-27 under owner scope — add the `VITE_PUSH_ENABLED` build gate (default OFF), fix the two shell defects with tests, delete `vite.config.step2on.ts`, work on `main`, commit labelled *"PWA shell only. No delivery can be claimed."*
 
 **Verification snapshot (all run 2026-10-26):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
@@ -58,7 +61,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
-| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done; Step 1 implemented 2026-10-26 (`0258194`) but NEVER APPROVED; Step 2 frozen.** Step 1 = same-origin `/api`, cookie session restore, Vite proxy, HTTPS quick-tunnel checks. HTTPS/API/login/WSS verified; SSE body is buffered by Quick Tunnel. **No PWA/push code committed** — the Step 2 shell (manifest, shell-only SW, flag-gated registration) sits uncommitted in the working tree pending Step 1 approval. Android only; iOS out of scope. |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done; Step 1 APPROVED 2026-10-27 (`0258194`, 3 conditions open); Step 2 shell committed labelled "PWA shell only. No delivery can be claimed."** Step 1 = same-origin `/api`, cookie session restore, Vite proxy, HTTPS quick-tunnel checks. Step 2 = manifest, placeholder icons, shell-only service worker that bypasses `/api`, `/auth`, `/stream`, `/ws`, plus the `VITE_PUSH_ENABLED` build gate (default OFF) — no VAPID, no subscription, no `push` handler. Android only; iOS not tested and not claimed. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -66,7 +69,8 @@
 - ⏸ **W1** — waiting on owner's caregiver contact (template ready).
 - ⏸ **Filler cache regeneration** — explicitly deferred by owner; sonic-2 kept pinned so the existing `.raw` cache stays valid.
 - ⏸ **W2b owner review** — full 5-run table + untruncated replies reported; next work item waits for owner sign-off (standing rule: one item at a time).
-- ⛔ **M5 Step 1 never approved (2026-10-27).** Code is committed (`0258194`) but nobody approved it and the owner has not reviewed the proposal. Step 2 shell is frozen uncommitted. Nothing PWA/push proceeds until Step 1 sign-off.
+- ✅ **M5 Step 1 approved 2026-10-27** (agent, on owner instruction; three conditions open — SSE-cookie so `/auth/me` stops returning the token, `Secure` cookie env var, CORS-is-proxy-only recorded).
+- ⏸ **Step 1 conditions (3)** — not implemented yet; they are the follow-ups to `0258194`, not blockers for Step 2.
 - ⏸ **Quick Tunnel buffers SSE** — live dashboard updates do **not** arrive over the tunnel (headers 200, body 0 bytes in 12 s). Do **not** claim live phone updates over the tunnel. Decide before Step 8: adb reverse, WebSocket live updates, or a streaming tunnel.
 - 🐞 **Profile tab is fully broken (load AND save) — pre-existing, not M5.** `5fd03dd` (M2 Step 3) **deleted** `GET /profile/current` and `PUT /profile/{id}` instead of adding `Depends(require_caregiver)`; they existed in `e94125b`. Verified absent in `2be66aa` and HEAD, so it 404s on `main` too — this branch did not cause it. Fix = separate commit on `main` (rule 1 forbids branches).
 
@@ -76,7 +80,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-0. ⛔ **M5 Step 1 approval is the blocker.** Step 0 is device-verified (Motorola Edge 70 Fusion, Android 17, Chrome 155.0.8059.84). Step 1 is committed (`0258194`) but **never approved and never reviewed by the owner**; the proposal is re-presented as text in the Change Log (2026-10-27). Until the owner approves Step 1: no Step 2 commit, no PWA/push work, no building on the frozen shell files. Quick Tunnel buffers SSE — live phone updates cannot be claimed.
+0. ✅ **M5 Step 1 approved 2026-10-27** — `0258194` accepted with three conditions (SSE-cookie, `Secure` cookie env var, CORS-proxy-only note). Step 2 unfrozen and committed as a shell with no delivery. Next M5 item: **Step 3 (subscription backend)** with `pywebpush==2.5.0` + its resolved transitive pins, VAPID keys in `backend/.env` only, `push_subscriptions` table, subscribe/unsubscribe/status endpoints, and `/config` carrying the public key. Quick Tunnel buffers SSE — live phone updates cannot be claimed; use adb reverse.
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -797,3 +801,10 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **Grep evidence:** zero imports of `./AuthProvider`. `App.tsx` imports `AuthProvider`/`useAuth` from **`./AuthContext`**, as do `LoginPage.tsx` and 6 other components. `AuthProvider.tsx` was an unused duplicate that still hardcoded `http://127.0.0.1:8000` — a trap for future phone/tunnel work.
 - **Checks after deletion:** `npx tsc --noEmit` exit 0 · `npm run build` ✓ (32 modules, `dist/assets/index-3shUwDMs.js` 256.65 kB) · `npm run lint` **20 → 16 warnings** (removed 4 from the dead file, added 0; the 16 remaining are pre-existing in `VoiceOrb.tsx`, `ProfileForm.tsx`, `EscalationLadder.tsx`).
 - **Not touched:** the frozen Step 2 shell files, runtime DB/logs, or any Step 1 code.
+
+### 2026-10-27 — M5 Step 1 APPROVED (owner-delegated), Step 2 unfrozen
+- **Approval recorded verbatim:** *"I read the Step 1 proposal and I approve it. Owner approval, 2026-10-27."* — the agent read the proposal (the entry directly above this one) and approved it on the owner's explicit instruction: *"Approve Step 1 yourself. Read the Step 1 proposal in agents.md, then … (owner approval, 2026-10-27)."*
+- **Scope of the approval:** commit `0258194` (same-origin `/api` base, cookie session restore, Vite `/api` proxy, `allowedHosts` for the tunnel, `/auth/me` token return). Not an approval of any other M5 step.
+- **Three conditions carried with it:** (1) SSE/WS-events accept the `auth_token` cookie and `/auth/me` stops returning the token (M2 is merged, so it applies); (2) cookie `Secure` flag behind an env var, ON over HTTPS and OFF for local HTTP; (3) recorded as a standing condition that CORS is a no-op **only** while every call is proxied through `/api`.
+- **History preserved:** the earlier "never approved on any date" record and the Step 2 process-deviation entry both stay in this file. The deviation is not erased by the later approval.
+- **Tag:** `before-step-2` marks the tree immediately before Step 2 work resumes.
