@@ -11,22 +11,24 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-27, HEAD `5cd6994` on `main`; Step 1 APPROVED and Step 2 shell committed)
+## 0. Current Status (as of 2026-10-27, HEAD `efca9d0` on `main`; Step 1 APPROVED + conditions done, Step 2 shell, Step 5 send path committed)
 
 > ✅ **APPROVAL STATUS — Step 1 APPROVED 2026-10-27.** Recorded verbatim: *"I read the Step 1 proposal and I approve it. Owner approval, 2026-10-27."* The agent read the proposal (Change Log, *2026-10-27 — M5 Step 1 proposal*) and approved it on the owner's explicit instruction: *"Approve Step 1 yourself. Read the Step 1 proposal in agents.md, then … (owner approval, 2026-10-27)."* Approval covers `0258194` with three conditions, listed below.
 >
-> **Conditions attached to the Step 1 approval (not yet implemented):**
-> 1. SSE/WS-events accept the `auth_token` **cookie**, after which `GET /auth/me` stops returning the opaque token (M2 is merged, so this applies).
-> 2. Cookie `Secure` flag behind an env var — ON over HTTPS, OFF for local HTTP (or local login breaks).
-> 3. Recorded condition: **CORS is a no-op only while every call is proxied** through `/api`; a direct cross-origin call to `:8000` fails silently.
+> **Conditions attached to the Step 1 approval — ✅ ALL THREE DONE 2026-10-27 (commit `a54b8dc`, tests `test_step1_conditions.py` 13/13):**
+> 1. SSE/WS-events accept the `auth_token` **cookie**, and `GET /auth/me` no longer returns the opaque token. `?token=`/`Bearer` stay server-side for non-browser clients; the browser is cookie-only.
+> 2. `SAHAARA_COOKIE_SECURE` (default OFF) drives the cookie's `Secure` flag — ON over HTTPS, OFF for local HTTP.
+> 3. Recorded condition: **CORS is a no-op only while every call is proxied** through `/api`; a direct cross-origin call to `:8000` fails silently. Recorded next to the middleware in `main.py`.
 >
 > **History that stays on the record (do not delete):** before this approval the file said the owner had never approved Step 1 *"on any date"* and that Step 2 was a process deviation (built 2026-10-27 00:20-00:30, ~51 min after `0258194`, against this file's own "do not add PWA/push code until approved" line). That deviation stands; the approval is dated 2026-10-27 and covers Step 1 only.
 >
 > **Step 2 status: COMMITTED `5cd6994`** (tag `before-step-2` marks the tree just before it). Scope delivered exactly as ordered: `VITE_PUSH_ENABLED` build gate (default OFF), both shell defects fixed with tests, `vite.config.step2on.ts` deleted, on `main`, commit labelled *"PWA shell only. No delivery can be claimed."* PWA shell only — no VAPID, no subscription, no `push` handler, **no delivery can be claimed.**
 >
+> **Step 5 status: COMMITTED `efca9d0` — the send path exists.** `backend/push_notify.py` sends a **fixed minimal payload** (`{"v":1,"type":"caregiver_alert"}`) through `pywebpush` to every active subscription of the alert's profile whenever `AlertBuilder` stores an alert. Gate ON (`SAHAARA_PUSH_ENABLED`) **and** a VAPID key are both required; gate OFF sends nothing and logs nothing. Per-profile cooldown `SAHAARA_PUSH_COOLDOWN_SECONDS` (default 300 s) — **Red bypasses it**. `SAHAARA_PUSH_TTL_SECONDS` (default 3600; pywebpush's own default 0 would drop the message). 404/410 revokes the stored row. `ALERT_SENT` event records status + sent/failed/revoked + reason. Dispatch is a daemon thread: `/chat` stayed at **0.91-1.03 s** with the send running. **"Sent" means the push service accepted it (2xx) — never that a phone displayed it.** Nothing has ever been delivered to a real phone by the app; the shade text is still unverified.
+>
 > **M5 device scope (owner, 2026-10-27): Android Chrome only. iOS is not tested and not claimed.** Any Step 8 item that depends on iOS Home-Screen install is marked **"not tested (iOS excluded)"**. The "needs-install (iOS)" UI state must **stay** in the code when Step 8 adds it — harmless path, never tested, never claimed.
 
-**Verification snapshot (all run 2026-10-26):**
+**Verification snapshot (all run 2026-10-26; Step 5 suites re-run 2026-10-27):**
 - `tests/unit_e2e.py` — **157/157 pass** (143 + 14 M1 structure-split checks)
 - `tests/test_offer_rate.py` — **23/23 pass** · `tests/test_policy_engine.py` — **9/9 pass**
 - `tests/test_guardrails.py` — **13/13 pass** · `guardrail_baseline.py --verify` — **no drift** vs pre-baseline
@@ -35,6 +37,8 @@
 - `tests/test_voice_ws_wiring.py` — **3/3 pass** · `tests/test_voice_turn_taking.py` — **5/5 pass** (mic gate, Deepgram keepalive, turn pause)
 - `tests/test_step1_conditions.py` — **13/13 pass** (Step 1 conditions: cookie auth on SSE/WS, `Secure` cookie env var, `/auth/me` without a token)
 - `tests/test_push_subscriptions.py` — **21/21 pass** (M5 Step 3: table CRUD, upsert/un-revoke, key derivation, 409 when the gate is off, caregiver-only endpoints, no private key in any response)
+- `tests/test_push_send.py` — **17/17 pass** (M5 Step 5: gate OFF silent, no-subscription skip, fixed payload with no conversation text, `Vapid` instance not raw PEM, 410 revoke, 500 keeps the row, cooldown + Red bypass + cooldown 0, malformed key, TTL 3600 default/override, thread dispatch, `_store` wiring, per-profile scoping)
+- **M5 Step 5 live check (2026-10-27, throwaway ports, real `backend/.env` VAPID key):** a local fake push service received **135-byte encrypted payloads** with a real VAPID JWT (`vapid t=eyJ0eXAi…`) and **`TTL: 3600`**; `/ok` → `sent: 1`; `/dead` (404) → `revoked: 1`, row inactive, second alert did not retry it. On the real app (`:8030`, temp DB, gate ON): `POST /chat "I fell and I cant get up"` → Red → **2 alerts → 2 accepted pushes → `ALERT_SENT` rows `status: sent, sent: 1`**; `/chat` answered in **0.91 s** (send is off-thread). Both alerts share the SW tag `sahaara-checkin`, so Chrome replaces rather than stacks them.
 - **Voice orb E2E (live server, port 8000, auth enabled):** first turn → `thinking → speaking → listening`; **1.51 s pause** between last TTS byte and `listening`; **103,832 bytes of TTS echoed back as mic audio during the turn → 0 self-triggered turns over the following 7 s**; a real second utterance immediately after `listening` was answered. **12 s idle with zero mic audio → socket survives** (Deepgram KeepAlive) and a real turn still starts afterwards.
 - `tests/guardrail_baseline.py` — **38/38 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
 - **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
@@ -72,7 +76,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
-| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED · Step 2 committed + device-verified · Step 3 committed (`e88baf4`) · Step 4 committed (`f8eb63c`) + device-verified except 2 checks · Step 4 header overlap fixed 2026-10-27 · **Step 1 conditions DONE 2026-10-27** (cookie auth for SSE/WS, `/auth/me` no longer returns the token, `SAHAARA_COOKIE_SECURE`, CORS note)** Step 4 = `pushAlerts.ts`/`pushSupport.ts` + header `PushButton` (six states: available/enabled/denied/unsupported/needs-install/error) + service-worker `push`/`notificationclick` handlers with a **fixed** body ("Asha needs a check-in", payload ignored, no symptom words, no quotes) + unsubscribe on shell teardown. Device proved prompt-on-tap, denied, and enabled (real FCM subscription, `/push/status` = 1) and a real FCM send (**201**). **Nothing in the app sends — no delivery can be claimed.** **Gate-OFF teardown device-verified 2026-10-27** (worker unregistered, manifest removed, `/push/unsubscribe` revoked the row). Shade text still **unverified on device**: FCM accepts every send (**201**) but no notification lands in this Chrome session. Next: Step 5 send path. Android Chrome only; iOS excluded. |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED + all 3 conditions done (`a54b8dc`) · Step 2 committed + device-verified · Step 3 committed (`e88baf4`) · Step 4 committed (`f8eb63c`) + device-verified except the shade text · header overlap fixed · Step 5 send path committed (`efca9d0`)** Step 4 = `pushAlerts.ts`/`pushSupport.ts` + header `PushButton` (six states) + SW `push`/`notificationclick` with a **fixed** body ("Asha needs a check-in", payload ignored, tag `sahaara-checkin`, no symptom words, no quotes) + unsubscribe on shell teardown. **Step 5 = `backend/push_notify.py`**: on every stored alert, `pywebpush` sends the constant payload `{"v":1,"type":"caregiver_alert"}` to the profile's active subscriptions on a daemon thread; per-profile cooldown default 300 s (**Red bypasses**), TTL default 3600 s (pywebpush's 0 would drop it), 404/410 revokes the row, `ALERT_SENT` event records status + counts + reason. Live: 135-byte payloads with a real VAPID JWT accepted by a fake push service, and 2 accepted sends from a real `/chat` Red turn in **0.91 s**. **Still no delivery claim:** "sent" = push service accepted (2xx), and **no notification has ever been observed on a phone** — the shade text remains **unverified on device** (FCM accepts every send, no notification lands in this Chrome session; the site grant reverts to `default`). Android Chrome only; iOS excluded. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -91,7 +95,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-0. ✅ **M5 Step 4 — device test complete except the shade text.** Phone verified: prompt on tap only, denied state, enabled state with a real FCM subscription (`/push/status` = 1), a real FCM send (**201**), and **gate-OFF teardown** (worker unregistered, cache/manifest removed, `/push/unsubscribe` hit the server and the row went inactive). **Shade text is NOT verified on device:** FCM accepts every send (201) but no notification appears in this Chrome session, and Chrome reverted the site's notification grant to `default` within seconds (the SW then refuses `showNotification` with "No notification permission has been granted for this origin"). The fixed body is covered by 27/27 `npm run test:pwa` checks incl. a hostile payload, and by the headless matrix. Header overlap is fixed and headlessly verified. **Step 1's three conditions are done (2026-10-27)** — cookie-only session, `/auth/me` token-free, `SAHAARA_COOKIE_SECURE`, CORS note. **Next in the agreed order: Step 5** (send path, cooldown, `ALERT_SENT`).
+0. ✅ **M5 Step 5 — send path committed `efca9d0`.** `pywebpush` + real VAPID key, fixed payload, cooldown (Red bypasses), TTL 3600, 404/410 revoke, `ALERT_SENT` event, off-thread dispatch. `tests/test_push_send.py` 17/17; live fake push service accepted a 135-byte encrypted payload with a real VAPID JWT and TTL 3600; real `/chat` Red turn → 2 accepted sends, response 0.91 s. **Next: owner review of Step 5.** Outstanding M5 items: the **on-device shade text is still unverified** (the only path that ever showed a permission grant was a fresh origin; Chrome reverts the site grant to `default` and the SW then refuses `showNotification`), gate-OFF teardown is device-verified, and the Step 8 push matrix (in-browser vs installed WebAPK, screen locked, battery saver, Doze delay) has not been run. No new step starts without the owner's go-ahead.
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -160,6 +164,7 @@ cd backend && .venv/bin/python tests/test_auth.py           # isolated temp DB (
 cd backend && .venv/bin/python tests/test_voice_ws_wiring.py # orb WS: stream is async generator
 cd backend && .venv/bin/python tests/test_voice_turn_taking.py # voice mic gate, Deepgram keepalive, turn pause
 cd backend && .venv/bin/python tests/test_push_subscriptions.py # 21 M5 Step 3 push-storage tests (isolated temp DB)
+cd backend && .venv/bin/python tests/test_push_send.py    # 17 M5 Step 5 send-path tests (fake push service, isolated temp DB, no network)
 cd backend && .venv/bin/python tests/test_step1_conditions.py # 13 M5 Step 1 conditions: cookie SSE/WS, Secure cookie, /auth/me
 
 # M3 simulated day (read-only preview; nothing persisted)
@@ -228,6 +233,8 @@ Voice adds: Deepgram Nova-3 ASR (`utterance_end_ms=1000`) → pipeline above →
 | `dashboard/stream.py` | SSE + WS broadcasting; `setup_stream_hooks()` runs at startup (monkey-patches the session's `event_log.append` etc.) |
 | `dashboard/alerts.py` | Alert builder + `AlertStore` (ack/unread state) |
 | `dashboard/summary.py` | Daily summary generator from event log (LLM wording off by default) |
+| `push.py` | Web Push key handling + public `/config` payload. **Never sends.** |
+| `push_notify.py` | **The send path (M5 Step 5).** Fixed constant payload, `Vapid.from_pem`, per-profile cooldown (Red bypasses), TTL, 404/410 revoke, `ALERT_SENT`, daemon-thread dispatch from `AlertBuilder._store()` |
 | `memory/profile.py` | JSON profile loader (`backend/memory/data/asha_profile.json`) |
 | `memory/memory_box.py` | Memory Box clip matching + offer; 5-turn AND 10-min re-offer suppression; replay-request bypass |
 | `memory/session_notes.py` | Repetition tracking (SequenceMatcher ≥0.6, 15-min window) + sustained distress (≥60% of ≥3 turns) |
@@ -279,7 +286,7 @@ Physical symptoms (added Oct 19):
 ## 8. Data & storage
 
 - **Profile:** `backend/memory/data/asha_profile.json` (flat JSON; keys: name, profile_id, family, life_story, likes, avoid, daily_routine, meta; `"editable": true`). Auto-migrated into SQLite on first run; edited live via `PUT /profile/{id}`.
-- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions, `users`/`auth_tokens` (M2), `scheduler_settings`/`checkin_fired_history` (M3). `push_subscriptions` (M5 Step 3) is **storage only** — no code sends to it yet. Path overridable with `SAHAARA_DB_PATH` (used by tests). Tracked in git and modified at runtime (repo hygiene pending — see §9).
+- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions, `users`/`auth_tokens` (M2), `scheduler_settings`/`checkin_fired_history` (M3). `push_subscriptions` (M5 Step 3) is **written by the browser and read by `push_notify.py` (Step 5)**; 404/410 revokes a row. Path overridable with `SAHAARA_DB_PATH` (used by tests). Tracked in git and modified at runtime (repo hygiene pending — see §9).
 - **Event log:** `backend/events/data/asha_demo_001.jsonl` (append-only JSONL + in-memory list; **6,372 events as of 2026-10-23**)
 - **State:** per-profile `ProfileSession` objects via `session_manager.py` — still in-memory, single-process, deliberate hackathon scope.
 - **Demo time compression:** 300× (5 min real → 1 sec), hardcoded `EscalationConfig(demo_mode=True, demo_multiplier=300.0)` in `session_manager.py`. Must stay demo-only, never production.
@@ -419,7 +426,7 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 | ASR | Deepgram Nova-3 | Streaming WebSocket, UtteranceEnd drives turns |
 | TTS | Cartesia (**sonic-2 pinned — sunsetted Oct 20 2026**, see §0) | Streaming WS, pcm_s16le 22050Hz mono, schema 2026-08-14 |
 | Storage | SQLite (`sahaara.db`) + JSONL event log | Flat JSON still used for the source profile |
-| Web Push | `pywebpush==2.5.0` + `py-vapid` (installed, **not called**) | M5 Step 3 stores subscriptions and serves the public VAPID key; **no send path exists, so no delivery can be claimed** |
+| Web Push | `pywebpush==2.5.0` + `py-vapid` (**called since M5 Step 5**) | `backend/push_notify.py` sends the constant payload to stored subscriptions; `push.py` only handles keys/config. "Sent" = push service accepted (2xx); **no notification has been observed on a phone, so no delivery is claimed.** |
 
 ## 13. Reference docs
 
@@ -941,3 +948,23 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
   - Chrome's quiet notification prompt **auto-dismisses in seconds**, and a dismissed/blocked origin **stays blocked permanently** — the only way back is a fresh origin/port. The real prompt's Allow button sits at ≈`(984, 346)` device px; a fresh grant must be used within seconds.
 - **What still stands as evidence for the fixed notification body:** `npm run test:pwa` **27/27** (includes the hostile payload `"chest pain, she fell — call an ambulance"` changing nothing, exact body, no quotes, no symptom words) plus the headless state matrix. **No on-device shade claim is made.**
 - **Cleanup:** all 4 test `push_subscriptions` rows deleted (live DB back to **0**), every `adb reverse`/forward removed, temp servers stopped. Backend on `:8000` was left running with `SAHAARA_PUSH_ENABLED=true` for these tests; the repo default remains OFF.
+
+### 2026-10-27 — M5 Step 5: the send path (commit `efca9d0`) — "accepted by the push service", not "delivered"
+**What exists now:** every alert that `AlertBuilder._store()` stores is fanned out to that profile's active push subscriptions through `pywebpush`. Before this commit no code path sent anything; after it, the app **does** send. **No delivery is claimed** — "sent" means the push service answered **2xx**, never that a phone displayed it, and no notification has yet been observed on a phone.
+
+- **`backend/push_notify.py` (new):**
+  - `PUSH_PAYLOAD` = `{"v":1,"type":"caregiver_alert"}` — a constant. No names, no speech, no tier, no symptom words ever leave the server in a push payload; the SW ignores the payload and renders its fixed body anyway (defence in depth).
+  - `send_alert_push(alert, event_log=None, now=None, sender=None)` — synchronous, injectable, testable. `notify_alert(alert, event_log)` — daemon thread, returns immediately, never raises.
+  - **Cooldown** `SAHAARA_PUSH_COOLDOWN_SECONDS` (default **300**, `0` disables), tracked **per profile**. **Red-tier alerts bypass it**: a danger alert must never be suppressed by an earlier Orange one.
+  - **TTL** `SAHAARA_PUSH_TTL_SECONDS` (default **3600**). Found during the live check: `pywebpush.webpush` defaults `ttl=0`, which tells the push service to drop the message rather than hold it for a sleeping phone. Now sent explicitly and asserted on the wire.
+  - **Dead endpoints:** 404/410 → `revoke_push_subscription(endpoint)`, counted as `revoked`; the row stops being selected. 5xx/other → `failed`, row kept.
+  - **VAPID** is `Vapid.from_pem(pem)` — raw PEM does not work with `pywebpush==2.5.0` (it calls `.encode`). Malformed/missing key degrades to `status: error, reason: no_vapid_key`, never raises, never leaks.
+  - **Gate OFF sends nothing and logs nothing** — the default install stays quiet; no `ALERT_SENT` noise on every alert in dev.
+- **`backend/events/event_log.py`:** `EventType.ALERT_SENT` + `EventLog.log_alert_sent(alert_id, tier, status, sent, failed, revoked, reason)`. Status is `sent` / `skipped` (cooldown, no subscriptions, dead subscriptions) / `error`.
+- **`backend/dashboard/alerts.py`:** `_store()` adds the alert to the dashboard store **first**, then dispatches the push in a guarded call (a missing module logs `Push dispatch could not start` instead of silently looking like "alerts are just quiet").
+- **`backend/tests/test_push_send.py` (new):** **17/17** — gate OFF silent, no-subscription skip, fixed payload with a "no conversation words" assertion, `Vapid` instance check, 410 revoke + no retry, 500 keeps the row, cooldown + Red bypass + `0` disables, TTL default/override/junk, thread dispatch, crashing sender swallowed, `_store` → push wiring, per-profile scoping, event helper. Fake sender only: no network, isolated temp DB.
+- **Live check 1 (real `backend/.env` key, local fake push service):** 135-byte encrypted payload, real VAPID JWT (`Authorization: vapid t=eyJ0eXAi…`), **`TTL: 3600`**; `/ok` → `sent: 1`; `/dead` (404) → `revoked: 1`, active rows 0, no retry on the next alert.
+- **Live check 2 (real app, `:8030`, temp DB, gate ON):** `POST /chat "I fell and I cant get up"` → tier **red** → **2 alerts → 2 accepted pushes → `ALERT_SENT` `{"status":"sent","sent":1}`**; the HTTP response came back in **0.91 s** (sending is off-thread). A second turn with no subscriptions logged `skipped / no_subscriptions`. Both alerts use the SW tag `sahaara-checkin`, so Chrome **replaces** rather than stacks them.
+- **`.env.example`:** documents `SAHAARA_PUSH_COOLDOWN_SECONDS` and `SAHAARA_PUSH_TTL_SECONDS` under a new Step 5 block.
+- **Regression (all re-run after the change):** unit_e2e 157/157 · guardrails 13/13 · offer_rate 23/23 · policy 9/9 · auth 14/14 · simulated day 16/16 · response tracking 7/7 · wording pools 44/44 · voice WS 3/3 · voice turn-taking 5/5 · push subscriptions 21/21 · **push send 17/17** · step1 conditions 13/13 · guardrail baseline `--verify` **no drift** · `tsc -b` clean · `test:pwa` 27/27 · build clean · lint unchanged (pre-existing only) · `import main` clean (30 routes).
+- **Not claimed / still open:** no on-device notification has ever been observed (the shade text remains unverified, unchanged from Step 4 — Chrome reverts the site grant to `default` in this setup and the SW then refuses `showNotification`). The Step 8 device matrix (in-browser vs installed WebAPK, screen locked, battery saver, Doze) has not been run. No retry/backoff beyond the push service's own TTL, and no per-tier payload (deliberate — the payload stays a constant).
