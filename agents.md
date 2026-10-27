@@ -33,6 +33,7 @@
 - `tests/test_simulated_day.py` — **16/16 pass** · `tests/test_response_tracking.py` — **7/7 pass** · `tests/test_wording_pools.py` — **44/44 pool lines pass guardrails**
 - `tests/test_auth.py` — **14/14 pass** — now isolated on a temp DB (`SAHAARA_DB_PATH`), no longer wipes the live `users` table
 - `tests/test_voice_ws_wiring.py` — **3/3 pass** · `tests/test_voice_turn_taking.py` — **5/5 pass** (mic gate, Deepgram keepalive, turn pause)
+- `tests/test_push_subscriptions.py` — **21/21 pass** (M5 Step 3: table CRUD, upsert/un-revoke, key derivation, 409 when the gate is off, caregiver-only endpoints, no private key in any response)
 - **Voice orb E2E (live server, port 8000, auth enabled):** first turn → `thinking → speaking → listening`; **1.51 s pause** between last TTS byte and `listening`; **103,832 bytes of TTS echoed back as mic audio during the turn → 0 self-triggered turns over the following 7 s**; a real second utterance immediately after `listening` was answered. **12 s idle with zero mic audio → socket survives** (Deepgram KeepAlive) and a real turn still starts afterwards.
 - `tests/guardrail_baseline.py` — **38/38 ok** — `baseline_guardrails_pre.json` **SAVED** (the M1 "run adversarial tests first" condition, pre-change side ✅)
 - **Baselines saved:** `baseline_pre_m1.json` (labeled "pre-M1 checker", untouched build `6ffe71b`) and `baseline_post_m1_checker.json` (labeled "post-M1 checker")
@@ -63,7 +64,7 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
-| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED 2026-10-27 (`0258194`, 3 conditions open) · Step 2 COMMITTED (`5cd6994`, "PWA shell only. No delivery can be claimed.")** Step 2 = manifest, placeholder icons, shell-only SW (`/api`, `/auth`, `/stream`, `/ws` bypass), two gates both default OFF (`VITE_PUSH_ENABLED` build gate + `SAHAARA_PUSH_ENABLED` backend send gate). No VAPID, no subscription, no `push` handler. Android Chrome only; iOS not tested and not claimed. |
+| M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED 2026-10-27 (`0258194`, 3 conditions open) · Step 2 COMMITTED + device-verified (`5cd6994`, `92fea12`) · Step 3 IMPLEMENTED 2026-10-27 (subscription storage + VAPID, no delivery)** Step 2 = manifest, placeholder icons, shell-only SW (`/api`, `/auth`, `/stream`, `/ws` bypass), two gates both default OFF. Step 3 = `push_subscriptions` table, `POST /push/subscribe|unsubscribe`, `GET /push/status` (caregiver-only), public VAPID key on `/config` only when the gate is ON, private key in `backend/.env` (untracked). **Nothing is sent by any code path — no delivery can be claimed.** Still missing: `push` handler in the SW, subscribe UI, send path. Android Chrome only; iOS not tested and not claimed. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -82,7 +83,7 @@
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
 **Next action (in order):**
-0. ✅ **M5 Step 1 approved and Step 2 committed** — see `5cd6994` and the 2026-10-27 entries. **Next: Step 3 (subscription backend)** — `pywebpush==2.5.0` pinned with the versions pip actually resolves, VAPID keys in `backend/.env` only (never `.env.example`), `push_subscriptions` table via idempotent migration, `POST /push/subscribe` + `/push/unsubscribe` + `GET /push/status` (caregiver-only), `/config` carrying the **public** VAPID key. No "delivery works" claim without a real notification on the Motorola. Three Step 1 conditions also remain open (SSE-cookie so `/auth/me` stops returning the token, `Secure` cookie env var, CORS-proxy-only note).
+0. ⏸ **M5 Step 3 implemented (2026-10-27), awaiting review.** `pywebpush==2.5.0` + resolved transitive pins in `requirements.txt`; VAPID private key in `backend/.env` only; `push_subscriptions` table; `POST /push/subscribe`, `POST /push/unsubscribe`, `GET /push/status` (caregiver-only); `/config` serves `vapid_public_key` only when `SAHAARA_PUSH_ENABLED=true`. **Nothing sends a notification** — the send path and the `push`/`notificationclick` handlers are Step 4. Open from Step 1: SSE/WS cookie auth, `Secure` cookie env var, CORS note. Also left on the phone by the Step 2 session (owner decision): the installed WebAPK and a stale `127.0.0.1:5174` service worker.
 1. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 2. ✅ Guardrail adversarial pre-baseline saved (17/17) AND post-W2b `--verify` ran clean (no drift) — the M1 "adversarial before and after" condition is satisfied for W2b.
 3. ✅ 5-run `baseline_pre_m1.json` saved on the untouched build; W2b implemented; 5-run `baseline_post_m1_checker.json` saved (labeled "post-M1 checker").
@@ -150,6 +151,7 @@ cd backend && .venv/bin/python tests/test_wording_pools.py
 cd backend && .venv/bin/python tests/test_auth.py           # isolated temp DB (SAHAARA_DB_PATH)
 cd backend && .venv/bin/python tests/test_voice_ws_wiring.py # orb WS: stream is async generator
 cd backend && .venv/bin/python tests/test_voice_turn_taking.py # voice mic gate, Deepgram keepalive, turn pause
+cd backend && .venv/bin/python tests/test_push_subscriptions.py # 21 M5 Step 3 push-storage tests (isolated temp DB)
 
 # M3 simulated day (read-only preview; nothing persisted)
 # Requires a caregiver token when auth is enabled: POST /auth/login first.
@@ -267,7 +269,7 @@ Physical symptoms (added Oct 19):
 ## 8. Data & storage
 
 - **Profile:** `backend/memory/data/asha_profile.json` (flat JSON; keys: name, profile_id, family, life_story, likes, avoid, daily_routine, meta; `"editable": true`). Auto-migrated into SQLite on first run; edited live via `PUT /profile/{id}`.
-- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions, `users`/`auth_tokens` (M2), `scheduler_settings`/`checkin_fired_history` (M3). Path overridable with `SAHAARA_DB_PATH` (used by tests). Tracked in git and modified at runtime (repo hygiene pending — see §9).
+- **SQLite:** `backend/data/sahaara.db` — profiles, events, session_summaries, suggestions, `users`/`auth_tokens` (M2), `scheduler_settings`/`checkin_fired_history` (M3). `push_subscriptions` (M5 Step 3) is **storage only** — no code sends to it yet. Path overridable with `SAHAARA_DB_PATH` (used by tests). Tracked in git and modified at runtime (repo hygiene pending — see §9).
 - **Event log:** `backend/events/data/asha_demo_001.jsonl` (append-only JSONL + in-memory list; **6,372 events as of 2026-10-23**)
 - **State:** per-profile `ProfileSession` objects via `session_manager.py` — still in-memory, single-process, deliberate hackathon scope.
 - **Demo time compression:** 300× (5 min real → 1 sec), hardcoded `EscalationConfig(demo_mode=True, demo_multiplier=300.0)` in `session_manager.py`. Must stay demo-only, never production.
@@ -407,6 +409,7 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 | ASR | Deepgram Nova-3 | Streaming WebSocket, UtteranceEnd drives turns |
 | TTS | Cartesia (**sonic-2 pinned — sunsetted Oct 20 2026**, see §0) | Streaming WS, pcm_s16le 22050Hz mono, schema 2026-08-14 |
 | Storage | SQLite (`sahaara.db`) + JSONL event log | Flat JSON still used for the source profile |
+| Web Push | `pywebpush==2.5.0` + `py-vapid` (installed, **not called**) | M5 Step 3 stores subscriptions and serves the public VAPID key; **no send path exists, so no delivery can be claimed** |
 
 ## 13. Reference docs
 
@@ -852,3 +855,16 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **Not observed / not claimed:** the **install prompt itself** — the app is already installed; seeing it again means uninstalling the existing WebAPK (owner decision, not done). No push delivery of any kind is claimed.
 - **Left on the phone (not cleaned, owner decision):** one stale service-worker target for `http://127.0.0.1:5174/sw.js` from the earlier Step 2 session, and the WebAPK above. Both are harmless (different origins) but they are stale state.
 - **Known limitation confirmed:** `http://<LAN-IP>:4180` is not a secure context, so the shell only registers on `127.0.0.1`/`localhost` or HTTPS.
+
+### 2026-10-27 — M5 Step 3: Web Push subscription backend (storage only, nothing sent)
+- **Scope held deliberately:** this step stores subscriptions and publishes the public VAPID key. **No code path sends a notification**, no `push` handler exists in the service worker, and no subscribe UI exists — so **no delivery is claimed**.
+- **`backend/push.py` (new):** `push_enabled()` reads `SAHAARA_PUSH_ENABLED` (default OFF, only `1/true/yes/on`); `vapid_private_key_pem()` accepts the `.env` one-liner with escaped `\n` **and** real newlines; `vapid_public_key()` derives the base64url uncompressed P-256 point (87 chars) from the private key so the two can never drift; `public_push_config()` returns `{"push_enabled": …}` plus `vapid_public_key` **only when the gate is ON**. A malformed key degrades to "unconfigured" instead of raising, and never leaks into a response.
+- **`backend/push_routes.py` (new):** `POST /push/subscribe` (upsert by endpoint, https-only, 409 when the gate is OFF so a disabled server cannot quietly collect endpoints), `POST /push/unsubscribe` (idempotent 200; 404 for an endpoint that was never stored; works with the gate OFF so cleanup always succeeds), `GET /push/status` (flag, public key when enabled, active count). All three sit behind `require_caregiver`.
+- **`backend/database.py`:** idempotent `push_subscriptions` table (profile_id, endpoint UNIQUE, p256dh, auth, user_agent, created_at, updated_at, revoked) + index + `add_push_subscription` / `get_push_subscription` / `revoke_push_subscription` / `list_push_subscriptions`.
+- **`backend/main.py`:** includes the push router; `/config` now delegates to `push.public_push_config()` (the old `_push_enabled()` helper is gone). With the gate OFF the response is byte-identical to Step 2.
+- **`backend/requirements.txt`:** `pywebpush==2.5.0`, `py-vapid==1.9.6`, `http-ece==1.2.1`, `aiohttp==3.14.5` + `aiohappyeyeballs`/`aiosignal`/`attrs`/`frozenlist`/`multidict`/`propcache`/`yarl`/`six` — the versions pip actually resolved on Python 3.14.2. `pip install -r requirements.txt --dry-run` resolves cleanly.
+- **Keys:** generated once with `py_vapid`, written to `backend/.env` as `VAPID_PRIVATE_KEY` (escaped PEM on one line) + `VAPID_SUBJECT`. `.env` is **not tracked** (`.gitignore` covers `.env` / `.env.*`); `.env.example` lists the names plus the generation one-liner and no values. Derived public key length 87, curve `secp256r1`.
+- **`backend/tests/test_push_subscriptions.py` (new):** 21 checks — table columns, add/get, upsert + un-revoke, revoke semantics, per-profile scoping and ordering, flag parsing, key derivation + decoding, both key `.env` forms, malformed key, "private key never serialized", all three endpoints, https rejection, 422 on incomplete payload, 409 when disabled, 401 for anonymous calls with auth enabled, stub caregiver with auth disabled. Isolated temp DB via `SAHAARA_DB_PATH`.
+- **Live smoke (port 8020, both gates ON, auth ON):** `/config` → `push_enabled: true` + 87-char key; login 43-char token; subscribe without token → **401**; with token → `{"status":"ok","subscription_id":1,"profile_id":"asha_demo_001"}`; `/push/status` → `active_subscriptions: 1`; unsubscribe → `{"status":"ok"}`; status after → `0`; non-https endpoint → **400**. Gate OFF (port 8021): `/config` → `{"push_enabled":false}` with **no key**, subscribe → **409**, status → `vapid_public_key: null`. Smoke rows deleted from the live DB afterwards (`push_subscriptions` count back to 0).
+- **Regression:** unit_e2e 157/157 · guardrails 13/13 · offer_rate 23/23 · policy 9/9 · auth 14/14 · simulated day 16/16 · response tracking 7/7 · wording pools 44/44 · voice WS 3/3 · voice turn-taking 5/5 · **push 21/21** · guardrail baseline `--verify` → no drift · `tsc --noEmit` clean · lint 16 pre-existing warnings · `npm run build` clean · `import main` clean (30 routes).
+- **Still open (unchanged):** Step 1 conditions (SSE/WS via cookie so `/auth/me` stops returning the token; `Secure` cookie env var; CORS-is-a-no-op-while-proxied note). Step 4 = service worker `push`/`notificationclick` handlers + caregiver subscribe UI; Step 5 = the send path.

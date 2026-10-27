@@ -137,6 +137,25 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_checkin_fired_date ON checkin_fired_history(profile_id, fired_at);
     """)
     
+    # M5: Web Push subscriptions (Step 3 — storage only, nothing is sent yet).
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            user_agent TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            revoked INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_push_subscriptions_profile
+            ON push_subscriptions(profile_id, revoked);
+    """)
+    
     conn.commit()
     
     # Migrate existing JSON profile if DB is empty
@@ -489,3 +508,83 @@ def update_checkin_audio_delivery(profile_id: str, slot_id: str, delivered_audio
     )
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# M5 Step 3: Web Push subscriptions (storage only — nothing is delivered yet)
+# ---------------------------------------------------------------------------
+
+def add_push_subscription(profile_id: str, endpoint: str, p256dh: str, auth: str, user_agent: str = "") -> dict:
+    """
+    Store a browser push subscription, keyed by its endpoint.
+
+    Re-subscribing the same endpoint updates the keys and un-revokes it, so a
+    browser that re-registers does not accumulate duplicate rows.
+    """
+    now = time.time()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id FROM push_subscriptions WHERE endpoint = ?", (endpoint,)
+        ).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE push_subscriptions
+                   SET profile_id = ?, p256dh = ?, auth = ?, user_agent = ?,
+                       updated_at = ?, revoked = 0
+                   WHERE endpoint = ?""",
+                (profile_id, p256dh, auth, user_agent, now, endpoint),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO push_subscriptions
+                   (profile_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, revoked)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0)""",
+                (profile_id, endpoint, p256dh, auth, user_agent, now, now),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return get_push_subscription(endpoint) or {}
+
+
+def get_push_subscription(endpoint: str) -> Optional[dict]:
+    """Return one stored subscription (revoked or not), or None."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM push_subscriptions WHERE endpoint = ?", (endpoint,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def revoke_push_subscription(endpoint: str) -> bool:
+    """Mark a subscription revoked. Returns True when a row matched."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "UPDATE push_subscriptions SET revoked = 1, updated_at = ? WHERE endpoint = ?",
+            (time.time(), endpoint),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_push_subscriptions(profile_id: str, include_revoked: bool = False) -> list[dict]:
+    """Subscriptions for one profile, oldest first."""
+    query = "SELECT * FROM push_subscriptions WHERE profile_id = ?"
+    if not include_revoked:
+        query += " AND revoked = 0"
+    query += " ORDER BY id ASC"
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(query, (profile_id,)).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]

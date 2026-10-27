@@ -32,6 +32,8 @@ from dashboard.stream import router as stream_router, set_main_loop
 from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
 from auth_routes import router as auth_router, require_caregiver, auth_enabled
+from push_routes import router as push_router
+import push
 import scheduler
 
 logger = logging.getLogger("main")
@@ -40,6 +42,7 @@ app = FastAPI(title="Sahaara API")
 
 app.include_router(stream_router)
 app.include_router(auth_router)
+app.include_router(push_router)
 
 
 @app.on_event("startup")
@@ -121,20 +124,15 @@ def health():
     }
 
 
-def _push_enabled() -> bool:
-    """Read the M5 feature flag. Default OFF; no secrets are exposed."""
-    return os.environ.get("SAHAARA_PUSH_ENABLED", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
 @app.get("/config")
 def public_config():
-    """Public, non-secret frontend configuration."""
-    return {"push_enabled": _push_enabled()}
+    """
+    Public, non-secret frontend configuration.
+
+    `push.py` owns the gates and the keys; with the send gate OFF the public
+    VAPID key is omitted entirely and the private key is never returned.
+    """
+    return push.public_push_config()
 
 
 # Caregiver-only routes (require authentication when SAHAARA_AUTH_ENABLED=true)
