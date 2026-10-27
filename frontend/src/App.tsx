@@ -8,6 +8,7 @@ import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import SuggestedFacts from "./SuggestedFacts";
 import ProfileForm from "./ProfileForm";
+import PushButton from "./PushButton";
 import "./App.css";
 
 class ErrorBoundary extends Component<
@@ -95,12 +96,17 @@ function AppContent() {
       <header className="app-header">
         <h1>Sahaara</h1>
         <p className="app-subtitle">Consent-based AI companion for dementia care</p>
-        {authEnabled && user && (
+        {(authEnabled && user) || showCaregiverTabs ? (
           <div className="header-actions">
-            <span className="user-badge">{user.username} ({user.role})</span>
-            <button onClick={logout} className="logout-button">Logout</button>
+            {authEnabled && user && (
+              <>
+                <span className="user-badge">{user.username} ({user.role})</span>
+                <button onClick={logout} className="logout-button">Logout</button>
+              </>
+            )}
+            {showCaregiverTabs && <PushButton />}
           </div>
-        )}
+        ) : null}
       </header>
 
       {showCaregiverTabs && (

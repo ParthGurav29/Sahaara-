@@ -1,5 +1,6 @@
 import { apiFetch } from "./api";
 import { decidePwaAction, parseFlag } from "./pwaGate";
+import { revokeStoredSubscription } from "./pushAlerts";
 
 const MANIFEST_LINK_ID = "sahaara-manifest";
 const CACHE_PREFIX = "sahaara-shell-";
@@ -84,6 +85,9 @@ async function hasSahaaraWorker(): Promise<boolean> {
  */
 export async function disablePwaShell(): Promise<boolean> {
   removeManifestLink();
+  // Revoke the stored push endpoint before the worker goes away, so the server
+  // doesn't keep a row that can only ever 410 later.
+  await revokeStoredSubscription();
   const unregistered = await unregisterSahaaraWorkers();
   await clearSahaaraCaches();
   return unregistered;

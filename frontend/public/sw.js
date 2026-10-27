@@ -5,7 +5,9 @@
  * It never caches /api, /auth, /stream, or /ws requests, so caregiver data
  * and event streams always come from the network.
  *
- * Push and notification handlers are added in later M5 steps.
+ * It also renders push notifications and handles a click on them (M5 Step 4),
+ * but nothing in this file decides *whether* to notify: the server has no send
+ * path yet. No delivery can be claimed.
  */
 
 const CACHE_NAME = "sahaara-shell-v1";
@@ -100,4 +102,57 @@ self.addEventListener("fetch", (event) => {
       })(),
     );
   }
+});
+
+/* ---------------------------------------------------------------------------
+ * Push (M5 Step 4) — display only.
+ *
+ * The body is a fixed constant and the incoming payload is deliberately
+ * ignored, so no symptom wording, quoted speech, or sender-supplied text can
+ * ever reach a notification. `userVisibleOnly` is honoured: every push shows a
+ * notification. Whether to notify at all is a server decision (Step 5).
+ * ------------------------------------------------------------------------- */
+const NOTIFICATION_TITLE = "Sahaara";
+const NOTIFICATION_BODY = "Asha needs a check-in";
+const NOTIFICATION_ICON = "/icons/icon-192.png";
+const DASHBOARD_URL = "/";
+
+self.addEventListener("push", (event) => {
+  event.waitUntil(
+    self.registration.showNotification(NOTIFICATION_TITLE, {
+      body: NOTIFICATION_BODY,
+      icon: NOTIFICATION_ICON,
+      badge: NOTIFICATION_ICON,
+      tag: "sahaara-checkin",
+      data: { url: DASHBOARD_URL },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      const existing = windows.find((client) => {
+        try {
+          return new URL(client.url).origin === self.location.origin;
+        } catch {
+          return false;
+        }
+      });
+
+      if (existing && typeof existing.focus === "function") {
+        await existing.focus();
+        return;
+      }
+
+      await self.clients.openWindow(DASHBOARD_URL);
+    })(),
+  );
 });

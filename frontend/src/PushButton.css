@@ -1,0 +1,48 @@
+/* Caregiver push-alerts control (M5 Step 4). */
+
+.push-alerts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.push-alerts-button {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.push-alerts-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.push-alerts-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.push-alerts-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.push-alerts-error {
+  color: var(--tier-orange);
+}
+
+.push-alerts-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
