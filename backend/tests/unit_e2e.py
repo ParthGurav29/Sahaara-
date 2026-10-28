@@ -188,7 +188,7 @@ check("status has demo_mode", "demo_mode" in status)
 # ============================================================
 section("3. CONSENT STATE MACHINE")
 
-from safety.consent import ConsentManager, ConsentState
+from safety.consent import ConsentManager, ConsentState, ContinuationManager, ContinuationState
 
 # Accept
 mgr = ConsentManager(demo_mode=True, demo_multiplier=300.0)
@@ -261,6 +261,74 @@ mgr.reset()
 check("consent IDLE after reset", mgr.state == ConsentState.IDLE, f"got {mgr.state}")
 check("consent context cleared after reset", mgr.context is None, f"got {mgr.context}")
 check("consent timeout cleared after reset", mgr._timeout_at is None, f"got {mgr._timeout_at}")
+
+# ============================================================
+# 3b. Continuation State Machine
+# ============================================================
+section("3b. CONTINUATION STATE MACHINE")
+
+from safety.consent import ContinuationManager, ContinuationState
+
+# Ask continuation -> PENDING
+cm = ContinuationManager()
+cm.ask_continuation(
+    remaining_text="The rest of the answer about Python.",
+    topic_note="python programming",
+)
+check("continuation PENDING after ask", cm.state == ContinuationState.PENDING)
+check("continuation remaining text stored",
+      cm.get_remaining_text() == "The rest of the answer about Python.",
+      f"got: {cm.get_remaining_text()}")
+
+# Yes continues -> delivers remaining text
+cm2 = ContinuationManager()
+cm2.ask_continuation(
+    remaining_text="The rest of the answer about Python.",
+    topic_note="python programming",
+)
+result = cm2.interpret_response("Yes, please go on")
+check("continuation IDLE after 'yes'", result == ContinuationState.IDLE, f"got {result}")
+check("continuation remaining text cleared after yes",
+      cm2.get_remaining_text() is None, f"got: {cm2.get_remaining_text()}")
+
+# No drops it
+cm3 = ContinuationManager()
+cm3.ask_continuation(
+    remaining_text="The rest of the answer about Python.",
+    topic_note="python programming",
+)
+result = cm3.interpret_response("No, that's fine")
+check("continuation IDLE after 'no'", result == ContinuationState.IDLE, f"got {result}")
+check("continuation remaining text cleared after no",
+      cm3.get_remaining_text() is None, f"got: {cm3.get_remaining_text()}")
+
+# Timeout doesn't eat the next turn
+cm4 = ContinuationManager(timeout_seconds=0.1)
+cm4.ask_continuation(
+    remaining_text="The rest of the answer about Python.",
+    topic_note="python programming",
+)
+time.sleep(0.15)
+cm4.check_timeout()
+check("continuation IDLE after timeout", cm4.state == ContinuationState.IDLE, f"got {cm4.state}")
+check("continuation remaining text cleared after timeout",
+      cm4.get_remaining_text() is None, f"got: {cm4.get_remaining_text()}")
+# Next turn processed normally
+result = cm4.interpret_response("What is Python?")
+check("continuation returns IDLE for new question after timeout",
+      result == ContinuationState.IDLE, f"got {result}")
+
+# Reset clears continuation state
+cm5 = ContinuationManager()
+cm5.ask_continuation(
+    remaining_text="The rest of the answer about Python.",
+    topic_note="python programming",
+)
+check("continuation PENDING after ask", cm5.state == ContinuationState.PENDING)
+cm5.reset()
+check("continuation IDLE after reset", cm5.state == ContinuationState.IDLE, f"got {cm5.state}")
+check("continuation context cleared after reset", cm5.context is None, f"got: {cm5.context}")
+check("continuation timeout cleared after reset", cm5._timeout_at is None, f"got: {cm5._timeout_at}")
 
 # ============================================================
 # 4. Memory Box

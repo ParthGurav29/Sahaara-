@@ -19,7 +19,7 @@ from llm.provider import ProviderError, get_provider
 from llm.response_policy import build_prompt, check_response_structure
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 from safety.escalation import EscalationTier
-from safety.consent import ConsentState
+from safety.consent import ConsentState, ContinuationState
 from events.event_log import EventType, FallbackType
 from session_manager import SessionManager
 import time
@@ -268,7 +268,16 @@ def process_turn(user_message: str) -> dict:
                 tier_from=prev_tier, tier_to=s.escalation_engine.current_tier,
                 reason=latest.detail.get("reason", "unknown"), context=latest.detail.get("context", {}),
             )
-    
+
+    # ---- CONTINUATION STATE (after danger/physical-urgent check) ----
+    # If a previous answer was truncated with "Would you like me to go on?",
+    # interpret this utterance as yes/no/timeout BEFORE normal processing.
+    # Danger/physical-urgent classification already ran above, so a danger
+    # statement here would have been caught and returned as Red already.
+    continuation_response = _handle_continuation(s, user_message, intent, current_tier)
+    if continuation_response is not None:
+        return continuation_response
+
     # ---- BUILD PROMPT ----
     recent_replies = s.session_notes.get_recent_sahaara_replies(4)
     bundle = build_prompt(
@@ -285,7 +294,19 @@ def process_turn(user_message: str) -> dict:
         return {"error": f"LLM request failed: {e}"}
     
     response_text = result.text
-    
+
+    # ---- REPLY-LENGTH RULE (voice-friendly) ----
+    # If the LLM reply is long (> 4 sentences), truncate to a short lead,
+    # store the rest for continuation, and append a check-in.
+    if not intent.is_danger_statement and not intent.is_physical_urgent and not intent.is_physical_general:
+        truncated_lead, remaining_text = _truncate_for_voice(response_text)
+        if remaining_text:
+            response_text = truncated_lead + " Would you like me to go on?"
+            s.continuation_manager.ask_continuation(
+                remaining_text=remaining_text,
+                topic_note="general knowledge answer",
+            )
+
     # ---- SAFETY CHECKS ----
     # Structure check is QA-only (never gates); guardrails below are the
     # runtime gate. Turn type follows the intent so the QA score reflects
@@ -296,6 +317,8 @@ def process_turn(user_message: str) -> dict:
         _structure_turn_type = "physical_general"
     elif intent.is_danger_statement:
         _structure_turn_type = "danger"
+    elif intent.is_factual_ask:
+        _structure_turn_type = "factual"
     else:
         _structure_turn_type = "emotional"
     structure = check_response_structure(response_text, turn_type=_structure_turn_type)
@@ -345,6 +368,7 @@ def process_turn(user_message: str) -> dict:
             "guardrail_violations": guardrail.violations if not guardrail.passed else [],
             "structure_check_passed": structure.passes, "model": result.model,
             "tier": current_tier, "consent_state": s.consent_manager.state.value,
+            "continuation_state": s.continuation_manager.state.value,
         },
     }
 
@@ -373,6 +397,90 @@ def _detect_consent_request(response_text: str, tier: str, s) -> tuple | None:
                     break
             return (contact_name, relationship, match.group(0))
     return None
+
+
+def _handle_continuation(
+    s, user_message: str, intent, current_tier: str
+) -> dict | None:
+    """
+    Handle a pending continuation offer ("Would you like me to go on?").
+
+    Safety ordering: this runs AFTER danger/physical-urgent classification,
+    so a danger statement here already went to Red before we get here.
+
+    Returns a response dict if the continuation is resolved (yes/no/timeout),
+    or None if still pending (re-ask) or not applicable.
+    """
+    if s.continuation_manager.state != ContinuationState.PENDING:
+        return None
+
+    cont_result = s.continuation_manager.interpret_response(user_message)
+
+    if cont_result == ContinuationState.IDLE:
+        # User said yes/no or timed out
+        remaining = s.continuation_manager.get_remaining_text()
+        if remaining:
+            # Yes — deliver the remaining chunk through guardrails
+            guardrail = check_guardrails(remaining, s.profile)
+            if guardrail.passed:
+                response_text = remaining
+                used_fallback = False
+            else:
+                response_text = SAFE_FALLBACK_RESPONSE
+                used_fallback = True
+
+            # Log both sides of the continuation
+            s.event_log.log_conversation_turn(
+                speaker="user", text=user_message, emotion=intent.emotion
+            )
+            s.event_log.log_conversation_turn(
+                speaker="sahaara", text=response_text, emotion=intent.emotion,
+                context_trace={"continuation": True, "continuation_outcome": "continued"},
+            )
+
+            return {
+                "response": response_text,
+                "meta": {
+                    "emotion": "neutral", "is_repeated_question": False,
+                    "sustained_distress": False,
+                    "continuation_outcome": "continued",
+                    "contact_called": None,
+                    "tier": current_tier,
+                },
+            }
+        # No remaining text (shouldn't happen, but fall through safely)
+        return None
+
+    if cont_result == ContinuationState.PENDING:
+        # Unclear / topic shift → re-ask the check-in
+        return {
+            "response": "Would you like me to go on?",
+            "meta": {
+                "emotion": "neutral", "is_repeated_question": False,
+                "sustained_distress": False,
+                "continuation_pending": True,
+                "contact_called": None,
+                "tier": current_tier,
+            },
+        }
+
+    # IDLE (timeout/no) with no remaining text → fall through to normal processing
+    return None
+
+
+def _truncate_for_voice(response_text: str, max_sentences: int = 4) -> tuple[str, str | None]:
+    """
+    Split a long response into a short lead (max_sentences) + remaining text.
+    Returns (lead, remaining). If remaining is None, the text is short enough.
+    """
+    # Split into sentences (simple regex on sentence-ending punctuation)
+    sentences = re.split(r'(?<=[.!?])\s+', response_text.strip())
+    if len(sentences) <= max_sentences:
+        return response_text, None
+
+    lead = " ".join(sentences[:max_sentences]).strip()
+    remaining = " ".join(sentences[max_sentences:]).strip()
+    return lead, remaining
 
 
 def reset_pipeline() -> None:

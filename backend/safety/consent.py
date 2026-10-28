@@ -11,12 +11,175 @@ since both go through the shared conversation.py pipeline.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
 from events.event_log import EventLog, EventType, ConsentOutcome, EscalationTier
+
+# ---- Continuation state machine -----------------------------------------
+# After a long answer is truncated to 2-4 sentences with a "Would you like
+# me to go on?" check-in, the next utterance is interpreted as yes/no/
+# timeout, exactly like the consent state machine.
+
+
+class ContinuationState(str, Enum):
+    IDLE = "idle"
+    PENDING = "pending"  # Waiting for "go on" / "no" / timeout
+
+
+@dataclass
+class ContinuationContext:
+    """Details about a pending continuation offer."""
+    remaining_text: str      # The rest of the answer to deliver on "yes"
+    topic_note: str          # Brief topic note for context
+    asked_at: float
+    timeout_seconds: float
+
+
+class ContinuationManager:
+    """
+    Manages the long-answer continuation flow.
+
+    When Sahaara's answer is too long for voice (2-4 sentence limit), she
+    delivers the short version and asks "Would you like me to go on?".
+    The next user utterance is interpreted as:
+
+    - Yes ("go on", "yes", "tell me more"): deliver the next chunk
+    - No or topic change: drop it, process the new utterance normally
+    - Silence/timeout: treat as no, never consume the turn
+    """
+
+    YES_PATTERNS = [
+        r"\byes\b", r"\byeah\b", r"\byep\b", r"\byup\b", r"\byea\b",
+        r"\bgo on\b", r"\bgo ahead\b", r"\btell me more\b",
+        r"\bcontinue\b", r"\bplease\b", r"\bsure\b", r"\bok\b",
+        r"\bokay\b",
+    ]
+
+    NO_PATTERNS = [
+        r"\bno\b", r"\bnope\b", r"\bnah\b", r"\bnot\b",
+        r"\bdon'?t\b", r"\bnot now\b", r"\bmaybe later\b",
+        r"\bstop\b", r"\bthat'?s (fine|ok|okay)\b",
+        r"\bdon'?t bother\b", r"\bnever mind\b", r"\bnevermind\b",
+    ]
+
+    def __init__(
+        self,
+        event_log: Optional[EventLog] = None,
+        timeout_seconds: float = 10.0,
+    ):
+        self.event_log = event_log
+        self.timeout_seconds = timeout_seconds
+
+        self.state = ContinuationState.IDLE
+        self.context: Optional[ContinuationContext] = None
+        self._timeout_at: Optional[float] = None
+
+    def effective_timeout(self) -> float:
+        return self.timeout_seconds
+
+    def ask_continuation(
+        self,
+        remaining_text: str,
+        topic_note: str,
+    ) -> None:
+        """Start a continuation request. Call this after delivering a
+        truncated answer with "Would you like me to go on?"."""
+        now = time.time()
+        self.state = ContinuationState.PENDING
+        self.context = ContinuationContext(
+            remaining_text=remaining_text,
+            topic_note=topic_note,
+            asked_at=now,
+            timeout_seconds=self.effective_timeout(),
+        )
+        self._timeout_at = now + self.effective_timeout()
+
+    def check_timeout(self) -> bool:
+        """Check if pending continuation has timed out. Returns True if timed out."""
+        if self.state != ContinuationState.PENDING or self._timeout_at is None:
+            return False
+
+        if time.time() >= self._timeout_at:
+            self._handle_timeout()
+            return True
+        return False
+
+    def _handle_timeout(self) -> None:
+        """Handle continuation timeout - treat as implicit decline."""
+        self.state = ContinuationState.IDLE
+        self._reset_context()
+
+    def _reset_context(self) -> None:
+        """Clear continuation context after resolution."""
+        self.context = None
+        self._timeout_at = None
+
+    def interpret_response(self, user_message: str) -> ContinuationState:
+        """
+        Interpret the user's response to a pending continuation offer.
+        Returns the new continuation state.
+
+        Only call this when state == PENDING.
+        """
+        if self.state != ContinuationState.PENDING:
+            return self.state
+
+        # Check timeout first
+        if self.check_timeout():
+            return ContinuationState.IDLE
+
+        text_lower = user_message.lower().strip()
+
+        # Check yes FIRST (more specific)
+        for pattern in self.YES_PATTERNS:
+            if re.search(pattern, text_lower):
+                self.state = ContinuationState.IDLE
+                self._reset_context()
+                return ContinuationState.IDLE
+
+        # Check no / topic shift
+        for pattern in self.NO_PATTERNS:
+            if re.search(pattern, text_lower):
+                self.state = ContinuationState.IDLE
+                self._reset_context()
+                return ContinuationState.IDLE
+
+        # Ambiguous / not a clear answer - check for topic shift
+        # A short response is likely an answer; a long new question is a
+        # topic shift -> treat as no
+        if len(text_lower.split()) <= 3:
+            # Very short, likely a muted yes/no - treat as no to be safe
+            self.state = ContinuationState.IDLE
+            self._reset_context()
+            return ContinuationState.IDLE
+
+        question_words = ["where", "when", "what", "who", "why", "how", "is", "are", "do", "can"]
+        if any(text_lower.startswith(w + " ") for w in question_words):
+            # Topic shift - treat as no, but don't consume the turn
+            self.state = ContinuationState.IDLE
+            self._reset_context()
+            return ContinuationState.IDLE
+
+        # Unclear - stay pending, re-ask
+        return ContinuationState.PENDING
+
+    def get_remaining_text(self) -> Optional[str]:
+        """Get the remaining text to deliver on 'yes', or None if not pending."""
+        if self.state == ContinuationState.PENDING and self.context:
+            return self.context.remaining_text
+        return None
+
+    def reset(self) -> None:
+        """Full reset to idle."""
+        self.state = ContinuationState.IDLE
+        self._reset_context()
+
+
+# Keep ConsentManager below (unchanged)
 
 
 class ConsentState(str, Enum):

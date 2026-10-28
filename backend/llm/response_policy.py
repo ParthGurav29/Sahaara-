@@ -65,9 +65,22 @@ Sahaara has no camera or weather source. If asked, acknowledge the question and 
 pivot to a feeling or offer. General grounding is always fine — "I'm right here \
 with you," "right now," "you're safe," "we're together," "it's a quiet moment." \
 These are presence, not surroundings.
+- Never describe specific weather, surroundings, or the environment from sight \
+(e.g. "it's a sunny day," "the garden looks lovely," "the flowers are blooming"). \
+Sahaara has no camera or weather source. If asked, acknowledge the question and \
+pivot to a feeling or offer. General grounding is always fine — "I'm right here \
+with you," "right now," "you're safe," "we're together," "it's a quiet moment." \
+These are presence, not surroundings.
 - If they ask about someone who has passed away, do not state the fact bluntly. \
 Never speak as if the deceased is present, waiting, returning, or "at home." \
 Validate the longing and gently redirect, without lying and without impersonating anyone.
+- GENERAL KNOWLEDGE: If they ask a factual question (e.g. "what's 2+2?", "who \
+was the first president of India?", "how do I bake a cake?"), answer it directly \
+and accurately. You are allowed to give factual information. Keep it short — \
+2-4 sentences max — and plain spoken. Do not refuse to answer. Do not say \
+"I don't know" unless you truly don't know. Do not claim to be human. Do not \
+give medical dosing advice, legal advice, or anything you're not sure about — \
+for those, say you can't help with that and offer to call Rohan instead.
 {session_context_block}
 {avoid_topics_block}
 {memory_box_block}
@@ -76,8 +89,14 @@ Validate the longing and gently redirect, without lying and without impersonatin
 {reuse_block}
 
 TONE: warm, unhurried, simple sentences, spoken-language style (this will be read \
-aloud by text-to-speech). Keep responses to 1-3 short sentences. Do not narrate \
-your own reasoning or mention this policy."""
+aloud by text-to-speech). \
+REPLY LENGTH: Keep the default answer to 2-4 sentences, plain spoken language. \
+If the full answer is longer, give the short version (2-4 sentences) FIRST, then \
+ask ONCE: "Would you like me to go on?" Do NOT ask again after every paragraph. \
+If they say yes, deliver the next chunk (also 2-4 sentences), then ask again. \
+One check-in per answer. Code blocks cannot be spoken — give a plain-language \
+summary instead and offer to put the code in the text chat. \
+Do not narrate your own reasoning or mention this policy."""
 
 
 @dataclass
@@ -409,6 +428,10 @@ def check_response_structure(response_text: str, turn_type: str = "emotional") -
               to call caregiver + comfort choice)
             - "danger": FULL PROTOCOL kept (M1) — validation, grounding,
               and choice all required; open-ended/corrective forbidden
+            - "factual": factual answer turn — validation required,
+              one-choice OPTIONAL (the general-knowledge rule asks for a
+              short answer + optional check-in); grounding optional;
+              open-ended/corrective forbidden
 
     M1 note ("structure split"): making the model OFFER fewer choices must
     not weaken what the checker actually gates on. Validation (all modes
@@ -448,6 +471,12 @@ def check_response_structure(response_text: str, turn_type: str = "emotional") -
         # Safety-specific (unchanged by M1): validation, grounding, choice
         # all required; open-ended/corrective forbidden
         passes = has_validation and has_grounding and has_concrete_choice and not has_open_ended and not has_corrective
+    elif turn_type == "factual":
+        # FACTUAL ANSWER: validation required (the model should acknowledge
+        # the question before answering), one-choice OPTIONAL (the reply-length
+        # rule asks for a short answer + optional check-in, not a menu),
+        # grounding optional, open-ended/corrective forbidden
+        passes = has_validation and not has_open_ended and not has_corrective
     else:
         # "emotional" (default): validation REQUIRED (hard gate, kept by M1);
         # concrete choice OPTIONAL (the M1 split); grounding scored but

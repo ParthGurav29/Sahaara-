@@ -131,6 +131,7 @@ Direct instructions from the project owner — they override convenience:
 8. **M1 sequencing — owner decision (2026-10-23), verbatim:** *"Do W2b now (structure split, offer rate separate, hard gates for validation and no-invented-facts, thresholds fixed), after saving the baseline on the current build. Hold W2c until real caregiver exchanges are provided. The Liz Ayre doc may be used as background only, labeled as such, and not as the style reference or ground truth. No fabricated examples. Report W2b with the full 5-run table and 5-6 untruncated replies, then wait."*
    - W1 starter scope (owner): 6–8 exchanges from one caregiver/family member covering the 4 demo scenes (missing Priya, asking for Vikram, repeating a question, an anxious evening) — *"what they'd really say, not what sounds correct"*; recording + transcription is fine; **owner safety-reviews before any of it enters the prompt**. If exchanges aren't in when W2b finishes, run a small W2c on 6–8 and extend later — don't wait for the full 15–20.
 9. **M5 is Android-only.** iOS is out of scope; do not add iOS setup, tests, or support claims unless the owner explicitly reopens it.
+10. **General-knowledge Q&A (owner decision, 2026-10-28):** Sahaara should answer general-knowledge questions factually (like ChatGPT) instead of deflecting. Option A — answer like ChatGPT with voice constraints: 2-4 sentence default, short version first + "Would you like me to go on?" check-in, one check-in per answer, plain-language summary for code (can't be spoken), guardrails stay on (no diagnosis, no dosing, no claiming to be human, no live facts like weather/news without a real source).
 
 ## 2. What this product is
 
@@ -1056,9 +1057,6 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 
 **Timeout duration:** Demo mode = 30s / 300x multiplier = 0.1s wall-clock. Very short on slow phones — consider increasing if testers hit it constantly.
 
-**Regression:** unit_e2e **167/167** (+6 new consent tests), test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
-- **Mobile test path:** not yet run on device — owner to verify via `adb reverse tcp:8000 tcp:8000` + Profile tab on the phone.
-
 ### 2026-10-28 — Tunnel SSE buffering resolved: dashboard live updates now use WebSocket
 **Why:** Cloudflare Quick Tunnel buffers SSE response bodies (headers 200, body 0 bytes in 12 s), so `/stream/events` never delivered live events over the tunnel. WebSocket frames pass through the tunnel, and the backend already had a `/stream/ws/events` endpoint.
 - **`frontend/src/api.ts`:** added `openWebSocket(path)` — opens `new WebSocket(apiUrl(path))`, same-origin so the session cookie is sent automatically; routes through the Vite `/api` proxy (`ws: true`).
@@ -1096,7 +1094,7 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **`backend/session_manager.py`:** Added `reload_profile(profile_id)` method that forces a re-read of the profile from SQLite and rebuilds the `ProfileSession`. Extracted shared `_build_session(profile_id)` helper used by both `get()` and `reload_profile()`.
 - **`backend/main.py`:** `PUT /profile/{profile_id}` now calls `conversation._session_manager.reload_profile(profile_id)` after saving, so caregiver profile edits take effect immediately without a server restart.
 
-**Not fixed:** general-knowledge questions (e.g., "what's 2+2") — the model answers with its own unrelated response instead. This is a prompt/behavior issue, not a simple code fix. The model needs to answer general knowledge like ChatGPT (within safety bounds). Needs owner direction on how to handle.
+**Not fixed:** general-knowledge questions (e.g., "what's 2+2") — the model answers with its own unrelated response instead. **OWNER DECISION (2026-10-28):** Build general-knowledge Q&A (Option A — answer like ChatGPT). See §1 standing rules for the decision record. Implementation in progress.
 
 **Regression:** unit_e2e **157/157**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**.
 
@@ -1109,4 +1107,18 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 
 **Timeout duration:** Demo mode = 30s / 300x multiplier = 0.1s wall-clock. Very short on slow phones — consider increasing if testers hit it constantly.
 
-**Regression:** unit_e2e **167/167** (+6 new consent tests), test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
+### 2026-10-28 — General-knowledge Q&A (Option A — answer like ChatGPT)
+**Owner decision (2026-10-28):** Sahaara should answer general-knowledge questions factually (like ChatGPT) instead of deflecting. Recorded in §1 standing rules. Implemented as its own item (W2c-adjacent), not batched with anything else, with changelog entry.
+
+- **`backend/llm/response_policy.py`:** Added general-knowledge block to SYSTEM_PROMPT_TEMPLATE — model answers factual/coding/explain questions directly and accurately, 2-4 sentences max, plain spoken. Added reply-length rule: short version first, then "Would you like me to go on?" check-in, one check-in per answer, plain-language summary for code (can't be spoken). Added "factual" turn_type to `check_response_structure()` — validation required, one-choice OPTIONAL, grounding optional, open-ended/corrective forbidden.
+- **`backend/safety/consent.py`:** Added `ContinuationManager` state machine (IDLE/PENDING) with yes/no/timeout interpretation. Timeout = 10s real time (not demo-compressed — voice needs a real wait). Timeout treats as no, never consumes the turn.
+- **`backend/session_manager.py`:** Added `continuation_manager: ContinuationManager` to ProfileSession dataclass, created in `_build_session()`, reset in `reset()`.
+- **`backend/conversation.py`:**
+  - Continuation check runs AFTER danger/physical-urgent classification (safety ordering — danger always reaches Red first).
+  - Yes → deliver remaining chunk through guardrails; No/timeout → fall through to normal processing; unclear → re-ask the check-in.
+  - After LLM call: if reply > 4 sentences, truncate to lead + store remaining in continuation_manager + append "Would you like me to go on?"
+  - Every chunk (including continuation chunks) goes through `check_guardrails()` separately.
+  - Voice vs text: voice gets 2-4 sentence summary + check-in; text can be longer but same short-first rule applies.
+- **`backend/tests/unit_e2e.py`:** +7 continuation tests (yes continues, no drops it, timeout doesn't eat next turn, reset clears state, remaining text stored/cleared correctly).
+
+**Regression:** unit_e2e **180 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.

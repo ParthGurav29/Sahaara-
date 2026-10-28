@@ -21,7 +21,7 @@ from memory.session_notes import SessionNotes
 from memory.suggestions import SuggestionQueue, detect_suggestions
 from memory.summarizer import generate_summary_from_events, build_session_context_block
 from safety.escalation import EscalationEngine, EscalationConfig
-from safety.consent import ConsentManager
+from safety.consent import ConsentManager, ContinuationManager
 from dashboard.alerts import AlertBuilder, AlertStore
 from events.event_log import EventLog, init_event_log
 import database
@@ -40,6 +40,7 @@ class ProfileSession:
     alert_store: AlertStore
     alert_builder: AlertBuilder
     suggestion_queue: SuggestionQueue
+    continuation_manager: ContinuationManager
     session_context_block: str = ""
     _last_sahaara_prompt_time: float = 0.0
     _unresponsive_enabled: bool = False
@@ -115,6 +116,10 @@ class SessionManager:
             demo_mode=True, demo_multiplier=300.0,
         )
         
+        continuation_manager = ContinuationManager(
+            event_log=event_log, timeout_seconds=10.0,
+        )
+        
         alert_store = AlertStore()
         alert_builder = AlertBuilder(event_log, profile, alert_store=alert_store)
         
@@ -128,6 +133,7 @@ class SessionManager:
             event_log=event_log,
             escalation_engine=escalation_engine,
             consent_manager=consent_manager,
+            continuation_manager=continuation_manager,
             alert_store=alert_store,
             alert_builder=alert_builder,
             suggestion_queue=suggestion_queue,
@@ -169,6 +175,7 @@ class SessionManager:
         session.session_notes.reset()
         session.escalation_engine.reset()
         session.consent_manager.reset()
+        session.continuation_manager.reset()
         session.memory_box.reset()
         session.alert_store.clear()
         session.suggestion_queue.clear()
