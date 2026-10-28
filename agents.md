@@ -122,7 +122,7 @@
 | Avatar A8 | Mascot redesign (visual only) | ✅ **Done 2026-10-28** (`7cb01dd`) — porcelain sphere in jade leaves, matched to the owner's reference; CSS-only motion, tier-calmer, still on `error`; audio/WS/mic **zero diff**. Awaiting owner's visual sign-off. |
 | Avatar A9 | Mouth lip-syncs to the TTS | ✅ **Done 2026-10-28 (this change)** — `mouthShape.ts` + analyser FFT; jaw = playback RMS, width = spectral brightness; calibrated on real Cartesia audio; speaking-only gate, tier-scaled, reduced-motion freeze. Awaiting owner review. |
 | M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED + all 3 conditions done (`a54b8dc`) · Step 2 committed + device-verified (`5cd6994`) · Step 3 committed (`e88baf4`) · Step 4 committed (`f8eb63c`, header fix `dc561ef`) + device-verified incl. the shade text · Step 5 send path committed (`efca9d0`) + hardened (`f007772`) · Step 6 dashboard push record committed (`5d995f5`) · Step 7 tap-to-alert committed (`5805587`) + device-verified · Step 8a consent-accepted wording implemented (`87a1d58`) · Step 8 device matrix completed (2026-10-28): push accepted by FCM on both in-browser tab and installed WebAPK, but **notification not displayed** on Motorola Edge 70 Fusion (Android 17, Chrome 155) without `--disable-features=QuietNotificationPrompts` debugging flag — this is a Chrome quiet-notification heuristic, not an app bug.** Step 4 = `pushAlerts.ts`/`pushSupport.ts` + header `PushButton` (six states) + SW `push` handler with a **fixed** body ("Asha needs a check-in", payload ignored, tag `sahaara-checkin`, no symptom words, no quotes) + unsubscribe on shell teardown. **Step 5 = `backend/push_notify.py`**: upward tier moves only, `pywebpush` constant payload `{"v":1,"type":"caregiver_alert","alert_id":…}` on a daemon thread, persisted per-tier cooldown (Yellow 1800 / Orange 600 / Red 120; escalation always sends), TTL 3600, 404/1410 revoke, `ALERT_SENT` with per-subscription results and no endpoint ever logged. **Step 7 = tap opens the alert** (`notification.data.url` → `/?alert=<id>` → panel with context). **Delivery evidence now exists for ONE setup with debugging flags:** installed WebAPK on the Motorola (Android 17, Chrome 155) showed title `Sahaara` / body `Asha needs a check-in` at +1 s with `--disable-features=QuietNotificationPrompts`. **Without debugging flags:** push accepted by FCM but notification not displayed — Chrome's quiet-notification heuristics. **Still not claimed:** reliability across OEMs, locked-screen/Doze timing, or notifications in a normal (non-installed) tab — those are Step 8. Android Chrome only; iOS excluded. |
-| UI | Companion/caregiver split | 🔨 **Step 1 spec committed 2026-10-29** — `docs/ui_split_spec.md`; no feature code. Step 2 waits for the owner's "go". |
+| UI | Companion/caregiver split | ✅ **Step 1 spec `cf572ff` + Step 2 committed `5187842`** — `/companion` (no login, avatar + clock + caption), `/caregiver` (login), `/?demo=split` (hidden), whitelisted companion channel `/stream/ws/companion` (5 kinds, forbidden keys reject), caregiver stream role gate (person 403). Verified: 73/73 companion tests, 189/189 unit, 85/85 test:pwa, tsc/lint clean, guardrail no drift. Step 3 next. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
 **Blockers:**
@@ -143,7 +143,7 @@
 - **`sonic-latest` is a DEPRECATED ALIAS → `sonic-preview`** (beta, *"not intended for production usage"*). Never pin it. Recommended migration target: **`sonic-3.6-2026-08-27`** (dated snapshot, never changes).
 - **Blind A/B kit ready:** `backend/voice/assets/ab_test/` — 6 Sahaara-register replies × 3 models, 18 WAVs, per-sample shuffled A/B/C labels. Keys in `AB_KEY.txt` / `AB_KEY.json` — **do not open until listeners have rated.** If sonic-latest (or 3.6) wins → regenerate ALL fillers together, pin the fixed version, re-run `tests/analyze_voice_timing`.
 
-**UI split track (separate from M1/W2c):** Step 1 (recon + spec) is committed in `docs/ui_split_spec.md` on 2026-10-29. It is **not** a feature step; no route, backend, or profile code changed. **Step 2 is HELD** until the owner reviews Step 1 and says "go". Owner decisions D1-D4 are recorded in §10 of the spec (recommended defaults: open companion documented + `adb reverse`, role check on `/stream/*`, split demo behind login, local-only named songs).
+**UI split track (separate from M1/W2c):** Step 1 (recon + spec, `cf572ff`) and **Step 2 (route split + companion channel, `5187842`)** committed on 2026-10-29. Routes: `/companion` (no login), `/caregiver` + `/` (login), `/?demo=split` (hidden, caregiver-gated). Companion channel `/stream/ws/companion` is whitelist-only (5 kinds, forbidden keys reject). Caregiver stream `/stream/*` now has role check (`person` → 403). Verified: 73/73 companion tests, 189/189 unit, 85/85 test:pwa, tsc/lint clean, guardrail no drift. **Step 3 (caregiver reorganisation) next.**
 
 **Next action (in order):**
 0. 🟡 **A9 live lip-sync — WAITING ON OWNER REVIEW (2026-10-28).** The mouth now follows the TTS playback (A8's loop is gone). Screenshots + measured traces were reported; nothing further is being changed on the avatar until the owner reviews. A8's look is still awaiting visual sign-off (eyes → leaves → bowl are the parts to name if something is off).
@@ -155,6 +155,7 @@
 4. ⏸ **WAITING ON OWNER REVIEW of M3 (Steps 1-8 complete).** Demo: `cd backend && SAHAARA_PROACTIVE_V2=true .venv/bin/python -m uvicorn main:app --port 8010`, log in (caregiver / demo123), then `POST /auth/scheduler/simulate-day` with `{}` (or `{"include_history": true}` to see today's dedupe). Nothing is persisted by the preview.
 5. ⏸ **WAITING ON OWNER REVIEW of W2b** (table + untruncated replies reported). On approval: W2c only after owner provides caregiver exchanges (template at `docs/w1_caregiver_exchanges.json`; 6–8 to start) → W3 full adversarial re-run → W4b → W5 (metrics + blind naturalness). One at a time, never batched.
 6. ⏸ Owner listens to the A/B; on decision, migrate TTS + regenerate fillers + re-run the voice timing analyzer.
+7. ⏸ **UI split Step 3: Caregiver reorganisation.** Daily Summary stays caregiver-only. Rename "Suggested Facts" → "Review" inbox with count badge next to alert bell. Explainer: *"While chatting, Sahaara notices things about Asha... Nothing is added until you approve it."* Empty state: *"Nothing to review right now."* Approve/reject unchanged. Badge from `GET /suggestions`, refresh on mount + every 30s. Gates: tsc, lint, unit_e2e, test:pwa, manual no-companion-data leak.
 
 ---
 
@@ -1461,3 +1462,24 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **No production code, prompt, checker, guardrail, harness or test file changed.** No test suite was run for this docs-only step; the last verified baselines are `unit_e2e` **189/189**, `tsc -b` clean, lint **9 warnings**, `test:pwa` **65/65**, `guardrail_baseline --verify` no drift.
 - **Step 2 is HELD** until the owner reviews Step 1 and says "go". Decisions D1-D4 are listed in the spec §10 (recommended: open companion documented + `adb reverse`; role check on `/stream/*`; split demo behind login; local-only named songs).
 - **Not claimed:** no route, channel, strip, profile schema or bug fix exists yet — this commit is the spec only.
+
+### 2026-10-29 — UI split Step 2: route split + companion channel (commit `5187842`)
+**Why:** implement the route/role model and the privacy-by-construction companion channel specified in Step 1.
+- **Routes:** `/companion` (no login, full-screen avatar + real clock + live caption), `/caregiver` + `/` (caregiver login required, single-column dashboard), `/?demo=split` (hidden side-by-side, caregiver-gated, no nav link).
+- **Backend:**
+  - `backend/dashboard/companion.py` + `/stream/ws/companion` — whitelisted WebSocket channel. Only 5 kinds: `caption` (Sahaara turns only), `now_playing` (successful song/radio action), `reminder_countdown` (pending one-time reminders), `next_routine` (profile meals/wake/sleep), `clock` (server snapshot). Forbidden keys: `tier`, `alert`, `consent`, `danger`, `symptom`, `emotion`, `severity`, `distress`, `repeat`, `fallback`, `physical`, `diagnos`. Unknown kinds refused; any forbidden key rejects the whole payload.
+  - `backend/dashboard/stream.py` — added `role == "caregiver"` check to `/stream/events` and `/stream/ws/events`; `person` token → 403; auth-off stays open.
+  - `backend/main.py` — mounts companion router; `VITE_DEV_API_TARGET` env var for the dev proxy target (replaces hardcoded `127.0.0.1:8000`).
+  - `backend/tests/test_companion_stream.py` — 73 tests: all 18 `EventType`s fed with hostile details, only allowed mappings survive; snapshot omits missing data; caregiver-stream role gate (caregiver 200, person 403, auth-off open).
+- **Frontend:**
+  - `route.ts`/`useRoute.ts` (~40 lines, no router dep), `CompanionView.tsx`/`CompanionView.css`, `companionChannel.ts`/`useCompanionChannel.ts`, `ErrorBoundary.tsx`.
+  - Companion mounts **no `AuthProvider`**, opens **no `/auth/*`, `/escalation/*`, `/alerts`, `/daily-summary`, `/suggestions`, `/profile`, or caregiver-stream request**.
+- **Verified:**
+  - `tests/test_companion_stream.py` **73/73** ✓
+  - `unit_e2e.py` **189/189** ✓
+  - `tsc -b` clean ✓
+  - `lint` **9 warnings (baseline)** ✓
+  - `test:pwa` **85/85** (route, parser, companion import guard) ✓
+  - `guardrail_baseline.py --verify tests/baseline_guardrails_pre.json` → **no drift** ✓
+  - Manual: `/companion` devtools network shows **zero `/api/*` requests on load**; only WebSocket is `/api/stream/ws/companion` (plus Vite HMR socket with its own `?token=` — not an app session).
+- **Not claimed:** no phone run of `/companion`, no iOS work, no live mic test. Full companion **activity strip** is Step 6; Step 2 ships avatar, clock, and caption only.
