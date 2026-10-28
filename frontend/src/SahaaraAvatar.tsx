@@ -9,11 +9,12 @@
  *  - Abstract only. Never a person, never a likeness of Priya/Rohan/Vikram.
  *  - Escalation makes it CALMER, never alarming: higher tiers slow the motion,
  *    dim the glow and shrink the mouth. No urgent colours, shaking or flashing.
- *  - Output-only. No camera, no face tracking, no lip-sync tooling.
+ *  - Output-only. No camera, no face tracking, no ML/video lip-sync. The
+ *    mouth only ever follows the app's own TTS playback (A9).
  *  - `prefers-reduced-motion` is respected; animation pauses on a hidden tab.
  */
-import { useEffect, useRef } from "react";
-import { useVoiceLevel, useVoiceState } from "./VoiceStateContext";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { useVoiceMouth, useVoiceState } from "./VoiceStateContext";
 import { useVoiceSession, type VoiceSessionState } from "./useVoiceSession";
 import OrbCharacter from "./OrbCharacter";
 import "./SahaaraAvatar.css";
@@ -62,13 +63,15 @@ const STATE_LABEL: Record<AvatarState, string> = {
 // "connection lost" would send someone after the wrong problem.
 const MIC_LABEL = "Microphone unavailable — tap to retry";
 
-// Mouth geometry is owned by OrbCharacter (two nested groups: the calm loop and
-// the real amplitude). This shell only publishes the tier + state variables.
+// Mouth geometry is owned by OrbCharacter; this shell publishes the numbers the
+// voice session measured (open/wide) as CSS custom properties.
 
 export interface AvatarVisualProps {
   state: AvatarState;
-  /** 0–1 playback amplitude. 0 while silent. */
+  /** 0–1 jaw opening from the playback envelope. 0 while silent. */
   level?: number;
+  /** 0–1 mouth width from the spectral brightness. */
+  wide?: number;
   tier?: AvatarTier;
   /** Rendered width in CSS px (the SVG stays square and scales). */
   size?: number;
@@ -82,24 +85,35 @@ export interface AvatarVisualProps {
  * shell, the CSS custom properties and the two runtime switches (hidden tab,
  * reduced motion) that CSS cannot observe on its own.
  */
-export function AvatarVisual({ state, level = 0, tier = "green", size = 130 }: AvatarVisualProps) {
+export function AvatarVisual({
+  state,
+  level = 0,
+  wide = 0,
+  tier = "green",
+  size = 130,
+}: AvatarVisualProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
   const animSpeed = TIER_SPEED[tier];
   const glowOpacity = TIER_GLOW[tier];
   const mouthScale = TIER_MOUTH[tier];
 
-  // Apply CSS custom properties for the animations.
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
+  // A mouth can only be open while she is speaking. Stale values from a
+  // finished turn (or a second avatar on the preview page) must never leave a
+  // face frozen mid-syllable in idle.
+  const speaking = state === "speaking";
+  const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-    const root = svg.style;
-    root.setProperty("--orb-color", STATE_COLOR[state]);
-    root.setProperty("--anim-speed", String(animSpeed));
-    root.setProperty("--glow-opacity", String(glowOpacity));
-    root.setProperty("--mouth-scale", String(mouthScale));
-  }, [state, animSpeed, glowOpacity, mouthScale]);
+  // Inline rather than set in an effect: the mouth values change every frame
+  // while she speaks, and an effect would paint one frame late.
+  const vars = {
+    "--orb-color": STATE_COLOR[state],
+    "--anim-speed": String(animSpeed),
+    "--glow-opacity": String(glowOpacity),
+    "--mouth-scale": String(mouthScale),
+    "--mouth-open": String(speaking ? clamp01(level) : 0),
+    "--mouth-wide": String(speaking ? clamp01(wide) : 0),
+  } as CSSProperties;
 
   // Visibility pause (tab hidden). `animation-play-state` does not inherit, so
   // the class has to sit on the SVG and the CSS rule must target its children.
@@ -122,11 +136,11 @@ export function AvatarVisual({ state, level = 0, tier = "green", size = 130 }: A
       viewBox="0 0 400 400"
       width={size}
       height={size}
-      style={{ width: "100%", maxWidth: size, height: "auto" }}
+      style={{ width: "100%", maxWidth: size, height: "auto", ...vars }}
       aria-hidden="true"
       focusable="false"
     >
-      <OrbCharacter state={state} level={level} />
+      <OrbCharacter state={state} />
     </svg>
   );
 }
@@ -140,7 +154,7 @@ export function AvatarVisual({ state, level = 0, tier = "green", size = 130 }: A
 export default function SahaaraAvatar() {
   const { state, isActive, toggle, initiativePrompt, dismissInitiative, errorKind, audioRef } =
     useVoiceSession();
-  const level = useVoiceLevel();
+  const mouth = useVoiceMouth();
   const { tier } = useVoiceState();
 
   const label = state === "error" && errorKind === "microphone" ? MIC_LABEL : STATE_LABEL[state];
@@ -161,7 +175,13 @@ export default function SahaaraAvatar() {
         aria-pressed={isActive}
         aria-label={isActive ? "Stop talking with Sahaara" : "Start talking with Sahaara"}
       >
-        <AvatarVisual state={state} level={level} tier={tier} size={168} />
+        <AvatarVisual
+          state={state}
+          level={mouth.open}
+          wide={mouth.wide}
+          tier={tier}
+          size={168}
+        />
       </button>
 
       <p className="sahaara-avatar__label" role="status" aria-live="polite">

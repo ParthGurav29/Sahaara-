@@ -26,8 +26,6 @@ import "./OrbCharacter.css";
 export interface OrbCharacterProps {
   /** Mirrors the SVG's data-state; used as a root marker for CSS + tests. */
   state: "idle" | "listening" | "thinking" | "speaking" | "error";
-  /** 0–1 real playback amplitude. Adds a little openness to the mouth. */
-  level?: number;
 }
 
 /* Long, slender petals. Written out for the left side and mirrored by hand so
@@ -43,18 +41,13 @@ const BOWL = "M 86 232 C 114 360 286 360 314 232 C 286 296 114 296 86 232 Z";
 const BOWL_RIM = "M 94 240 C 128 290 272 290 306 240";
 const BOWL_INNER_SHADOW = "M 98 248 C 130 298 270 298 302 248";
 
-export default function OrbCharacter({ state, level = 0 }: OrbCharacterProps) {
+export default function OrbCharacter({ state }: OrbCharacterProps) {
   // Gradients live in <defs> and are referenced by URL. Two avatars on one page
   // (the dev preview renders many) would otherwise share the first instance's
   // gradient and inherit its state colour, so every id is namespaced.
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const id = (name: string) => `oc-${uid}-${name}`;
   const fill = (name: string) => `url(#${id(name)})`;
-
-  const clamped = Math.max(0, Math.min(1, level));
-  // Amplitude only adds a little openness on top of the gentle speaking loop;
-  // at silence the face is exactly the reference smile.
-  const mouthLevel = 1 + clamped * 0.35;
 
   return (
     <g className="oc-root" data-state={state}>
@@ -200,21 +193,26 @@ export default function OrbCharacter({ state, level = 0 }: OrbCharacterProps) {
           <circle cx="260" cy="204" r="22" fill="#F6C4B0" fillOpacity="0.46" />
         </g>
 
-        {/* Two nested groups so the gentle speaking loop and the real
-            amplitude never fight over one transform. */}
-        <g className="oc-mouth-swing">
-          <g
-            className="oc-mouth-level"
-            style={{ transform: `scaleY(${mouthLevel})`, transformOrigin: "200px 214px" }}
-          >
-            <path
-              d="M 181 213 Q 200 224 219 213"
-              fill="none"
-              stroke="#8A6F57"
-              strokeWidth="4.5"
-              strokeLinecap="round"
-            />
-          </g>
+        {/* Mouth. The smile is the upper lip and never moves; the opening
+            behind it is driven live by the TTS signal, so the mouth is the
+            audio rather than a decorative loop:
+              --mouth-open  depth of the jaw drop (0 = smile only)
+              --mouth-wide  corner movement from the spectral brightness
+            Both are written onto the <svg> by SahaaraAvatar, scaled by the
+            tier's --mouth-scale so a calmer tier moves less. */}
+        <g className="oc-mouth">
+          <path
+            className="oc-mouth-open"
+            d="M 181 214 Q 200 224 219 214 Q 200 262 181 214 Z"
+            fill="#6B4A38"
+          />
+          <path
+            d="M 181 213 Q 200 224 219 213"
+            fill="none"
+            stroke="#8A6F57"
+            strokeWidth="4.5"
+            strokeLinecap="round"
+          />
         </g>
       </g>
 

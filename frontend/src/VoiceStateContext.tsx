@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { SILENT_MOUTH, type MouthShape } from "./mouthShape";
 
 // The voice visual that used to be the orb is now the avatar; the state names
 // are unchanged so the backend protocol (`{"type":"state","state":"…"}`) needs
@@ -13,9 +14,9 @@ import {
 export type VoiceStateName = "idle" | "listening" | "thinking" | "speaking" | "error";
 export type AvatarTier = "green" | "yellow" | "orange" | "red";
 
-// Three separate contexts on purpose. `level` changes on every animation frame
-// while Sahaara speaks, so bundling it with the state would re-render every
-// consumer (the whole caregiver dashboard) ~60 times a second. Actions are
+// Three separate contexts on purpose. `mouth` changes on almost every animation
+// frame while Sahaara speaks, so bundling it with the state would re-render
+// every consumer (the whole caregiver dashboard) ~60 times a second. Actions are
 // stable for the provider's lifetime and therefore never re-render anyone.
 interface VoiceSnapshot {
   state: VoiceStateName;
@@ -27,18 +28,18 @@ interface VoiceActions {
   setState: (state: VoiceStateName) => void;
   setIsActive: (active: boolean) => void;
   setTier: (tier: AvatarTier) => void;
-  setLevel: (level: number) => void;
+  setMouth: (mouth: MouthShape) => void;
 }
 
 const VoiceStateContext = createContext<VoiceSnapshot | null>(null);
-const VoiceLevelContext = createContext<number>(0);
+const VoiceMouthContext = createContext<MouthShape>(SILENT_MOUTH);
 const VoiceActionsContext = createContext<VoiceActions | null>(null);
 
 export function VoiceStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<VoiceStateName>("idle");
   const [isActive, setIsActive] = useState(false);
   const [tier, setTier] = useState<AvatarTier>("green");
-  const [level, setLevel] = useState(0);
+  const [mouth, setMouth] = useState<MouthShape>(SILENT_MOUTH);
 
   const snapshot = useMemo<VoiceSnapshot>(
     () => ({ state, isActive, tier }),
@@ -46,16 +47,16 @@ export function VoiceStateProvider({ children }: { children: ReactNode }) {
   );
 
   const actions = useMemo<VoiceActions>(
-    () => ({ setState, setIsActive, setTier, setLevel }),
+    () => ({ setState, setIsActive, setTier, setMouth }),
     [],
   );
 
   return (
     <VoiceActionsContext.Provider value={actions}>
       <VoiceStateContext.Provider value={snapshot}>
-        <VoiceLevelContext.Provider value={level}>
+        <VoiceMouthContext.Provider value={mouth}>
           {children}
-        </VoiceLevelContext.Provider>
+        </VoiceMouthContext.Provider>
       </VoiceStateContext.Provider>
     </VoiceActionsContext.Provider>
   );
@@ -70,9 +71,9 @@ export function useVoiceActions(): VoiceActions {
   return context;
 }
 
-/** Playback amplitude, 0–1. Updates every frame while audio plays. */
-export function useVoiceLevel(): number {
-  return useContext(VoiceLevelContext);
+/** Live mouth shape from the TTS playback. Updates on almost every frame. */
+export function useVoiceMouth(): MouthShape {
+  return useContext(VoiceMouthContext);
 }
 
 /** State + tier. Changes only when Sahaara's state or the tier actually moves. */

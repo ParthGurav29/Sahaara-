@@ -290,6 +290,112 @@ The character's own palette never changes; only the halo takes state colour.
 
 ---
 
+## A9 — the mouth lip-syncs to the TTS (2026-10-28)
+
+A8's mouth was a decorative 0.85 s open/close loop plus a small amplitude lift.
+The mouth is now a **readout of the audio actually playing**: no loop, no
+timeline animation, no second animation driver.
+
+### Signal
+
+The `AnalyserNode` already sits on the TTS playback path
+(`source → analyser → destination`) for the speaking glow. It now feeds two
+values per frame:
+
+| Value | Source | Meaning |
+|---|---|---|
+| `open` | time-domain RMS of the 1024-sample window | jaw drop |
+| `wide` | `1800–5000 Hz` vs `120–900 Hz` energy | corner spread — an "ee" is wider than an "oo" |
+
+Loudness has to stay time-domain: two earlier frequency-domain attempts capped
+the opening at ~6% of its range (see the A6 note). Only the *shape* is spectral.
+
+`wide` uses the mean of the **four strongest bins** in each band, not the RMS of
+the band. A band RMS divides by bandwidth, and the high band is four times wider
+than the low one, so every vowel measured "dark" and the width never moved.
+
+### Calibration (real Cartesia TTS, not a tone)
+
+Two rendered replies (`voice/assets/ab_test/01_A.wav`, `03_A.wav`), 183 voiced
+frames each, through the same 48 kHz analyser configuration:
+
+| | p05 | p50 | p90/p95 | max |
+|---|---|---|---|---|
+| RMS | — | 0.118–0.137 | 0.284–0.343 | — |
+| `open` | 0.11–0.16 | 0.65–0.72 | 1.00 | 1.00 |
+| brightness (high/(low+high)) | 0.25–0.29 | 0.38–0.40 | 0.53–0.55 | — |
+| `wide` | 0.00–0.04 | 0.21–0.29 | 0.54–0.59 | 0.83 |
+
+Mapping constants come from that table: `MOUTH_LEVEL_GAIN 5`, brightness floor
+**0.27**, ceiling **0.52** (the first attempt used 0.22–0.62 and the width barely
+moved — the band has to sit inside the *speech* range, not a generic 0–1 range).
+`open = clamp01(rms × 5)^0.85`, gated by a 0.04 noise floor; `wide = width × open`,
+so a shut mouth can never carry width.
+
+Smoothing is **18 ms attack / 70 ms release** with the real frame delta (a 120 Hz
+phone must not smooth twice as fast), quantised to 1/100 open and 1/50 wide so
+React only re-renders on a visible change. A typical reply decodes as
+`0.52 → 0.97 → 0.96 → 0.80 → 0.72 → 0.46 → 0.10 → 0.01 → 0 → 0.98`.
+
+### Geometry
+
+The smile stays the upper lip; a dark warm-brown opening (`#6B4A38`, never
+black) grows below it:
+
+```svg
+<path class="oc-mouth-open" d="M 181 214 Q 200 224 219 214 Q 200 262 181 214 Z" />
+```
+
+- pivot on the smile line: `transform-origin: 200px 214px`
+- depth: `scaleY(calc(var(--mouth-open) * var(--mouth-scale)))`
+- width: `scaleX(calc(0.88 + var(--mouth-wide) * 0.26))`
+
+`--mouth-open` / `--mouth-wide` are written as inline custom properties on the
+`<svg>` by `AvatarVisual` (not in an effect — an effect paints a frame late).
+
+### Guards
+
+- **Only `speaking` can open the mouth.** `AvatarVisual` forces both values to 0
+  for every other state, so a stale frame can never leave a face frozen
+  mid-syllable in idle.
+- **Tier still calms it:** `--mouth-scale` multiplies the opening, so Red moves
+  at half of Green. No new colours, no new motion.
+- **Reduced motion:** the opening is frozen at `scaleY(0.3)` — the face shows
+  she is talking, nothing tracks the audio. Verified: with the variables at
+  1.0/1.0 the computed transform was `matrix(1, 0, 0, 0.3, 0, 0)`.
+- **Radio** plays through a plain `<audio>` element and is not analysed, so the
+  mouth does not move for music.
+
+### Files
+
+| File | Role |
+|---|---|
+| `frontend/src/mouthShape.ts` | pure mapping + smoothing + quantising (no DOM, no React) |
+| `frontend/src/useVoiceSession.ts` | reads the analyser, calls the mapping, publishes `mouth` |
+| `frontend/src/VoiceStateContext.tsx` | `useVoiceMouth()` — its own context, so only the avatar re-renders |
+| `frontend/src/SahaaraAvatar.tsx` | inline CSS variables, the speaking-only gate |
+| `frontend/src/OrbCharacter.tsx` / `.css` | the opening + the live transform |
+| `frontend/src/AvatarPreview.tsx` | width slider + auto-speak simulation |
+
+### Verification
+
+- `frontend/tests/mouthShape.test.ts` — 10 tests: silence closes, monotonic
+  opening, brightness widens, width gated by opening, empty/malformed spectrum
+  cannot break the jaw, attack faster than release, smoothing converges,
+  quantising clamps, gain matches the calibration.
+- `npm run test:pwa` **65/65** · `npx tsc -b` clean · lint **9 warnings, none new**
+  · `npm run build` clean.
+- **End-to-end, real code path:** the real `useVoiceSession` was run with only
+  the `/ws/voice` socket and the microphone faked; 41 real TTS chunks played
+  through `playPcmChunk`. Result: 1 analyser, 231 analyser reads, max `open`
+  1.00, max `wide` 0.68, **56 distinct openings**, 61 mid-open frames, and the
+  mouth returned to 0 when the audio ended. Stopping the session left
+  `idle, open 0, wide 0`.
+- **Not verified:** a live microphone turn on a physical phone (headless has no
+  mic). The socket/analyser code is the same path exercised above.
+
+---
+
 ## Rejected Options (Record)
 
 | Option | Reason |
@@ -301,5 +407,8 @@ The character's own palette never changes; only the halo takes state colour.
 
 ## Standing constraint
 
-The avatar is output-only. No camera, no face tracking, no lip-sync tooling on
-live replies, no second voice, and no tier that makes it look more alarmed.
+The avatar is output-only. No camera, no face tracking, no ML/video lip-sync
+(wav2lip or similar), no second voice, and no tier that makes it look more
+alarmed. The mouth is allowed to follow **the app's own TTS playback** through
+the existing playback analyser (A9) — it is a readout of audio that is already
+being heard, not a model guessing at a face.

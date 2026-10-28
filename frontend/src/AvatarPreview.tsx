@@ -36,8 +36,10 @@ export default function AvatarPreview() {
   const [state, setState] = useState<AvatarState>("idle");
   const [tier, setTier] = useState<AvatarTier>("green");
   const [level, setLevel] = useState(0);
+  const [wide, setWide] = useState(0);
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [simulatedLevel, setSimulatedLevel] = useState(0);
+  const [simulatedWide, setSimulatedWide] = useState(0);
 
   // Simulate speaking audio level
   useEffect(() => {
@@ -51,11 +53,14 @@ export default function AvatarPreview() {
       // Simulate speech envelope: random-ish but smooth
       const v = Math.abs(Math.sin(t * 2.3)) * 0.6 + Math.abs(Math.sin(t * 1.7)) * 0.3 + 0.1;
       setSimulatedLevel(Math.min(1, v));
+      // Width moves on its own rhythm and can never exceed the opening.
+      setSimulatedWide(Math.min(v, Math.abs(Math.sin(t * 3.1)) * 0.75 + 0.1));
     }, 50);
     return () => clearInterval(id);
   }, [autoSpeak, state]);
 
   const effectiveLevel = state === "speaking" && autoSpeak ? simulatedLevel : level;
+  const effectiveWide = state === "speaking" && autoSpeak ? simulatedWide : wide;
 
   return (
     <div className="avatar-preview">
@@ -64,10 +69,17 @@ export default function AvatarPreview() {
         Test the avatar states, tiers, and audio reactivity. <strong>Only works in development mode.</strong>
       </p>
 
-      <AvatarVisual state={state} level={effectiveLevel} tier={tier} size={168} />
+      <AvatarVisual
+        state={state}
+        level={effectiveLevel}
+        wide={effectiveWide}
+        tier={tier}
+        size={168}
+      />
 
       <div className="avatar-preview__status">
-        <strong>Current:</strong> {STATE_LABELS[state]} | {TIER_LABELS[tier]} | Level: {Math.round(effectiveLevel * 100)}%
+        <strong>Current:</strong> {STATE_LABELS[state]} | {TIER_LABELS[tier]} | Open:{" "}
+        {Math.round(effectiveLevel * 100)}% | Wide: {Math.round(effectiveWide * 100)}%
       </div>
 
       <div className="avatar-preview__controls">
@@ -104,6 +116,20 @@ export default function AvatarPreview() {
         </div>
 
         <div className="avatar-preview__control">
+          <label>Mouth Width (0–1)</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={wide}
+            onChange={(e) => setWide(Number(e.target.value))}
+            disabled={autoSpeak || state !== "speaking"}
+          />
+          <span>{Math.round(wide * 100)}%</span>
+        </div>
+
+        <div className="avatar-preview__control">
           <label>
             <input
               type="checkbox"
@@ -124,7 +150,8 @@ export default function AvatarPreview() {
   "--anim-speed": TIER_SPEED[tier],
   "--glow-opacity": TIER_GLOW[tier],
   "--mouth-scale": TIER_MOUTH[tier],
-  "--mouth-open": effectiveLevel,
+  "--mouth-open": state === "speaking" ? effectiveLevel : 0,
+  "--mouth-wide": state === "speaking" ? effectiveWide : 0,
 }, null, 2)}
         </pre>
       </details>

@@ -15,6 +15,14 @@
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { wsUrl } from "./api";
+import {
+  mouthFromSignal,
+  quantiseMouth,
+  sameMouth,
+  SILENT_MOUTH,
+  smoothMouth,
+  type MouthShape,
+} from "./mouthShape";
 import { useVoiceActions, type VoiceStateName } from "./VoiceStateContext";
 
 export type VoiceSessionState = VoiceStateName;
@@ -29,17 +37,15 @@ const PLAYBACK_SAMPLE_RATE = 22050;
 // would otherwise be captured by the mic and re-transcribed as a new turn.
 const MIC_UNMUTE_DELAY_MS = 500;
 
-// Amplitude smoothing (A4 owner parameters).
-const ATTACK_SECONDS = 0.05; // 50 ms
-const RELEASE_SECONDS = 0.15; // 150 ms
-
-// Mouth amplitude comes from the RMS of the TTS waveform itself. Two earlier
+// Mouth sync (A9): the jaw follows the time-domain RMS of the TTS waveform,
+// the width follows the spectrum of the same window. Two earlier
 // frequency-domain attempts were wrong: the bin band assumed a 22050 Hz context
 // (a 48 kHz context summed 937–7312 Hz) and `sqrt(mean)/255` caps at 0.0625, so
-// the mouth could never open past ~6% of its range. Time-domain RMS is the
-// honest loudness envelope, and the analyser still sits on the PLAYBACK path.
+// the mouth could never open past ~6% of its range. Loudness therefore stays
+// time-domain; only the spectral *shape* comes from the FFT.
 const ANALYSER_FFT_SIZE = 1024; // ~21 ms window at 48 kHz
-const LEVEL_GAIN = 5; // speech RMS ~0.15–0.2 → fully open
+// Some smoothing is wanted on the spectrum (it is noisy), none on the envelope.
+const ANALYSER_SMOOTHING = 0.4;
 
 function floatTo16BitPCM(input: Float32Array): Int16Array {
   const output = new Int16Array(input.length);
@@ -78,7 +84,7 @@ export interface VoiceSession {
 }
 
 export function useVoiceSession(): VoiceSession {
-  const { setState: setGlobalState, setIsActive: setGlobalActive, setLevel } = useVoiceActions();
+  const { setState: setGlobalState, setIsActive: setGlobalActive, setMouth } = useVoiceActions();
 
   const [state, setState] = useState<VoiceSessionState>("idle");
   const [isActive, setIsActiveLocal] = useState(false);
@@ -104,12 +110,14 @@ export function useVoiceSession(): VoiceSession {
   const pendingPlaybackRef = useRef(0);
   const unmuteTimerRef = useRef<number | null>(null);
 
-  // Audio amplitude analysis (AnalyserNode on the playback path only).
+  // Audio analysis (AnalyserNode on the playback path only).
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const lastPublishedRef = useRef(0);
+  const lastPublishedRef = useRef<MouthShape>(SILENT_MOUTH);
   const timeDataRef = useRef<Float32Array<ArrayBuffer> | null>(null);
-  const lastLevelRef = useRef(0);
+  const freqDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const lastMouthRef = useRef<MouthShape>(SILENT_MOUTH);
+  const lastTickRef = useRef(0);
 
   // Radio stream handling.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -170,7 +178,7 @@ export function useVoiceSession(): VoiceSession {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
-        setLevel(0);
+        setMouth(SILENT_MOUTH);
       }
 
       if (unmuteTimerRef.current !== null) {
@@ -179,8 +187,9 @@ export function useVoiceSession(): VoiceSession {
       }
       pendingPlaybackRef.current = 0;
       micMutedRef.current = false;
-      lastLevelRef.current = 0;
-      lastPublishedRef.current = 0;
+      lastMouthRef.current = SILENT_MOUTH;
+      lastPublishedRef.current = SILENT_MOUTH;
+      lastTickRef.current = 0;
       stateRef.current = nextState;
 
       processorRef.current = null;
@@ -195,7 +204,7 @@ export function useVoiceSession(): VoiceSession {
         setErrorKind(nextState === "error" ? (kind ?? "connection") : null);
       }
     },
-    [setLevel],
+    [setMouth],
   );
 
   // ---- Radio stream control ----
@@ -264,10 +273,12 @@ export function useVoiceSession(): VoiceSession {
       if (!analyserRef.current) {
         analyserRef.current = ctx.createAnalyser();
         analyserRef.current.fftSize = ANALYSER_FFT_SIZE;
-        // No smoothingTimeConstant: a time-domain read is unsmoothed, and the
-        // 50/150 ms attack/release below is the only smoothing we want.
+        // Time-domain reads ignore this; it only softens the spectrum, whose
+        // raw frame-to-frame noise would otherwise flicker the mouth's width.
+        analyserRef.current.smoothingTimeConstant = ANALYSER_SMOOTHING;
         analyserRef.current.connect(ctx.destination);
         timeDataRef.current = new Float32Array(analyserRef.current.fftSize);
+        freqDataRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
       }
       // Playback chain: source -> analyser -> destination
       source.connect(analyserRef.current);
@@ -278,41 +289,62 @@ export function useVoiceSession(): VoiceSession {
 
       // Start the RAF amplitude loop if it is not already running.
       if (rafRef.current === null && analyserRef.current && timeDataRef.current) {
+        lastTickRef.current = 0;
         const tick = () => {
           const analyser = analyserRef.current;
           const timeData = timeDataRef.current;
-          if (!analyser || !timeData) {
+          const freqData = freqDataRef.current;
+          if (!analyser || !timeData || !freqData) {
             rafRef.current = null;
             return;
           }
           analyser.getFloatTimeDomainData(timeData);
+          analyser.getByteFrequencyData(freqData);
 
-          // RMS of the TTS waveform = its loudness envelope.
+          // RMS of the TTS waveform = its loudness envelope (the jaw).
           let sumSq = 0;
           for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
           const rms = Math.sqrt(sumSq / timeData.length);
-          const raw = Math.min(1, rms * LEVEL_GAIN);
 
-          const dt = 1 / 60;
-          const alpha = raw > lastLevelRef.current ? ATTACK_SECONDS : RELEASE_SECONDS;
-          const smoothed =
-            lastLevelRef.current + (raw - lastLevelRef.current) * (1 - Math.exp(-dt / alpha));
-          lastLevelRef.current = smoothed;
+          // Real frame time: a 120 Hz phone must not smooth twice as fast.
+          const now = performance.now();
+          const dt =
+            lastTickRef.current > 0
+              ? Math.min(0.05, (now - lastTickRef.current) / 1000)
+              : 1 / 60;
+          lastTickRef.current = now;
 
-          // Quantise to 1/50 so a steady tone does not re-render React 60×/s.
-          const quantised = Math.round(Math.max(0, Math.min(1, smoothed)) * 50) / 50;
-          if (quantised !== lastPublishedRef.current) {
+          // Loudness opens the jaw, the spectrum shapes the mouth.
+          const target = mouthFromSignal(
+            rms,
+            freqData,
+            analyser.context.sampleRate,
+            analyser.fftSize,
+          );
+          const smoothed = smoothMouth(lastMouthRef.current, target, dt);
+          lastMouthRef.current = smoothed;
+
+          // Publish only visibly different values; the grid keeps React out of
+          // a per-frame loop without flattening the motion.
+          const quantised = quantiseMouth(smoothed);
+          if (!sameMouth(quantised, lastPublishedRef.current)) {
             lastPublishedRef.current = quantised;
-            setLevel(quantised);
+            setMouth(quantised);
           }
 
-          // Continue while audio is playing or level is above noise floor.
-          if (pendingPlaybackRef.current > 0 || smoothed > 0.01) {
+          // Continue while audio is playing or the face is still moving.
+          if (
+            pendingPlaybackRef.current > 0 ||
+            smoothed.open > 0.01 ||
+            smoothed.wide > 0.01
+          ) {
             rafRef.current = requestAnimationFrame(tick);
           } else {
             rafRef.current = null;
-            lastPublishedRef.current = 0;
-            setLevel(0);
+            lastPublishedRef.current = SILENT_MOUTH;
+            lastMouthRef.current = SILENT_MOUTH;
+            lastTickRef.current = 0;
+            setMouth(SILENT_MOUTH);
           }
         };
         rafRef.current = requestAnimationFrame(tick);
@@ -328,7 +360,7 @@ export function useVoiceSession(): VoiceSession {
         syncMicGate();
       };
     },
-    [syncMicGate, setLevel],
+    [syncMicGate, setMouth],
   );
 
   const start = useCallback(async () => {
@@ -338,8 +370,9 @@ export function useVoiceSession(): VoiceSession {
     stateRef.current = "listening";
     micMutedRef.current = false;
     pendingPlaybackRef.current = 0;
-    lastLevelRef.current = 0;
-    lastPublishedRef.current = 0;
+    lastMouthRef.current = SILENT_MOUTH;
+    lastPublishedRef.current = SILENT_MOUTH;
+    lastTickRef.current = 0;
     if (mountedRef.current) {
       setState("listening");
       setIsActiveLocal(true);
