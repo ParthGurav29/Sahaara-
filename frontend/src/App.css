@@ -138,7 +138,10 @@
 /* ── Main layout ── */
 .app-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …) not 1fr: a `1fr` track refuses to shrink below its items'
+     min-content, so one long nowrap timeline row widened the whole page to
+     719px on a 390px phone and pushed the avatar half off-screen. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-lg);
   flex: 1;
   min-height: 0;
@@ -146,7 +149,7 @@
 
 @media (max-width: 900px) {
   .app-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* The alerts note gets its own line so the row stays centred and short. */
@@ -193,6 +196,8 @@
   display: flex;
   flex-direction: column;
   min-height: 420px;
+  /* Let the panel shrink to the column instead of forcing it wider. */
+  min-width: 0;
   box-shadow: var(--shadow-sm);
 }
 
