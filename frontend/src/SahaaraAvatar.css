@@ -72,107 +72,17 @@
   display: block;
   overflow: visible;
   /* Defaults so the first paint (before the effect writes inline vars) is a
-     calm stone circle instead of an unpainted/black shape. */
+     calm stone glow rather than an unpainted shape. */
   --orb-color: #c9c2b8;
   --anim-speed: 1;
   --glow-opacity: 0.4;
   --mouth-scale: 1;
-  --mouth-open: 0;
-  --mouth-dash: 10;
-  --eye-opacity: 0.35;
 }
 
-/* Outer glow pulse — slow, calm */
-.avatar-glow {
-  animation: avatar-glow-pulse calc(4s / var(--anim-speed)) ease-in-out infinite;
-}
+/* All character motion lives in OrbCharacter.css; this file keeps only the
+   control, the label and the session ring around the mascot. */
 
-@keyframes avatar-glow-pulse {
-  0%, 100% { opacity: var(--glow-opacity); }
-  50% { opacity: calc(var(--glow-opacity) * 0.4); }
-}
-
-/* Orb group — tilt for listening, pulse always */
-.avatar-orb-group {
-  transform-origin: 65px 65px;
-  transition: transform 0.3s ease;
-}
-
-.avatar-orb {
-  transform-origin: 65px 65px;
-  animation: avatar-orb-pulse calc(3.6s / var(--anim-speed)) ease-in-out infinite;
-}
-
-@keyframes avatar-orb-pulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: brightness(1);
-  }
-  50% {
-    transform: scale(1.015);
-    filter: brightness(1.05);
-  }
-}
-
-/* Listening: slow attentive tilt (needs data-state on the SVG) */
-.sahaara-avatar[data-state="listening"] .avatar-orb-group {
-  animation: avatar-tilt calc(8s / var(--anim-speed)) ease-in-out infinite;
-}
-
-@keyframes avatar-tilt {
-  0%, 100% { transform: rotate(-2deg); }
-  50% { transform: rotate(2deg); }
-}
-
-/* Thinking: a slow, soft blink — no rushing */
-.sahaara-avatar[data-state="thinking"] .avatar-eye {
-  animation-duration: calc(4s / var(--anim-speed));
-}
-
-.avatar-eye {
-  animation: avatar-blink calc(6s / var(--anim-speed)) ease-in-out infinite;
-  transform-origin: center;
-}
-
-@keyframes avatar-blink {
-  0%, 45%, 55%, 100% { transform: scaleY(1); opacity: var(--eye-opacity); }
-  50% { transform: scaleY(0.1); opacity: calc(var(--eye-opacity) * 0.3); }
-}
-
-/* Speaking: mouth opens/closes from the playback amplitude (--mouth-dash) */
-.avatar-mouth {
-  transition: stroke-dashoffset 0.03s linear, opacity 0.1s ease;
-}
-
-/* Error: static, muted — never a red flash */
-.sahaara-avatar[data-state="error"] .avatar-glow,
-.sahaara-avatar[data-state="error"] .avatar-orb,
-.sahaara-avatar[data-state="error"] .avatar-eye {
-  animation: none !important;
-}
-
-/* Paused while the tab is hidden — saves work and stops motion offscreen */
-.sahaara-avatar.is-paused .avatar-glow,
-.sahaara-avatar.is-paused .avatar-orb,
-.sahaara-avatar.is-paused .avatar-orb-group,
-.sahaara-avatar.is-paused .avatar-eye,
-.sahaara-avatar.is-paused .avatar-mouth {
-  animation-play-state: paused !important;
-}
-
-/* Reduced motion: static colour ring with state-coded dash offset */
-.avatar-reduced-indicator {
-  animation: none;
-  transition: stroke-dashoffset 0.3s ease;
-}
-
-/* Hidden state for prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
-  .avatar-glow,
-  .avatar-orb,
-  .avatar-orb-group,
-  .avatar-eye,
-  .avatar-mouth,
   .sahaara-avatar-button.is-active::after {
     animation: none !important;
   }

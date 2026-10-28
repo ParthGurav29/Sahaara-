@@ -77,6 +77,10 @@ CSS custom properties driven by `tier` prop:
 
 ### Mouth geometry
 
+> **Superseded by A8.** The 130×130 dash-array mouth below belonged to the old
+> abstract orb. A8 draws a real smile on a 400×400 character and gives it two
+> nested groups: a gentle 0.85 s speaking loop and the real TTS amplitude.
+
 The mouth is a single 46-unit line in the 130×130 viewBox. It rests at 10 units
 (a calm, closed line) and opens symmetrically to `10 + 36 × level × mouth-scale`
 using `stroke-dasharray` + a centring `stroke-dashoffset` — so it grows from the
@@ -120,7 +124,7 @@ live replies — the mouth is amplitude only, as required.
 ## Technical Approach
 
 - **Inline SVG** in `SahaaraAvatar.tsx` — no external assets, no build step
-- **CSS custom properties** for all dynamic values (`--orb-color`, `--anim-speed`, `--mouth-open`, `--glow-opacity`, `--eye-opacity`)
+- **CSS custom properties** for all dynamic values (`--orb-color`, `--anim-speed`, `--glow-opacity`, `--mouth-scale`)
 - **Single `requestAnimationFrame` loop** for audio-reactive mouth (A4/A6) — reads the playback RMS, writes the level into `VoiceStateContext`
 - **`prefers-reduced-motion`** respected via existing CSS pattern (disable animations, colour-only state)
 - **Zero dependencies** — matches project constraint
@@ -133,8 +137,10 @@ live replies — the mouth is amplitude only, as required.
 frontend/src/
 ├── useVoiceSession.ts     # The whole voice session: WS, mic, TTS playback,
 │                          #   mic gate, analyser, radio, initiative prompt
-├── SahaaraAvatar.tsx      # AvatarVisual (pure SVG) + SahaaraAvatar (the control)
-├── SahaaraAvatar.css      # Styles, animations, control states, fallback
+├── OrbCharacter.tsx       # The mascot drawing only (A8): sphere, face, leaves, bowl
+├── OrbCharacter.css       # Character motion + per-state expressions
+├── SahaaraAvatar.tsx      # AvatarVisual (SVG shell + CSS vars) + SahaaraAvatar
+├── SahaaraAvatar.css      # Control, label, session ring, fallback
 ├── VoiceStateContext.tsx  # state + tier / level / stable-action contexts
 └── AvatarPreview.tsx      # dev-only `?avatar-preview=true` harness
 ```
@@ -174,6 +180,7 @@ with state/tier/level controls and an auto-speak simulation.
 | **A5** | Tier calmness wired from the live escalation stream | ✅ Done (browser-verified) |
 | **A6** | Orb replaced entirely: shared `useVoiceSession` hook, clickable avatar, amplitude fix, legibility pass | ✅ Done (browser-verified) |
 | **A7** | Tests + docs | 🟡 Docs done; no unit tests for the SVG (verified in-browser instead) |
+| **A8** | Mascot redesign: porcelain sphere + jade cradle, matched to the owner's reference image | ✅ Done (browser-verified, screenshot reviewed) |
 
 ### Wiring note (found while wiring A5)
 
@@ -222,6 +229,64 @@ Rules that follow from the avatar being the only interface:
   by a timer confirmation.
 - **Medication wording never comes back out.** "Take two pills at 8" is spoken
   as "take your medication"; the exact words go to the caregiver dashboard only.
+
+---
+
+## A8 — mascot redesign: porcelain sphere in a jade cradle (2026-10-28)
+
+The owner supplied a reference image and asked for a **visual-only** replacement
+of the abstract orb with a friendly **non-human** mascot: a porcelain sphere with
+a soft face cradled in jade leaves. No audio, WebSocket, mic-gate, echo or
+state-machine code was touched — the character is drawn inside `OrbCharacter`
+and all voice logic stayed in `useVoiceSession`.
+
+### Geometry (400×400 viewBox, matched to the reference)
+
+| Part | Value |
+|---|---|
+| Sphere | `r 120` at `(200,190)` → **60%** of the component width; warm cream gradient `#FFFEFB → #F1E8D9`, low-right shade, hairline `#E7DCC7` edge at 0.35 |
+| Brows | 31% down the sphere, `#8A6F57`, 3.6 units, round caps, **asymmetric** (inner ends slightly higher) |
+| Eyes | 44% down, `r 12.25` (≈10% of the diameter), spacing ±20.8%, dark chocolate `#3A2819 → #5C4231`, white catchlight plus a faint lower glint |
+| Mouth | 61% down, 38 units wide, `#8A6F57`, round caps, gentle smile |
+| Cheeks | 57% down, `r 22` at ±60, `#F6C4B0` at 0.46 under a 9-unit blur |
+| Bowl | As wide as the sphere, tips tucked to the silhouette at 69% height, front rim at ~89%, `#A2CDC0 → #82B3A4`, lit rim `#C2E4D5`, blurred inner lip shadow |
+| Leaves | 4, two per side, sage `#B0C7AA → #96B096` (upper, larger) and `#A6BE9F → #90AA90` (lower, smaller); tips reach 1.33× the sphere diameter and 17%/59% down |
+| Light | No hard outlines anywhere; one `feGaussianBlur` contact shadow at 0.04 |
+
+Each part is its own `<g>`: `body`, `leaves-left`, `leaves-right`, `bowl`,
+`brows`, `look`, `eyes`, `cheeks`, `mouth-swing`, `mouth-level`. Gradient and
+filter ids are namespaced with `useId` because the dev preview renders many
+avatars on one page and shared ids would make every tile inherit the first
+instance's `--orb-color`.
+
+### State behaviour (CSS only)
+
+| State | Motion | Expression |
+|---|---|---|
+| `idle` | breathe 1 → 1.02 over 5 s, blink every ~6.5 s, glow pulse 6 s | neutral smile |
+| `listening` | leaves open ∓7°, slate-blue glow | eyes widen 1.06, brows lift 2.5 |
+| `thinking` | leaves sway ∓1.5–2° over 7 s, gaze drifts 5.5/−4.5 over 4.5 s, lavender glow | brows lift 1.5 |
+| `speaking` | body pulse 1 → 1.012 over 0.9 s, mouth loop 0.85 s × tier, amber glow | brows lift 1 |
+| `error` | **everything still** — no flash, no red on the character | same face |
+
+Every duration is divided by `--anim-speed`, and the tier also dims
+`--glow-opacity` and shrinks `--mouth-scale`, so Red is the *calmest* state.
+The character's own palette never changes; only the halo takes state colour.
+`prefers-reduced-motion` disables all motion and keeps the per-state expression.
+
+### Verification
+
+- `npx tsc -b` clean, `npm run lint` **9 warnings, none new**, `npm run test:pwa`
+  **55/55**, `npm run build` clean.
+- Browser checks at 412 px and in the dev preview: all five states apply the
+  expected animation names, transforms and expressions; `error` has **zero**
+  running animations; reduced motion leaves the expression and stops all motion.
+- Screenshots of idle / listening / thinking / speaking / error and a Red-tier
+  idle were reviewed against the reference before commit.
+
+> The reference PNG itself is **not committed** — it was pasted into chat rather
+> than saved to the repo. Drop it at `docs/mascot-reference.png` if it should
+> live in-tree.
 
 ---
 

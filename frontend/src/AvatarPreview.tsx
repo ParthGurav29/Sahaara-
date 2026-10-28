@@ -125,7 +125,6 @@ export default function AvatarPreview() {
   "--glow-opacity": TIER_GLOW[tier],
   "--mouth-scale": TIER_MOUTH[tier],
   "--mouth-open": effectiveLevel,
-  "--eye-opacity": state === "idle" ? 0.15 : 0.6,
 }, null, 2)}
         </pre>
       </details>
