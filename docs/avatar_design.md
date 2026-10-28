@@ -3,7 +3,8 @@
 **Date:** 2026-10-28  
 **Decision:** Option 1 — Abstract Breathing Orb + Soft Face  
 **Status:** Implemented. The avatar fully replaced `VoiceOrb` on 2026-10-28 — it is
-the only voice visual **and** the only voice control.
+the only voice visual **and** the only voice control. Since A7 (2026-10-28) it also
+carries the fixed task set (timer, reminder, time, radio, music, stop).
 
 ---
 
@@ -198,6 +199,31 @@ a fake `/ws/voice` socket feeding real PCM and a fake mic stream:
 | Click stops | back to idle, `aria-pressed=false`, mouth 10, ring removed |
 | Red tier | `--anim-speed 0.4`, `--glow-opacity 0.15`, `--mouth-scale 0.5` (calmer, not alarming) |
 | Console | no app errors (only the harness's own blocked local-network WS) |
+
+## A7 — the avatar is also the task interface (2026-10-28)
+
+Because the avatar is now the only voice control, it also has to *do* things
+when asked. It handles a **fixed list** — time, timer, reminder, list, cancel,
+radio, local music, stop — and nothing open-ended.
+
+Rules that follow from the avatar being the only interface:
+
+- **Deterministic replies.** A task answer is built from the action result, not
+  from the model, so the words on screen can never disagree with what happened.
+- **Calm on failure.** A dead radio stream, an unknown song or an unknown
+  station produces a quiet sentence (*"The radio isn't answering right now."*),
+  not an error state. Nothing on the avatar changes.
+- **Timers respect the room.** With no session open a timer fires on the
+  caregiver dashboard and stays silent; a new session never opens with a stale
+  announcement. A timer that fires while the avatar is live is *spoken* through
+  the same Cartesia voice, with the orb in `speaking` so the mic gate closes.
+- **Escalation still wins.** Task handling runs after the escalation engine and
+  is skipped on danger / physical turns — an emergency reply is never replaced
+  by a timer confirmation.
+- **Medication wording never comes back out.** "Take two pills at 8" is spoken
+  as "take your medication"; the exact words go to the caregiver dashboard only.
+
+---
 
 ## Rejected Options (Record)
 

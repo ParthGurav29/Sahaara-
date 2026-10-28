@@ -55,12 +55,14 @@ async def startup_event():
     from dashboard.stream import setup_stream_hooks
     setup_stream_hooks()
     
-    # Start proactive scheduler
+    # Start proactive scheduler. Use the per-profile factory (not a fresh
+    # Scheduler(...)) so /ws/voice listens on the SAME instance: the voice
+    # initiative queue and the open-session flag live on that object.
     import conversation
     s = conversation._get_session()
-    from scheduler import Scheduler, make_llm_caller
+    from scheduler import get_scheduler_for_profile, make_llm_caller
     global scheduler
-    scheduler = Scheduler(s.profile)
+    scheduler = get_scheduler_for_profile(s.profile.profile_id)
     llm_call = make_llm_caller()
     await scheduler.start(llm_call=llm_call)
     
@@ -568,6 +570,31 @@ def get_current_profile(user: dict = Depends(require_caregiver)):
     return {"data": profile, "profile_id": profile_id}
 
 
+@app.get("/media/{filename}")
+def get_media_file(filename: str):
+    """Serve a local music file for in-browser playback.
+
+    Unguarded on purpose: this is the person's side of the app, the same trust
+    level as `/chat` and `/ws/voice` (Asha never logs in). The filename is
+    checked against the music directory listing — no path separators, no
+    traversal, no arbitrary files.
+    """
+    from fastapi.responses import FileResponse
+    from actions import _music_files
+
+    if Path(filename).name != filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="invalid filename")
+
+    for path in _music_files():
+        if path.name == filename:
+            return FileResponse(
+                path,
+                media_type="audio/wav" if path.suffix.lower() == ".wav" else "audio/mpeg",
+            )
+
+    raise HTTPException(status_code=404, detail="track not found")
+
+
 @app.put("/profile/{profile_id}")
 def update_profile(profile_id: str, body: dict, user: dict = Depends(require_caregiver)):
     """Save profile edits for the authenticated caregiver."""
@@ -593,19 +620,54 @@ async def chat(request: ChatRequest):
     return process_turn(request.message)
 
 
-async def _pump_voice_pipeline(websocket: WebSocket, audio_in) -> None:
+async def _speak_initiative(websocket: WebSocket, text: str, state: dict) -> None:
+    """Speak one scheduler message through the normal Cartesia voice.
+
+    Same voice as every reply — no second voice, no browser speech synthesis.
+    The orb is put into "speaking" first so the mic gate closes and Sahaara's
+    own words cannot be transcribed as a new turn.
+    """
+    try:
+        from voice import tts
+
+        state["value"] = "speaking"
+        await websocket.send_json({"type": "state", "state": "speaking"})
+        async for chunk in tts.stream_speech(text):
+            await websocket.send_bytes(chunk)
+    except Exception:
+        logger.exception("Could not speak initiative")
+    finally:
+        state["value"] = "listening"
+        try:
+            await websocket.send_json({"type": "state", "state": "listening"})
+        except Exception:
+            pass
+
+
+async def _pump_voice_pipeline(websocket: WebSocket, audio_in, state=None) -> None:
     """Consume the voice pipeline's async generator and forward its events.
 
     `voice_pipeline.stream()` is an async generator (it yields VoiceEvent), so
     it must be consumed with `async for`. Passing it directly to
     `asyncio.create_task()` raises "a coroutine was expected" and kills the
     orb — see tests/test_voice_ws_wiring.py.
+
+    `state` is an optional mutable dict the handler shares with the scheduler
+    initiative consumer, so a timer is only spoken while the orb is idle.
     """
     async for event in voice_pipeline.stream(audio_in):
         if event.kind == "state":
+            if state is not None:
+                state["value"] = event.state
             await websocket.send_json({"type": "state", "state": event.state})
         elif event.kind == "audio" and event.audio:
             await websocket.send_bytes(event.audio)
+        elif event.kind == "play_stream" and event.url:
+            # Radio stream or a local track served from /media. The browser
+            # owns playback (the backend cannot play audio to the phone).
+            await websocket.send_json({"type": "play_stream", "url": event.url})
+        elif event.kind == "stop_media":
+            await websocket.send_json({"type": "stop_media"})
 
 
 @app.websocket("/ws/voice")
@@ -649,16 +711,28 @@ async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
     try:
         # Start the voice pipeline. stream() is an async generator, so it is
         # consumed by the pump coroutine — create_task() cannot take a generator.
+        voice_state = {"value": "listening"}
         pipeline_task = asyncio.create_task(
-            _pump_voice_pipeline(websocket, audio_in())
+            _pump_voice_pipeline(websocket, audio_in(), voice_state)
         )
         
         # Start consuming proactive initiatives from scheduler
         import scheduler
-        voice_queue = scheduler.get_scheduler_for_profile(profile_id).get_voice_initiative_queue()
+        scheduler_for_profile = scheduler.get_scheduler_for_profile(profile_id)
+        voice_queue = scheduler_for_profile.get_voice_initiative_queue()
+
+        # A timer only speaks while someone is actually here. With no session
+        # open it goes to the dashboard and is never queued for later.
+        scheduler_for_profile.mark_voice_session(True)
         
         async def initiative_consumer():
-            """Consume proactive initiatives from scheduler and send to WebSocket."""
+            """Consume proactive initiatives from scheduler and send to WebSocket.
+
+            A timer/reminder is spoken as well as shown — through the same
+            Cartesia voice as every other reply (never a second voice). It is
+            only spoken while the orb is idle, so it can never talk over a
+            turn that is already in progress.
+            """
             while True:
                 try:
                     initiative = await voice_queue.get()
@@ -669,6 +743,12 @@ async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
                         "wording_id": initiative["wording_id"],
                         "category": initiative["category"],
                     })
+
+                    if (
+                        initiative.get("category") in ("timer", "reminder")
+                        and voice_state["value"] == "listening"
+                    ):
+                        await _speak_initiative(websocket, initiative["text"], voice_state)
                 except asyncio.CancelledError:
                     break
                 except Exception:
@@ -694,6 +774,7 @@ async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
             except Exception:
                 pass
         finally:
+            scheduler_for_profile.mark_voice_session(False)
             pipeline_task.cancel()
             try:
                 await pipeline_task

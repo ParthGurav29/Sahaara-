@@ -59,6 +59,8 @@ const TIER_REASONS: Record<string, string> = {
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   alert_sent: "PHONE ALERT",
+  action: "TASK",
+  reminder_fired: "TIMER / REMINDER",
 };
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
@@ -76,6 +78,8 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   memory_box_played: "#e8f5e9",
   sahaara_initiative: "#e8f0fe",
   alert_sent: "#eef2f7",
+  action: "#eef2f0",
+  reminder_fired: "#eef2f7",
 };
 
 const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
@@ -93,6 +97,8 @@ const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
   memory_box_played: "#2e7d32",
   sahaara_initiative: "#1a56db",
   alert_sent: "#475569",
+  action: "#3f5d4e",
+  reminder_fired: "#475569",
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -144,6 +150,17 @@ function getEventDetailText(event: Event): string {
       return `${d.text?.slice(0, 80) || ""}`;
     case "alert_sent":
       return describePushAttempt(d)?.label || "Phone alert recorded";
+    case "action": {
+      // What Sahaara did, and — for reminders — the person's exact wording so
+      // the caregiver can check it (the spoken version is sanitised).
+      const name = String(d.action_type || "task").replace(/_/g, " ");
+      const status = d.success === false ? " (not done)" : "";
+      const base = `${name}${status}: ${d.spoken || ""}`;
+      const heard = String(d.raw_text || "").trim();
+      return heard ? `${base} · heard: "${heard.slice(0, 70)}"` : base;
+    }
+    case "reminder_fired":
+      return d.spoken || `${d.kind || "timer"} fired`;
     default: {
       // Never dump raw JSON into the caregiver timeline: prefer a short text
       // field, otherwise the event name itself.
@@ -349,6 +366,8 @@ export default function EscalationLadder({
       memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
       sahaara_initiative: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "sahaara_initiative" }, ...prev].slice(0, 40)); } catch {} },
       alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); } catch {} },
+      action: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "action" }, ...prev].slice(0, 40)); } catch {} },
+      reminder_fired: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "reminder_fired" }, ...prev].slice(0, 40)); } catch {} },
     };
 
     ws.onmessage = (ev) => {

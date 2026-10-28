@@ -411,20 +411,16 @@ check("Vikram no clip -> no match", match is None)
 # ============================================================
 section("5. ACTIONS")
 
-from actions import tell_time, play_song, set_reminder, detect_action
+from actions import tell_time, play_song, set_reminder, set_timer, detect_action
 
 # tell_time
 result = tell_time()
 check("tell_time success", result.success is True)
 check("tell_time has result_text", len(result.result_text) > 0)
 
-# play_song - no music files
+# play_song - no music files in the shipped repo
 result = play_song("lag ja gale")
 check("play_song no files -> success=False", result.success is False)
-
-# play_song - nonexistent song
-result = play_song("nonexistent song xyz")
-check("play_song nonexistent -> success=False", result.success is False)
 
 # detect_action: tell_time
 action = detect_action("What time is it?")
@@ -442,17 +438,30 @@ if action and action["action_type"] == "play_song":
 # detect_action: set_reminder
 action = detect_action("Remind me to call Rohan in 30 minutes")
 check("detect set_reminder", action is not None and action["action_type"] == "set_reminder")
+if action and action["action_type"] == "set_reminder":
+    check("set_reminder parsed 30 minutes", action["params"]["seconds"] == 1800)
+    check("set_reminder parsed label", action["params"]["label"] == "call Rohan")
 
 action = detect_action("Set a reminder for chai in 5 mins")
 check("detect set_reminder variant", action is not None and action["action_type"] == "set_reminder")
+
+# detect_action: set_timer — this used to raise NameError (HTTP 500)
+action = detect_action("set a timer for 2 minutes")
+check("detect set_timer", action is not None and action["action_type"] == "set_timer")
+if action and action["action_type"] == "set_timer":
+    check("set_timer parsed 2 minutes", action["params"]["seconds"] == 120)
 
 # detect_action: no action
 action = detect_action("Hello how are you")
 check("no action for greeting", action is None)
 
-# set_reminder without scheduler
-result = set_reminder("call Rohan", 5, scheduler=None)
-check("set_reminder no scheduler -> success=False", result.success is False)
+# A reminder with no time asks for one instead of claiming anything.
+result = set_reminder(label="call Rohan")
+check("set_reminder without a time -> success=False", result.success is False)
+
+# A timer with no duration asks rather than guessing.
+result = set_timer(0, profile_id="asha_demo_001")
+check("set_timer without a duration -> success=False", result.success is False)
 
 # ============================================================
 # 6. Profile

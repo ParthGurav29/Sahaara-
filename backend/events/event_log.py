@@ -47,6 +47,8 @@ class EventType(str, Enum):
     CONVERSATION_TURN = "conversation_turn"
     ALERT_ACKNOWLEDGED = "alert_acknowledged"
     ALERT_SENT = "alert_sent"
+    ACTION = "action"
+    REMINDER_FIRED = "reminder_fired"
 
 
 class EscalationTier(str, Enum):
@@ -427,6 +429,59 @@ class EventLog:
                 "revoked": revoked,
                 "reason": reason,
                 "results": results or [],
+            },
+        )
+        self.append(event)
+        return event
+    
+    def log_action(
+        self,
+        action_type: str,
+        success: bool,
+        spoken: str = "",
+        raw_text: str = "",
+        detail: Optional[dict] = None,
+    ) -> Event:
+        """Log one fixed task action (timer, reminder, radio, ...).
+
+        `spoken` is what Sahaara actually said. `raw_text` is the person's exact
+        words — shown to the caregiver so they can check a reminder, and never
+        spoken back (a medication request is sanitised before it is voiced).
+        """
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.ACTION,
+            profile_id=self.profile_id,
+            detail={
+                "action_type": action_type,
+                "success": bool(success),
+                "spoken": spoken,
+                "raw_text": raw_text,
+                **(detail or {}),
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_reminder_fired(
+        self,
+        reminder_id: int,
+        kind: str,
+        label: str,
+        spoken: str,
+        delivered_voice: bool = False,
+    ) -> Event:
+        """Log a timer/reminder actually going off."""
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.REMINDER_FIRED,
+            profile_id=self.profile_id,
+            detail={
+                "reminder_id": reminder_id,
+                "kind": kind,
+                "label": label,
+                "spoken": spoken,
+                "delivered_voice": bool(delivered_voice),
             },
         )
         self.append(event)

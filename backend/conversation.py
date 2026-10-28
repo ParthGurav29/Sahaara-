@@ -206,75 +206,13 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
 
     # ---- MEMORY / CONTEXT ----
     
-    # Check for safe task actions
-    from actions import detect_action, tell_time, play_song, set_reminder, get_weather, list_timers, cancel_timer, play_radio, stop_media
-    action_result = detect_action(user_message)
-    action_context = ""
+    # ---- TASK ACTIONS ----
+    # Handled further down, after the escalation block, so an emergency turn
+    # can never be answered with a timer confirmation. Action turns reply
+    # deterministically (no LLM) — a model that paraphrases "I set a timer"
+    # will eventually say it when no timer exists.
     injected_facts: list[str] = []
-    radio_stream_url: Optional[str] = None
-    if action_result:
-        atype = action_result["action_type"]
-        params = action_result.get("params", {})
-        if atype == "tell_time":
-            result = tell_time()
-            if result.success:
-                action_context = f"[FACT: {result.result_text}]"
-                injected_facts.append(result.result_text)
-        elif atype == "play_song":
-            result = play_song(params.get("song_name", ""))
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "set_reminder":
-            result = set_reminder(params.get("text", ""), params.get("minutes", 5), scheduler=_scheduler)
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-        elif atype == "set_timer":
-            result = set_timer(params.get("minutes", 0), params.get("text", "timer"), scheduler=_scheduler)
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-                injected_facts.append(result.result_text)
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "list_timers":
-            result = list_timers(user_message=params.get("text", "")) if False else None
-            result = list_timers(s.profile.profile_id)
-            if result.success:
-                action_context = f"[FACT: {result.result_text}]"
-                injected_facts.append(result.result_text)
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "cancel_timer":
-            result = cancel_timer(params.get("label", ""), profile_id=s.profile.profile_id)
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-                injected_facts.append(result.result_text)
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "get_weather":
-            result = get_weather()
-            if result.success:
-                action_context = f"[FACT: {result.result_text}]"
-                injected_facts.append(result.result_text)
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "play_radio":
-            result = play_radio(params.get("station_name", ""), scheduler=_scheduler)
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-                injected_facts.append(result.result_text)
-                radio_stream_url = result.detail.get("stream_url")
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-        elif atype == "stop_media":
-            result = stop_media(scheduler=_scheduler)
-            if result.success:
-                action_context = f"[ACTION PERFORMED: {result.result_text}]"
-            else:
-                action_context = f"[ACTION FAILED: {result.result_text}]"
-    
-    user_message_with_action = f"{action_context}\n\nUser said: {user_message}" if action_context else user_message
+    user_message_with_action = user_message
     
     memory_match = s.memory_box.match(user_message)
     
@@ -315,6 +253,15 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
                 tier_from=prev_tier, tier_to=s.escalation_engine.current_tier,
                 reason=latest.detail.get("reason", "unknown"), context=latest.detail.get("context", {}),
             )
+
+    # ---- TASK ACTIONS (deterministic, after escalation) ----
+    # Skipped on danger / physical-distress turns: the safety reply must never
+    # be replaced by "I've set a timer". Everything else returns a fixed reply
+    # built from what actually happened — no LLM, so no invented completions.
+    if not (intent.is_danger_statement or intent.is_physical_urgent or intent.is_physical_general):
+        action_response = _handle_action(s, user_message, current_tier)
+        if action_response is not None:
+            return action_response
 
     # ---- CONTINUATION STATE (after danger/physical-urgent check) ----
     # If a previous answer was truncated with "Would you like me to go on?",
@@ -407,6 +354,12 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     
     return {
         "response": response_text,
+        # A normal conversation turn never starts or stops playback; these keys
+        # keep the shape identical to an action turn so callers can check them
+        # without branching.
+        "radio_stream_url": None,
+        "audio_url": None,
+        "stop_media": False,
         "meta": {
             "emotion": intent.emotion, "is_repeated_question": is_repeat,
             "sustained_distress": sustained,
@@ -416,7 +369,134 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             "structure_check_passed": structure.passes, "model": result.model,
             "tier": current_tier, "consent_state": s.consent_manager.state.value,
             "continuation_state": s.continuation_manager.state.value,
-            "radio_stream_url": radio_stream_url,
+            # Action turns return earlier with their own media fields; ordinary
+            # conversation never starts or stops playback.
+            "radio_stream_url": None,
+            "audio_url": None,
+            "stop_media": False,
+        },
+    }
+
+
+def _handle_action(s, user_message: str, current_tier: str):
+    """Run one fixed task action and return a deterministic reply.
+
+    Returns None when the utterance is not an action. The reply is built from
+    the ActionResult and never from the model, so a failed action can only
+    ever say that it failed.
+
+    Owner decisions (2026-10-28): no LLM follow-up; timers run on real time;
+    reminder text is sanitised (medication never names a dose); weather is not
+    an action any more.
+    """
+    from actions import (
+        detect_action, tell_time, set_timer, set_reminder, list_timers,
+        cancel_timer, play_song, play_radio, stop_media, mark_media_playing,
+    )
+
+    profile_id = s.profile.profile_id
+    action = detect_action(user_message, profile_id=profile_id)
+    if not action:
+        return None
+
+    atype = action["action_type"]
+    params = action.get("params", {}) or {}
+    media_url = None
+    stop_requested = False
+
+    if atype == "tell_time":
+        result = tell_time()
+    elif atype == "set_timer":
+        result = set_timer(
+            seconds=params.get("seconds") or 0,
+            label=params.get("label") or "",
+            profile_id=profile_id,
+            label_raw=user_message,
+        )
+    elif atype == "set_reminder":
+        result = set_reminder(
+            seconds=params.get("seconds"),
+            label=params.get("label") or "",
+            profile_id=profile_id,
+            label_raw=user_message,
+            at=params.get("at"),
+        )
+    elif atype == "list_timers":
+        result = list_timers(profile_id=profile_id)
+    elif atype == "cancel_timer":
+        result = cancel_timer(profile_id=profile_id, which=params.get("which"))
+    elif atype == "play_song":
+        result = play_song(params.get("song_name", ""), profile_id=profile_id)
+    elif atype == "play_radio":
+        result = play_radio(params.get("station_name", ""), profile_id=profile_id)
+    elif atype == "stop_media":
+        result = stop_media(profile_id=profile_id)
+        stop_requested = True
+    else:
+        return None
+
+    detail = result.detail or {}
+    if atype == "play_radio" and result.success:
+        media_url = detail.get("stream_url")
+        mark_media_playing(profile_id, detail.get("station_name") or "radio")
+    elif atype == "play_song" and result.success:
+        media_url = detail.get("audio_url")
+        mark_media_playing(profile_id, detail.get("title") or "music")
+
+    text = result.result_text
+    guardrail = check_guardrails(text, s.profile, injected_facts=[text])
+    if not guardrail.passed:
+        # Never speak a reply the guardrail rejects — say something neutral
+        # that is still true.
+        text = "Alright — that's done." if result.success else "I couldn't do that one."
+        s.event_log.log_fallback(
+            FallbackType.GUARDRAIL,
+            detail={"violations": guardrail.violations, "action": atype},
+        )
+
+    # Dashboard record. `raw_text` is the person's exact words and is shown to
+    # the caregiver only — it is never spoken back.
+    try:
+        s.event_log.log_action(
+            action_type=atype,
+            success=result.success,
+            spoken=text,
+            raw_text=user_message if atype in ("set_timer", "set_reminder") else "",
+            detail={k: detail[k] for k in (
+                "id", "label", "seconds", "fire_at", "station_name", "title",
+                "medication", "needs",
+            ) if k in detail},
+        )
+    except Exception:
+        pass
+
+    s.event_log.log_conversation_turn(speaker="user", text=user_message, emotion="neutral")
+    s.event_log.log_conversation_turn(speaker="sahaara", text=text, emotion="neutral")
+
+    return {
+        "response": text,
+        # Top-level so both callers can act on it without digging into meta:
+        # the browser (text chat) plays it, and the voice pipeline forwards it
+        # as a play_stream/stop_media event.
+        "radio_stream_url": media_url if atype == "play_radio" else None,
+        "audio_url": media_url if atype == "play_song" else None,
+        "stop_media": stop_requested,
+        "meta": {
+            "emotion": "neutral", "is_repeated_question": False,
+            "sustained_distress": False, "memory_box_offered": None,
+            "guardrail_fallback_used": not guardrail.passed,
+            "guardrail_violations": [] if guardrail.passed else guardrail.violations,
+            "structure_check_passed": True, "model": "deterministic",
+            "tier": current_tier, "consent_state": s.consent_manager.state.value,
+            "continuation_state": s.continuation_manager.state.value,
+            "radio_stream_url": media_url,
+            "audio_url": media_url,
+            "stop_media": stop_requested,
+            "action": {
+                "type": atype,
+                "success": result.success,
+                "needs": detail.get("needs"),
+            },
         },
     }
 

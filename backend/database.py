@@ -148,6 +148,30 @@ def init_db():
         
         CREATE INDEX IF NOT EXISTS idx_checkin_fired_profile ON checkin_fired_history(profile_id, slot_id);
         CREATE INDEX IF NOT EXISTS idx_checkin_fired_date ON checkin_fired_history(profile_id, fired_at);
+
+        -- One-off timers and reminders the person asked for by voice.
+        -- Separate from checkin_fired_history on purpose: that table holds the
+        -- recurring M3 check-ins (slot_id per day), and reading it as "timers"
+        -- made "what timers do I have" list yesterday's morning greeting.
+        -- `label` is the sanitised, safe-to-speak text; `label_raw` is exactly
+        -- what the person said and is NEVER spoken (doses stay on the
+        -- dashboard only).
+        CREATE TABLE IF NOT EXISTS one_time_reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL,
+            kind TEXT NOT NULL,                      -- 'timer' | 'reminder'
+            label TEXT NOT NULL,                     -- sanitised, safe to speak
+            label_raw TEXT NOT NULL DEFAULT '',      -- person's exact words (dashboard only)
+            fire_at REAL NOT NULL,
+            created_at REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',  -- pending | fired | cancelled
+            fired_at REAL,
+            delivered_voice INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (profile_id) REFERENCES profiles(profile_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_reminders_profile_status
+            ON one_time_reminders(profile_id, status, fire_at);
     """)
     
     # M5: Web Push subscriptions (Step 3 — storage only, nothing is sent yet).
@@ -554,31 +578,104 @@ def update_checkin_audio_delivery(profile_id: str, slot_id: str, delivered_audio
     conn.close()
 
 
-def list_timers(profile_id: str) -> list[dict]:
-    """List pending (not yet responded) timers for a profile."""
+def add_one_time_reminder(
+    profile_id: str,
+    kind: str,
+    label: str,
+    label_raw: str,
+    fire_at: float,
+) -> int:
+    """Store a one-off timer/reminder. Returns the new row id.
+
+    `label` must already be sanitised (safe to speak). `label_raw` is the
+    person's exact words and is only ever shown on the caregiver dashboard.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """INSERT INTO one_time_reminders
+                   (profile_id, kind, label, label_raw, fire_at, created_at, status)
+               VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
+            (profile_id, kind, label, label_raw, float(fire_at), time.time()),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+    finally:
+        conn.close()
+
+
+def list_pending_reminders(profile_id: str) -> list[dict]:
+    """Pending timers/reminders for a profile, soonest first."""
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT * FROM checkin_fired_history WHERE profile_id = ? AND response_received = 0 ORDER BY fired_at ASC",
-            (profile_id,)
+            """SELECT * FROM one_time_reminders
+                WHERE profile_id = ? AND status = 'pending'
+                ORDER BY fire_at ASC""",
+            (profile_id,),
         ).fetchall()
     finally:
         conn.close()
     return [dict(row) for row in rows]
 
 
-def cancel_timer(profile_id: str, slot_id: str) -> bool:
-    """Cancel a pending timer by deleting its row from checkin_fired_history."""
+def get_due_reminders(profile_id: str, now: Optional[float] = None) -> list[dict]:
+    """Pending timers/reminders whose time has come."""
+    now = time.time() if now is None else now
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT * FROM one_time_reminders
+                WHERE profile_id = ? AND status = 'pending' AND fire_at <= ?
+                ORDER BY fire_at ASC""",
+            (profile_id, float(now)),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def mark_reminder_fired(reminder_id: int, delivered_voice: bool = False) -> bool:
+    """Flip a pending reminder to 'fired'. Returns False if it was already gone."""
     conn = get_connection()
     try:
         cursor = conn.execute(
-            "DELETE FROM checkin_fired_history WHERE profile_id = ? AND slot_id = ? AND response_received = 0",
-            (profile_id, slot_id)
+            """UPDATE one_time_reminders
+                  SET status = 'fired', fired_at = ?, delivered_voice = ?
+                WHERE id = ? AND status = 'pending'""",
+            (time.time(), 1 if delivered_voice else 0, int(reminder_id)),
         )
         conn.commit()
         return cursor.rowcount > 0
     finally:
         conn.close()
+
+
+def cancel_reminder(profile_id: str, reminder_id: int) -> bool:
+    """Cancel a pending reminder. Returns False if it was not pending."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """UPDATE one_time_reminders
+                  SET status = 'cancelled'
+                WHERE id = ? AND profile_id = ? AND status = 'pending'""",
+            (int(reminder_id), profile_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_reminder(reminder_id: int) -> Optional[dict]:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM one_time_reminders WHERE id = ?", (int(reminder_id),)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -762,35 +859,6 @@ def get_radio_stations(profile_id: str) -> list[dict]:
     except (json.JSONDecodeError, TypeError):
         pass
     return []
-
-
-def save_radio_stations(profile_id: str, stations: list[dict]) -> None:
-    """Save the caregiver-approved radio station list for a profile."""
-    conn = get_connection()
-    try:
-        conn.execute(
-            "UPDATE profiles SET radio_stations = ?, updated_at = ? WHERE profile_id = ?",
-            (json.dumps(stations), time.time(), profile_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-def get_radio_stations(profile_id: str) -> list[dict]:
-    """Return the caregiver-approved radio station list for a profile."""
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            "SELECT radio_stations FROM profiles WHERE profile_id = ?", (profile_id,)
-        ).fetchone()
-    finally:
-        conn.close()
-    if row is None:
-        return []
-    try:
-        return json.loads(row["radio_stations"])
-    except Exception:
-        return []
 
 
 def save_radio_stations(profile_id: str, stations: list[dict]) -> None:

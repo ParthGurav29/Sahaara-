@@ -64,14 +64,18 @@ class VoiceEvent:
         the WebSocket handler forwards this as a JSON text frame.
       - "audio": raw PCM bytes to play — forwarded as a binary frame.
       - "initiative": proactive initiative from scheduler — JSON text frame
-    Two kinds in one stream (rather than two separate streams) because
-    order matters: the state change has to reach the client before the
-    audio it explains, and a single ordered stream guarantees that.
+      - "play_stream": the browser should start playing `url` (radio or a
+        local track from /media).
+      - "stop_media": the browser should stop whatever it is playing.
+    One stream (rather than several) because order matters: the state change
+    has to reach the client before the audio it explains, and a single ordered
+    stream guarantees that.
     """
-    kind: Literal["state", "audio", "initiative"]
+    kind: Literal["state", "audio", "initiative", "play_stream", "stop_media"]
     state: Optional[VoiceOrbState] = None
     audio: Optional[bytes] = None
     initiative: Optional[InitiativeEvent] = None
+    url: Optional[str] = None
 
 # Standby ladder timing thresholds (seconds after ack sound fires)
 # MILD_DELAY_THRESHOLD: when to play the "let me think" filler — but KEEP
@@ -152,7 +156,7 @@ async def check_voicechat_availability() -> bool:
     return False
 
 
-async def _llm_reply(user_text: str) -> tuple[str, str | None]:
+async def _llm_reply(user_text: str) -> tuple[str, str | None, bool]:
     """
     Runs the exact same pipeline /chat uses: intent classification, memory
     box matching, repeated-question/sustained-distress checks, prompt
@@ -184,7 +188,12 @@ async def _llm_reply(user_text: str) -> tuple[str, str | None]:
     # meta (emotion, guardrail_fallback_used, etc.) is available on `result`
     # too, if voice mode ever wants to log/surface it the way the text
     # frontend can — not used here, just noting it's not being thrown away.
-    return result["response"], result.get("radio_stream_url")
+    #
+    # `audio_url` covers both a radio stream and a local track served from
+    # /media; `stop_media` asks the browser to stop whatever is playing.
+    meta = result.get("meta") or {}
+    media_url = result.get("audio_url") or result.get("radio_stream_url")
+    return result["response"], media_url, bool(result.get("stop_media"))
 
 
 async def _delayed_filler(seconds: float, filler_fn):
@@ -254,32 +263,26 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
             for t in pending:
                 t.cancel()
             try:
-                reply_text, radio_url = llm_task.result()
+                reply_text, media_url, stop_media = llm_task.result()
                 t_first_llm_token = time.time()
                 timings["t_first_llm_token"] = t_first_llm_token
                 logger.info("Agent reply: %s", reply_text)
-                if radio_url:
-                    # Radio started — stream the URL to the frontend instead of TTS
-                    yield VoiceEvent(kind="play_stream", url=radio_url)
-                    # Still speak the reply text so the person hears what's playing
-                    first_tts = True
-                    async for audio_chunk in tts.stream_speech(reply_text):
-                        if first_tts:
-                            timings["t_first_tts_byte"] = time.time()
-                            first_tts = False
-                        yield VoiceEvent(kind="audio", audio=audio_chunk)
-                        if "t_first_audio_sent" not in timings:
-                            timings["t_first_audio_sent"] = time.time()
-                else:
-                    yield VoiceEvent(kind="state", state="speaking")
-                    first_tts = True
-                    async for audio_chunk in tts.stream_speech(reply_text):
-                        if first_tts:
-                            timings["t_first_tts_byte"] = time.time()
-                            first_tts = False
-                        yield VoiceEvent(kind="audio", audio=audio_chunk)
-                        if "t_first_audio_sent" not in timings:
-                            timings["t_first_audio_sent"] = time.time()
+                if stop_media:
+                    # "stop the music" — the browser owns playback, so it has
+                    # to be told. Only claimed when the action really ran.
+                    yield VoiceEvent(kind="stop_media")
+                if media_url:
+                    # Radio stream or a local track served from /media.
+                    yield VoiceEvent(kind="play_stream", url=media_url)
+                yield VoiceEvent(kind="state", state="speaking")
+                first_tts = True
+                async for audio_chunk in tts.stream_speech(reply_text):
+                    if first_tts:
+                        timings["t_first_tts_byte"] = time.time()
+                        first_tts = False
+                    yield VoiceEvent(kind="audio", audio=audio_chunk)
+                    if "t_first_audio_sent" not in timings:
+                        timings["t_first_audio_sent"] = time.time()
                 _write_timing_log(turn_id, timings)
                 event_log = get_event_log()
                 if event_log:
@@ -317,12 +320,14 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
                     if t is not llm_task:
                         t.cancel()
                 try:
-                    reply_text, radio_url = llm_task.result()
+                    reply_text, media_url, stop_media = llm_task.result()
                     t_first_llm_token = time.time()
                     timings["t_first_llm_token"] = t_first_llm_token
                     logger.info("Agent reply (after mild delay): %s", reply_text)
-                    if radio_url:
-                        yield VoiceEvent(kind="play_stream", url=radio_url)
+                    if stop_media:
+                        yield VoiceEvent(kind="stop_media")
+                    if media_url:
+                        yield VoiceEvent(kind="play_stream", url=media_url)
                     yield VoiceEvent(kind="state", state="speaking")
                     first_tts = True
                     async for audio_chunk in tts.stream_speech(reply_text):

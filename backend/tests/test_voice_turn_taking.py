@@ -168,8 +168,8 @@ def test_run_cascaded_pauses_before_listening():
         observed["gate_after_turn"] = gate["enabled"]
 
     async def fake_llm(text):
-        # _llm_reply returns (reply_text, radio_stream_url)
-        return "Your name is Asha.", None
+        # _llm_reply returns (reply_text, media_url, stop_media)
+        return "Your name is Asha.", None, False
 
     async def fake_ack():
         return b"ack"

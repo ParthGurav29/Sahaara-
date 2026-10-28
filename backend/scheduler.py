@@ -44,6 +44,8 @@ from database import (
     update_checkin_audio_delivery,
     get_profile,
     decode_json_field,
+    get_due_reminders,
+    mark_reminder_fired,
 )
 from safety.escalation import EscalationTier
 
@@ -51,6 +53,10 @@ logger = logging.getLogger("scheduler")
 
 # Check interval in seconds (production: 30s, demo: can be faster)
 CHECK_INTERVAL = int(os.environ.get("SCHEDULER_CHECK_INTERVAL", "30"))
+
+# One-off timers need sub-minute precision ("set a timer for 30 seconds"), so
+# they get their own fast loop rather than waiting for the check-in tick.
+TIMER_POLL_SECONDS = float(os.environ.get("SAHAARA_TIMER_POLL_SECONDS", "1.0"))
 
 
 @dataclass
@@ -68,6 +74,10 @@ class Scheduler:
     _paused: bool = field(default=False)
     _running: bool = field(default=False)
     _task: Optional[asyncio.Task] = field(default=None)
+    _timer_task: Optional[asyncio.Task] = field(default=None)
+    # How many voice WebSockets are open right now. Zero means a timer/reminder
+    # must stay on the dashboard instead of being queued for a later session.
+    _voice_sessions: int = field(default=0)
     _initiative_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=20))
     _voice_initiative_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=20))
     _llm_call: Optional[Any] = field(default=None)
@@ -148,6 +158,76 @@ class Scheduler:
         """Add a one-time reminder from set_reminder action."""
         # This is handled by the engine now, but keep for backward compat
         pass
+
+    # ---- One-off timers and reminders ------------------------------------
+    # Deliberately separate from the M3 engine above: a timer the person asked
+    # for by voice is a direct request, not proactive monitoring. It runs on
+    # real wall-clock time (never the 300x demo compression), fires even when
+    # the caregiver has paused check-ins, and needs no feature gate.
+    def mark_voice_session(self, active: bool) -> None:
+        """Track whether a voice session is open.
+
+        A timer only speaks when someone is actually there. With no session it
+        goes to the dashboard and stays silent, so the next session never
+        starts with a stale announcement.
+        """
+        if active:
+            self._voice_sessions += 1
+        else:
+            self._voice_sessions = max(0, self._voice_sessions - 1)
+
+    @property
+    def voice_session_open(self) -> bool:
+        return self._voice_sessions > 0
+
+    async def _timer_loop(self):
+        """Fire due timers/reminders roughly once a second."""
+        while self._running:
+            try:
+                await self._fire_due_reminders()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Timer loop error")
+            await asyncio.sleep(TIMER_POLL_SECONDS)
+
+    async def _fire_due_reminders(self):
+        """Deliver every pending timer whose time has come."""
+        from actions import describe_reminder_fired
+
+        rows = get_due_reminders(self.profile_id)
+        for row in rows:
+            voice = self.voice_session_open
+            # Claim the row first: a second tick (or a second worker) must not
+            # announce the same timer twice.
+            if not mark_reminder_fired(row["id"], delivered_voice=voice):
+                continue
+
+            spoken = describe_reminder_fired(row)
+            self._log_reminder_fired(row, spoken, voice)
+            await self._queue_initiative(
+                spoken,
+                category="reminder" if row["kind"] == "reminder" else "timer",
+                slot_id=f"reminder_{row['id']}",
+                wording_id=f"reminder_{row['id']}",
+                voice=voice,
+            )
+            logger.info("Fired %s %s for profile %s (voice=%s)",
+                        row["kind"], row["id"], self.profile_id, voice)
+
+    def _log_reminder_fired(self, row: dict, spoken: str, voice: bool) -> None:
+        try:
+            from conversation import _get_session
+            s = _get_session()
+            s.event_log.log_reminder_fired(
+                reminder_id=row["id"],
+                kind=row["kind"],
+                label=row["label"],
+                spoken=spoken,
+                delivered_voice=voice,
+            )
+        except Exception:
+            logger.exception("Could not log reminder %s", row.get("id"))
     
     async def get_initiative(self) -> Optional[dict]:
         """Non-blocking check for pending initiative messages."""
@@ -161,17 +241,24 @@ class Scheduler:
         self._llm_call = llm_call
         self._running = True
         self._task = asyncio.create_task(self._loop())
+        # Timers run on their own fast loop and are NOT gated by _paused or the
+        # M3 feature flag — the person asked for them directly.
+        self._timer_task = asyncio.create_task(self._timer_loop())
         logger.info("Scheduler started for profile %s", self.profile_id)
     
     async def stop(self):
         """Stop the scheduler."""
         self._running = False
-        if self._task:
-            self._task.cancel()
+        for task in (self._task, self._timer_task):
+            if not task:
+                continue
+            task.cancel()
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
+        self._task = None
+        self._timer_task = None
     
     async def _loop(self):
         """Main scheduler loop — runs every CHECK_INTERVAL seconds."""
@@ -349,8 +436,20 @@ class Scheduler:
         import random
         return random.choice(options)
     
-    async def _queue_initiative(self, text: str, category: str, slot_id: str, wording_id: str):
-        """Push an initiative message to the SSE queue and voice WS queue."""
+    async def _queue_initiative(
+        self,
+        text: str,
+        category: str,
+        slot_id: str,
+        wording_id: str,
+        voice: bool = True,
+    ):
+        """Push an initiative message to the SSE queue and (optionally) voice.
+
+        `voice=False` keeps a message on the dashboard only — used for timers
+        that fire while nobody is in a voice session, so the next session does
+        not open with a stale announcement.
+        """
         message = {
             "type": "sahaara_initiative",
             "data": {
@@ -367,6 +466,9 @@ class Scheduler:
             self._initiative_queue.put_nowait(message)
         except asyncio.QueueFull:
             logger.warning("Initiative queue full, dropping: %s", category)
+
+        if not voice:
+            return
         
         # Also push to voice initiative queue for voice WebSocket delivery
         voice_message = {

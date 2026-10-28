@@ -1,23 +1,28 @@
 """
-Tests for timer cancel/list functionality (Task 4).
+Tests for listing and cancelling timers/reminders.
 
-Tests that:
-- list_timers returns pending timers for a profile
-- cancel_timer cancels an active timer
-- cancel_timer fails for non-existent timer
-- detect_action recognizes cancel timer patterns
-- Timer cancellation removes from database
-- Multiple timers can be listed
+Owner decisions under test (2026-10-28):
+- "what timers do I have" answers from the new one-off table, not from the
+  recurring check-in history (which used to make it list yesterday's greeting)
+- "cancel the timer" really cancels it
+- More than one pending timer asks which one instead of guessing
 """
 
+import os
 import sys
+import tempfile
+import time
 from pathlib import Path
-from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import database
-from actions import detect_action, list_timers, cancel_timer
+_TMP_DB = Path(tempfile.mkdtemp()) / "actions_cancel.db"
+os.environ["SAHAARA_DB_PATH"] = str(_TMP_DB)
+
+import database  # noqa: E402
+database.init_db()
+
+from actions import cancel_timer, detect_action, list_timers, set_reminder, set_timer  # noqa: E402
 
 passed = 0
 failed = 0
@@ -34,132 +39,119 @@ def check(name: str, condition, detail=""):
 
 
 # ============================================================
-# Test 1: Detection patterns
+# Test 1: Detection
 # ============================================================
-print("=== Test 1: Detect cancel/list patterns ===")
+print("=== Test 1: Detect list/cancel patterns ===")
 
 detect_tests = [
-    ("cancel timer", "cancel_timer", None),
-    ("cancel timer for pasta", "cancel_timer", "pasta"),
-    ("timer for 30 minutes called dinner", "set_timer", 30),  # not cancel
-    ("list my timers", "list_timers", None),
-    ("what timers do i have", "list_timers", None),
-    ("cancel timer for dinner", "cancel_timer", "dinner"),
-    ("hello how are you", None, None),
+    ("what timers do i have", "list_timers"),
+    ("list my timers", "list_timers"),
+    ("show my alarms", "list_timers"),
+    ("cancel the timer", "cancel_timer"),
+    ("cancel that timer", "cancel_timer"),
+    ("cancel the tea timer", "cancel_timer"),
+    ("stay healthy and drink water", None),
 ]
 
-for text, expected_action, expected_label in detect_tests:
+for text, expected in detect_tests:
     result = detect_action(text)
-    detected_action = result["action_type"] if result else None
-    detected_label = result["params"].get("label") if result else None
-    check(
-        f"detect '{text}' -> {expected_action}",
-        detected_action == expected_action,
-        f"got {detected_action}",
-    )
-    if expected_action == "cancel_timer" and expected_label:
-        check(f"  label={expected_label}", detected_label == expected_label, f"got {detected_label}")
+    got = result["action_type"] if result else None
+    check(f"detect '{text}' -> {expected}", got == expected, f"got {got}")
 
+# "stop the timer" cancels; "stop the music" stops playback.
+check("'stop the timer' cancels", (detect_action("stop the timer") or {}).get("action_type") == "cancel_timer")
+check("'stop the music' stops media", (detect_action("stop the music") or {}).get("action_type") == "stop_media")
 
 # ============================================================
-# Test 2: list_timers with no timers
+# Test 2: Empty state
 # ============================================================
-print("\n=== Test 2: List timers - empty ===")
+print("\n=== Test 2: Nothing pending ===")
 
-profile_id = "test_profile_timer"
-import database
-database.save_profile(profile_id, {
-    "profile_id": profile_id,
-    "name": {"full_name": "Test User", "preferred_address": "Test"},
-    "family": [],
-    "life_story": {"hometown": "Testville", "work": "tester"},
-    "likes": {"music": [], "food": [], "topics": [], "routines": []},
-    "avoid": {"topics": []},
-    "daily_routine": {"wake_time": "07:00", "meals": {}, "medication_times": []},
-})
+result = list_timers(profile_id="asha_demo_001")
+check("list_timers on an empty profile succeeds", result.success is True)
+check("says there are no timers", "don't have any timers" in result.result_text, result.result_text)
+check("empty timer list", result.detail["timers"] == [])
 
-result = list_timers(profile_id)
-check("list_timers returns success", result.success, f"got {result}")
-check("list_timers says no timers", "no timers" in result.result_text.lower() or "any timers" in result.result_text.lower() or "don't have" in result.result_text.lower(), f"got {result.result_text}")
-
+result = cancel_timer(profile_id="asha_demo_001")
+check("cancel with nothing pending -> success=False", result.success is False)
+check("cancel says there is nothing to cancel", "no timer" in result.result_text.lower(), result.result_text)
 
 # ============================================================
-# Test 3: list_timers with active timers
+# Test 3: One timer, then list it
 # ============================================================
-print("\n=== Test 3: List timers - with timers ===")
+print("\n=== Test 3: Listing ===")
 
-# Add two timers directly to the database
-database.save_checkin_fired({
-    "profile_id": profile_id,
-    "slot_id": "timer_pasta",
-    "checkin_type": "timer",
-    "fired_at": __import__("time").time(),
-    "wording_id": "",
-    "response_received": False,
-    "retry_count": 0,
-    "skip_reason": "",
-})
-database.save_checkin_fired({
-    "profile_id": profile_id,
-    "slot_id": "timer_yoga",
-    "checkin_type": "timer",
-    "fired_at": __import__("time").time(),
-    "wording_id": "",
-    "response_received": False,
-    "retry_count": 0,
-    "skip_reason": "",
-})
+created = set_timer(600, label="tea", profile_id="asha_demo_001")
+check("created a timer", created.success is True)
 
-result = list_timers(profile_id)
-check("list_timers returns success", result.success, f"got {result}")
-check("list_timers mentions pasta", "pasta" in result.result_text.lower(), f"got {result.result_text}")
-check("list_timers mentions yoga", "yoga" in result.result_text.lower(), f"got {result.result_text}")
-
+result = list_timers(profile_id="asha_demo_001")
+check("list_timers success", result.success is True)
+check("lists one timer", len(result.detail["timers"]) == 1)
+check("names the timer label", "tea" in result.result_text, result.result_text)
+check(
+    "reports roughly ten minutes left",
+    "9 minutes" in result.result_text or "10 minutes" in result.result_text,
+    result.result_text,
+)
+check(
+    "does not call the recurring check-in history a timer",
+    "morning" not in result.result_text.lower(),
+    result.result_text,
+)
 
 # ============================================================
-# Test 4: cancel_timer cancels an active timer
+# Test 4: A reminder shows up too
 # ============================================================
-print("\n=== Test 4: Cancel timer ===")
+print("\n=== Test 4: Reminders are listed ===")
 
-result = cancel_timer("timer_pasta", profile_id)
-check("cancel_timer returns success", result.success, f"got {result}")
-check("cancel_timer result mentions cancel", "cancel" in result.result_text.lower(), f"got {result.result_text}")
-
-# Verify timer is gone from database
-remaining = database.list_timers(profile_id)
-remaining_timers = [t for t in remaining if t.get("slot_id") == "timer_pasta"]
-check("timer removed from database", len(remaining_timers) == 0, f"got {len(remaining_timers)} timers")
-
-# Verify other timer still exists
-remaining_yoga = [t for t in remaining if t.get("slot_id") == "timer_yoga"]
-check("other timer still exists", len(remaining_yoga) == 1, f"got {len(remaining_yoga)} timers")
-
+set_reminder(1200, label="take my pills", profile_id="asha_demo_001")
+result = list_timers(profile_id="asha_demo_001")
+check("lists both", len(result.detail["timers"]) == 2)
+check("medication is spoken generically", "take your medication" in result.result_text, result.result_text)
+check("never speaks the raw pill wording", "pills" not in result.result_text.lower(), result.result_text)
 
 # ============================================================
-# Test 5: cancel_timer for non-existent timer
+# Test 5: Cancel needs to know which one
 # ============================================================
-print("\n=== Test 5: Cancel timer - nonexistent ===")
+print("\n=== Test 5: Cancel with ambiguity ===")
 
-result = cancel_timer("nonexistent_timer", profile_id)
-check("cancel_timer nonexistent returns failure", not result.success, f"got {result}")
-check("cancel_timer failure message", "don't have" in result.result_text.lower() or "not found" in result.result_text.lower() or "couldn't" in result.result_text.lower(), f"got {result.result_text}")
+result = cancel_timer(profile_id="asha_demo_001")
+check("ambiguous cancel -> success=False", result.success is False)
+check("asks which one", "which one" in result.result_text.lower(), result.result_text)
+check("offers the candidates", len(result.detail["candidates"]) == 2)
 
+# Cancelling by name works.
+result = cancel_timer(profile_id="asha_demo_001", which="tea")
+check("cancel by label succeeds", result.success is True)
+check("says it cancelled the timer", "cancelled" in result.result_text.lower(), result.result_text)
+check("names the cancelled timer", "tea" in result.result_text, result.result_text)
+
+remaining = list_timers(profile_id="asha_demo_001")
+check("one timer left", len(remaining.detail["timers"]) == 1)
+check("the reminder survived", remaining.detail["timers"][0]["kind"] == "reminder")
+
+# Cancelling the last one needs no name.
+result = cancel_timer(profile_id="asha_demo_001")
+check("cancel the only remaining timer", result.success is True)
+
+result = list_timers(profile_id="asha_demo_001")
+check("nothing pending again", result.detail["timers"] == [])
+
+# A cancelled timer cannot be cancelled twice.
+check("second cancel fails", cancel_timer(profile_id="asha_demo_001").success is False)
 
 # ============================================================
-# Cleanup
+# Test 6: Cancelling keeps the row (audit trail)
 # ============================================================
-print("\n=== Cleanup ===")
-conn = database.get_connection()
-conn.execute("DELETE FROM checkin_fired_history WHERE profile_id = ?", (profile_id,))
-conn.execute("DELETE FROM profiles WHERE profile_id = ?", (profile_id,))
-conn.commit()
-conn.close()
-print("Cleanup done")
+print("\n=== Test 6: Cancelled rows are kept ===")
 
+created = set_timer(300, label="rice", profile_id="asha_demo_001")
+row_id = created.detail["id"]
+cancel_timer(profile_id="asha_demo_001")
+row = database.get_reminder(row_id)
+check("row still exists", row is not None)
+check("row status is cancelled", row and row["status"] == "cancelled")
+check("row is not served as pending", database.get_due_reminders("asha_demo_001", time.time() + 10_000) == [])
 
-# ============================================================
-# Summary
-# ============================================================
-print(f"\n=== Results: {passed} passed, {failed} failed ===")
-if failed:
-    sys.exit(1)
+print(f"\n  RESULT: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)

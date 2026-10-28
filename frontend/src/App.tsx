@@ -2,6 +2,7 @@ import { Component, useEffect, useState } from "react";
 
 import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
+import { playMediaUrl, stopMediaUrl } from "./mediaPlayer";
 import LoginPage from "./LoginPage";
 import { VoiceStateProvider } from "./VoiceStateContext";
 import SahaaraAvatar from "./SahaaraAvatar";
@@ -158,6 +159,16 @@ function AppContent() {
       }
 
       setResponse(data.response);
+
+      // A task action can ask for audio (radio, a local track) or for the
+      // current audio to stop. Honest either way: the URL only exists when the
+      // backend actually started something.
+      if (data.stop_media) {
+        stopMediaUrl();
+      } else {
+        const mediaUrl = data.audio_url || data.radio_stream_url;
+        if (mediaUrl) playMediaUrl(mediaUrl);
+      }
     } catch (error) {
       console.error(error);
       setResponse("Something went wrong.");
