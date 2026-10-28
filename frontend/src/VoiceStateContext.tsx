@@ -7,7 +7,10 @@ import {
   type ReactNode,
 } from "react";
 
-export type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
+// The voice visual that used to be the orb is now the avatar; the state names
+// are unchanged so the backend protocol (`{"type":"state","state":"…"}`) needs
+// no edits.
+export type VoiceStateName = "idle" | "listening" | "thinking" | "speaking" | "error";
 export type AvatarTier = "green" | "yellow" | "orange" | "red";
 
 // Three separate contexts on purpose. `level` changes on every animation frame
@@ -15,13 +18,13 @@ export type AvatarTier = "green" | "yellow" | "orange" | "red";
 // consumer (the whole caregiver dashboard) ~60 times a second. Actions are
 // stable for the provider's lifetime and therefore never re-render anyone.
 interface VoiceSnapshot {
-  state: OrbState;
+  state: VoiceStateName;
   isActive: boolean;
   tier: AvatarTier;
 }
 
 interface VoiceActions {
-  setState: (state: OrbState) => void;
+  setState: (state: VoiceStateName) => void;
   setIsActive: (active: boolean) => void;
   setTier: (tier: AvatarTier) => void;
   setLevel: (level: number) => void;
@@ -32,7 +35,7 @@ const VoiceLevelContext = createContext<number>(0);
 const VoiceActionsContext = createContext<VoiceActions | null>(null);
 
 export function VoiceStateProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<OrbState>("idle");
+  const [state, setState] = useState<VoiceStateName>("idle");
   const [isActive, setIsActive] = useState(false);
   const [tier, setTier] = useState<AvatarTier>("green");
   const [level, setLevel] = useState(0);

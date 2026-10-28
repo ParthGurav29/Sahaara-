@@ -3,9 +3,9 @@ import { Component, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
 import LoginPage from "./LoginPage";
-import VoiceOrb from "./VoiceOrb";
-import { VoiceStateProvider, useVoiceLevel, useVoiceStateReadOnly } from "./VoiceStateContext";
+import { VoiceStateProvider } from "./VoiceStateContext";
 import SahaaraAvatar from "./SahaaraAvatar";
+import { useVoiceSession } from "./useVoiceSession";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import SuggestedFacts from "./SuggestedFacts";
@@ -45,67 +45,36 @@ class ErrorBoundary extends Component<
   }
 }
 
-// Avatar A3/A4/A5: the orb/avatar toggle must live INSIDE VoiceStateProvider,
-// otherwise useVoiceStateReadOnly() falls back to its defaults (idle / level 0 /
-// green) and the visual never reacts. AppContent renders the provider, so the
-// consumer has to be a child component.
+// The avatar replaced the orb completely (owner decision, 2026-10-28). It is
+// the only voice visual and the only voice control: clicking it starts/stops
+// the session exactly like the orb did, its mouth follows real TTS amplitude,
+// and the escalation tier only ever calms it down.
+//
+// If the avatar's render ever throws, this plain control keeps the person able
+// to talk — it is deliberately not the old orb.
+function VoiceFallbackControl() {
+  const { state, isActive, toggle } = useVoiceSession();
+
+  return (
+    <div className="voice-fallback">
+      <p>Sahaara's animation had a problem.</p>
+      <button type="button" onClick={toggle}>
+        {isActive ? "Stop talking" : "Start talking"}
+      </button>
+      <p>{isActive ? state : "Voice is off"}</p>
+    </div>
+  );
+}
+
 function AshaVisual() {
-  const { state: voiceState, tier: voiceTier } = useVoiceStateReadOnly();
-  const voiceLevel = useVoiceLevel();
-
-  // Avatar A3: Orb/Avatar toggle (persisted in localStorage, default = Orb)
-  const [showAvatar, setShowAvatar] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sahaara_show_avatar") === "true";
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    localStorage.setItem("sahaara_show_avatar", String(showAvatar));
-  }, [showAvatar]);
-
   return (
     <section className="asha-view">
       <div className="asha-view-header">
         <h2 className="view-title">Asha's View</h2>
-        <div className="avatar-toggle" role="group" aria-label="Choose voice visual">
-          <button
-            className={`avatar-toggle__btn ${showAvatar ? "" : "active"}`}
-            onClick={() => setShowAvatar(false)}
-            aria-pressed={!showAvatar}
-            title="Voice Orb (original)"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-            <span className="avatar-toggle__label">Orb</span>
-          </button>
-          <button
-            className={`avatar-toggle__btn ${showAvatar ? "active" : ""}`}
-            onClick={() => setShowAvatar(true)}
-            aria-pressed={showAvatar}
-            title="Sahaara Avatar (expressive)"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M8 14s1.5-2 4-2 4 2 4 2" />
-              <line x1="9" y1="9" x2="9.01" y2="9" />
-              <line x1="15" y1="9" x2="15.01" y2="9" />
-            </svg>
-            <span className="avatar-toggle__label">Avatar</span>
-          </button>
-        </div>
       </div>
-      {showAvatar ? (
-        <ErrorBoundary name="SahaaraAvatar" fallback={<VoiceOrb />}>
-          <SahaaraAvatar state={voiceState} level={voiceLevel} tier={voiceTier} />
-        </ErrorBoundary>
-      ) : (
-        <ErrorBoundary name="VoiceOrb">
-          <VoiceOrb />
-        </ErrorBoundary>
-      )}
+      <ErrorBoundary name="SahaaraAvatar" fallback={<VoiceFallbackControl />}>
+        <SahaaraAvatar />
+      </ErrorBoundary>
     </section>
   );
 }

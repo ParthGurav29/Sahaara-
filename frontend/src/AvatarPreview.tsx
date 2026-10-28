@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import SahaaraAvatar, { type AvatarState, type AvatarTier } from "./SahaaraAvatar";
+import { AvatarVisual, type AvatarState, type AvatarTier } from "./SahaaraAvatar";
 import "./AvatarPreview.css";
 
 const STATES: AvatarState[] = ["idle", "listening", "thinking", "speaking", "error"];
@@ -64,7 +64,7 @@ export default function AvatarPreview() {
         Test the avatar states, tiers, and audio reactivity. <strong>Only works in development mode.</strong>
       </p>
 
-      <SahaaraAvatar state={state} level={effectiveLevel} tier={tier} />
+      <AvatarVisual state={state} level={effectiveLevel} tier={tier} size={168} />
 
       <div className="avatar-preview__status">
         <strong>Current:</strong> {STATE_LABELS[state]} | {TIER_LABELS[tier]} | Level: {Math.round(effectiveLevel * 100)}%
