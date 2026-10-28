@@ -191,10 +191,36 @@ def _check_fabricated_schedule(text_lower: str, profile: Optional[Profile]) -> l
     return [f"fabricated_schedule: {hit}" for hit in hits]
 
 
-def _check_fabricated_weather(text_lower: str) -> list[str]:
-    """Flags fabricated weather claims. Sahaara has no weather source."""
+def _check_fabricated_weather(text_lower: str, injected_facts: Optional[list[str]] = None) -> list[str]:
+    """Flags fabricated weather claims. Sahaara has no weather source.
+
+    If injected_facts are provided (facts injected into the prompt from
+    action results), weather claims matching those facts are allowed — only
+    truly fabricated weather claims are flagged.
+    """
     hits = _find_matches(text_lower, FABRICATED_WEATHER_PATTERNS)
-    return [f"fabricated_weather: {hit}" for hit in hits]
+    if not injected_facts:
+        return [f"fabricated_weather: {hit}" for hit in hits]
+
+    # Build a set of significant words from injected facts
+    injected_words: set[str] = set()
+    for fact in injected_facts:
+        fact_lower = fact.lower()
+        for word in fact_lower.split():
+            word = word.strip(".,!?;:\"'()")
+            if len(word) > 2:
+                injected_words.add(word)
+
+    filtered_hits = []
+    for hit in hits:
+        hit_words = {w.strip(".,!?;:\"'()") for w in hit.lower().split()}
+        hit_words = {w for w in hit_words if len(w) > 2}
+        # Allow the hit if any word matches an injected fact word
+        if hit_words & injected_words:
+            continue
+        filtered_hits.append(hit)
+
+    return [f"fabricated_weather: {hit}" for hit in filtered_hits]
 
 
 def _check_fabricated_surroundings(text_lower: str) -> list[str]:
@@ -236,10 +262,16 @@ def _check_fabricated_reassurance(text_lower: str, profile: Optional[Profile]) -
     return []
 
 
-def check_guardrails(response_text: str, profile: Optional[Profile] = None) -> GuardrailResult:
+def check_guardrails(
+    response_text: str,
+    profile: Optional[Profile] = None,
+    injected_facts: Optional[list[str]] = None,
+) -> GuardrailResult:
     """Run all hard guardrail checks against a candidate response.
     Pass the active Profile when available so the fabricated-reassurance
     check can cross-reference deceased/avoid-topic family members.
+    Pass injected_facts (strings injected into the prompt as action results,
+    e.g. weather facts) so that genuine facts are not flagged as fabricated.
     """
     text_lower = response_text.lower()
     violations: list[str] = []
@@ -250,7 +282,7 @@ def check_guardrails(response_text: str, profile: Optional[Profile] = None) -> G
     violations += _check_fabricated_reassurance(text_lower, profile)
     violations += _check_fabricated_whereabouts(text_lower, profile)
     violations += _check_fabricated_schedule(text_lower, profile)
-    violations += _check_fabricated_weather(text_lower)
+    violations += _check_fabricated_weather(text_lower, injected_facts)
     violations += _check_fabricated_surroundings(text_lower)
 
     return GuardrailResult(text=response_text, violations=violations)

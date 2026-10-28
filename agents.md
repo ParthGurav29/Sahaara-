@@ -1138,3 +1138,14 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **`backend/tests/unit_e2e.py`:** +4 tests (MILD_DELAY_THRESHOLD=3.5, REAL_DELAY_THRESHOLD=8.0, MILD < REAL, process_turn accepts max_tokens)
 
 **Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
+
+### 2026-10-28 — M5 Task 2: Weather action via Open-Meteo
+**Owner decision (2026-10-28):** Add weather check as a safe action that Sahaara can perform when asked about weather.
+
+- **`backend/actions.py`:** Added `get_weather(latitude, longitude)` using Open-Meteo API (no API key). Defaults to Pune coordinates from profile. Timeout 3s, exceptions swallowed, returns `action_type: "get_weather"` with temperature, condition, high/low in detail. Added detection patterns for "how is the weather", "will it rain", "is it hot", etc. in `ACTION_TRIGGERS`.
+- **`backend/conversation.py`:** `process_turn()` calls `get_weather()` when action detected, injects result as `[FACT: ...]` or `[ACTION FAILED: ...]` into prompt context. Also passes `injected_facts` to `check_guardrails()` so genuine weather facts aren't flagged as fabricated.
+- **`backend/llm/intent_emotion.py`:** Added `not able to breathe`, `unable to breathe`, `having trouble breathing`, `hard to breathe` to `PHYSICAL_URGENT_PATTERNS` (physical distress → Red).
+- **`backend/safety/guardrails.py`:** `check_guardrails()` accepts optional `injected_facts` parameter; `_check_fabricated_weather()` skips patterns matching injected fact words so genuine weather answers aren't flagged.
+- **`backend/tests/test_actions_weather.py` (new):** 22 checks — detection patterns, successful fetch, API timeout, API error, weather claim without action blocked, weather claim with action allowed, danger phrase with weather word still physical urgent.
+- **`backend/tests/unit_e2e.py`:** +2 tests (MILD_DELAY_THRESHOLD=3.5, REAL_DELAY_THRESHOLD=8.0 verified).
+- **Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.

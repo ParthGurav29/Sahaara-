@@ -207,9 +207,10 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     # ---- MEMORY / CONTEXT ----
     
     # Check for safe task actions
-    from actions import detect_action, tell_time, play_song, set_reminder
+    from actions import detect_action, tell_time, play_song, set_reminder, get_weather
     action_result = detect_action(user_message)
     action_context = ""
+    injected_facts: list[str] = []
     if action_result:
         atype = action_result["action_type"]
         params = action_result.get("params", {})
@@ -217,6 +218,7 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             result = tell_time()
             if result.success:
                 action_context = f"[FACT: {result.result_text}]"
+                injected_facts.append(result.result_text)
         elif atype == "play_song":
             result = play_song(params.get("song_name", ""))
             if result.success:
@@ -227,6 +229,13 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             result = set_reminder(params.get("text", ""), params.get("minutes", 5), scheduler=_scheduler)
             if result.success:
                 action_context = f"[ACTION PERFORMED: {result.result_text}]"
+        elif atype == "get_weather":
+            result = get_weather()
+            if result.success:
+                action_context = f"[FACT: {result.result_text}]"
+                injected_facts.append(result.result_text)
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
     
     user_message_with_action = f"{action_context}\n\nUser said: {user_message}" if action_context else user_message
     
@@ -323,7 +332,7 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     else:
         _structure_turn_type = "emotional"
     structure = check_response_structure(response_text, turn_type=_structure_turn_type)
-    guardrail = check_guardrails(response_text, s.profile)
+    guardrail = check_guardrails(response_text, s.profile, injected_facts=injected_facts)
     
     used_fallback = False
     if not guardrail.passed:

@@ -11,13 +11,21 @@ Fixed actions:
 - set_reminder(text, minutes) — one-time reminder
 """
 
+import json
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
+from urllib.request import urlopen, Request
 
 MUSIC_DIR = Path(__file__).parent / "voice" / "assets" / "music"
+
+# Pune, Maharashtra coordinates (from the profile's hometown)
+PUNE_LATITUDE = 18.5204
+PUNE_LONGITUDE = 73.8567
 
 
 @dataclass
@@ -127,6 +135,99 @@ def set_reminder(text: str, minutes: int, scheduler=None) -> ActionResult:
     )
 
 
+def get_weather(latitude: float = PUNE_LATITUDE, longitude: float = PUNE_LONGITUDE) -> ActionResult:
+    """Get current weather for a location using the Open-Meteo API.
+
+    No API key required. Timeout is 3s; any exception is swallowed and
+    returns a failure result so the caller can respond honestly.
+    """
+    import json
+
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "current_weather": "true",
+        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "timezone": "auto",
+    }
+    full_url = f"https://api.open-meteo.com/v1/forecast?{urlencode(params)}"
+
+    try:
+        req = Request(full_url)
+        with urlopen(req, timeout=3) as response:
+            data = json.loads(response.read().decode())
+
+        current = data.get("current_weather", {})
+        daily = data.get("daily", {})
+
+        temperature = current.get("temperature")
+        weathercode = current.get("weathercode")
+        daily_max_list = daily.get("temperature_2m_max", [])
+        daily_min_list = daily.get("temperature_2m_min", [])
+        daily_max = daily_max_list[0] if daily_max_list else None
+        daily_min = daily_min_list[0] if daily_min_list else None
+
+        condition = _weathercode_to_condition(weathercode)
+
+        return ActionResult(
+            success=True,
+            action_type="get_weather",
+            result_text=f"It's {temperature}°C and {condition.lower()} in Pune right now.",
+            detail={
+                "temperature": temperature,
+                "condition": condition,
+                "high": daily_max,
+                "low": daily_min,
+                "latitude": latitude,
+                "longitude": longitude,
+            },
+        )
+    except Exception:
+        return ActionResult(
+            success=False,
+            action_type="get_weather",
+            result_text="I'm sorry, I can't check the weather right now.",
+            detail={},
+        )
+
+
+def _weathercode_to_condition(code: int | None) -> str:
+    """Map WMO weather code to a human-readable condition."""
+    if code is None:
+        return "unknown"
+    code_map = {
+        0: "clear",
+        1: "mainly clear",
+        2: "partly cloudy",
+        3: "overcast",
+        45: "foggy",
+        48: "depositing rime fog",
+        51: "light drizzle",
+        53: "moderate drizzle",
+        55: "dense drizzle",
+        56: "light freezing drizzle",
+        57: "dense freezing drizzle",
+        61: "slight rain",
+        63: "moderate rain",
+        65: "heavy rain",
+        66: "light freezing rain",
+        67: "heavy freezing rain",
+        71: "slight snow fall",
+        73: "moderate snow fall",
+        75: "heavy snow fall",
+        77: "snow grains",
+        80: "slight rain showers",
+        81: "moderate rain showers",
+        82: "heavy rain showers",
+        85: "slight snow showers",
+        86: "heavy snow showers",
+        95: "thunderstorm",
+        96: "thunderstorm with slight hail",
+        99: "thunderstorm with heavy hail",
+    }
+    return code_map.get(code, "unknown")
+
+
 # ---- Detection patterns for action triggers ----
 
 import re
@@ -142,6 +243,11 @@ ACTION_TRIGGERS = [
     # set_reminder (two patterns with different group layouts)
     (r"\bremind me (?:about |to |in )?(.+?)(?: in| after) (\d+)\s*(minute|minutes|min|mins|hour|hours)\b", "set_reminder"),
     (r"\b(set|create) (?:a |an )?reminder (?:for |about )?(.+?)(?:in|after) (\d+)\s*(minute|minutes|min|mins)\b", "set_reminder_alt"),
+    # weather
+    (r"\bhow (?:is|'s) the weather\b", "get_weather"),
+    (r"\bwhat'?s the weather like\b", "get_weather"),
+    (r"\bwill it (rain|snow|storm)\b", "get_weather"),
+    (r"\bis it (hot|cold|warm|chilly|humid)\b", "get_weather"),
 ]
 
 
@@ -197,6 +303,9 @@ def detect_action(user_message: str) -> Optional[dict]:
                 "action_type": "set_reminder",
                 "params": {"text": reminder_text, "minutes": minutes},
             }
+        
+        elif action_type == "get_weather":
+            return {"action_type": "get_weather", "params": {}}
     
     return None
 
