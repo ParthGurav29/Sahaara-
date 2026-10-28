@@ -177,6 +177,91 @@ def test_list_scoped_to_profile_and_ordered():
     print("  ✓ subscriptions are scoped per profile and returned oldest first")
 
 
+def test_user_id_is_stored_and_refreshed():
+    _clear_subscriptions()
+    row = database.add_push_subscription(
+        PROFILE, ENDPOINT, "k1", "a1", user_agent="UA", user_id="7"
+    )
+    assert row["user_id"] == "7", row
+
+    # A different caregiver signing in on the same browser replaces the owner.
+    row2 = database.add_push_subscription(
+        PROFILE, ENDPOINT, "k1", "a1", user_agent="UA", user_id="9"
+    )
+    assert row2["user_id"] == "9", row2
+    assert len(database.list_push_subscriptions(PROFILE)) == 1, "still one row, updated"
+    print("  ✓ user_id is stored and refreshed on re-subscribe (no duplicate row)")
+
+
+def test_last_success_at_is_recorded_only_on_success():
+    _clear_subscriptions()
+    row = database.add_push_subscription(PROFILE, ENDPOINT, "k1", "a1")
+    assert row["last_success_at"] is None, "a new subscription has never been accepted"
+
+    assert database.mark_push_subscription_success(ENDPOINT, when=1234.5) is True
+    row = database.get_push_subscription(ENDPOINT)
+    assert row["last_success_at"] == 1234.5, row
+
+    assert database.mark_push_subscription_success("https://example.com/nope") is False
+    print("  ✓ last_success_at is written by an accepted send and never invents one")
+
+
+def test_init_db_migrates_an_old_push_table():
+    """An installed DB created before Step 8 must gain the columns in place."""
+    import sqlite3
+
+    old_path = Path(tempfile.gettempdir()) / "sahaara_test_push_old.db"
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(old_path) + suffix).unlink(missing_ok=True)
+
+    conn = sqlite3.connect(str(old_path))
+    conn.execute(
+        """CREATE TABLE push_subscriptions (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               profile_id TEXT NOT NULL,
+               endpoint TEXT NOT NULL UNIQUE,
+               p256dh TEXT NOT NULL,
+               auth TEXT NOT NULL,
+               user_agent TEXT NOT NULL DEFAULT '',
+               created_at REAL NOT NULL,
+               updated_at REAL NOT NULL,
+               revoked INTEGER NOT NULL DEFAULT 0
+           )"""
+    )
+    conn.execute(
+        "INSERT INTO push_subscriptions (profile_id, endpoint, p256dh, auth, created_at, updated_at, revoked)"
+        " VALUES (?, ?, 'k', 'a', 1, 1, 0)",
+        (PROFILE, "https://fcm.googleapis.com/fcm/send/old"),
+    )
+    conn.commit()
+    conn.close()
+
+    previous = os.environ.get("SAHAARA_DB_PATH")
+    os.environ["SAHAARA_DB_PATH"] = str(old_path)
+    try:
+        import importlib
+
+        import database as db_module
+
+        reloaded = importlib.reload(db_module)
+        reloaded.init_db()
+        migrated = reloaded.get_push_subscription("https://fcm.googleapis.com/fcm/send/old")
+        assert migrated is not None, "the pre-existing row must survive the migration"
+        assert migrated["user_id"] == "", "legacy rows get an empty owner, not a crash"
+        assert migrated["last_success_at"] is None
+    finally:
+        if previous is None:
+            os.environ.pop("SAHAARA_DB_PATH", None)
+        else:
+            os.environ["SAHAARA_DB_PATH"] = previous
+        import importlib
+
+        import database as db_module
+
+        importlib.reload(db_module)
+    print("  ✓ an old push_subscriptions table migrates in place (columns added, row kept)")
+
+
 # ---------------------------------------------------------------------------
 # configuration / key handling
 # ---------------------------------------------------------------------------
@@ -434,6 +519,9 @@ def run_all_tests():
     test_revoke()
     test_revoke_unknown_endpoint()
     test_list_scoped_to_profile_and_ordered()
+    test_user_id_is_stored_and_refreshed()
+    test_last_success_at_is_recorded_only_on_success()
+    test_init_db_migrates_an_old_push_table()
 
     test_push_disabled_by_default()
     test_flag_parsing()

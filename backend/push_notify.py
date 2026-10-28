@@ -52,6 +52,7 @@ from database import (
     clear_push_cooldown_state,
     get_push_cooldown_state,
     list_push_subscriptions,
+    mark_push_subscription_success,
     revoke_push_subscription,
     set_push_cooldown_state,
 )
@@ -177,6 +178,12 @@ def is_pushable(alert: Any) -> bool:
     from_tier = _tier_from_value(alert).lower()
     if TIER_RANK.get(to_tier, 0) <= 0:
         return False
+    # Step 8a: a consent acceptance at Yellow+ may ring the phone — the person
+    # asked to be contacted, so the caregiver's phone is the right place to tell
+    # them. Green stays dashboard-only (no upward tier move). Declined/timeout
+    # outcomes never push.
+    if getattr(alert, "reason", "") == "consent_accepted":
+        return to_tier != "green"
     return TIER_RANK[to_tier] > TIER_RANK.get(from_tier, 0)
 
 
@@ -353,6 +360,10 @@ def send_alert_push(
             if isinstance(code, int) and 200 <= code < 300:
                 result["sent"] += 1
                 result["results"].append(_per_subscription("accepted", code))
+                try:
+                    mark_push_subscription_success(endpoint, now)
+                except Exception:
+                    logger.warning("Could not record the last accepted push time")
             else:
                 result["failed"] += 1
                 result["results"].append(_per_subscription("failed", code))

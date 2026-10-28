@@ -33,6 +33,17 @@ export function openEventSource(path: string): EventSource {
   return new EventSource(eventSourceUrl(path), { withCredentials: true });
 }
 
+/** Open a WebSocket to the proxied stream endpoint.
+ *
+ * Same-origin, so the browser sends the session cookie automatically — no
+ * token in the URL. Goes through the Vite `/api` proxy (`ws: true`), which
+ * is what makes live updates work over Cloudflare Quick Tunnel (SSE bodies
+ * are buffered there but WebSocket frames pass through).
+ */
+export function openWebSocket(path: string): WebSocket {
+  return new WebSocket(apiUrl(path));
+}
+
 /** WebSocket URL derived from the current page (https -> wss). */
 export function wsUrl(path: string): string {
   const explicit = (import.meta as any).env?.VITE_VOICE_WS_URL as string | undefined;

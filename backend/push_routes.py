@@ -70,6 +70,7 @@ async def subscribe(
         p256dh=body.keys.p256dh,
         auth=body.keys.auth,
         user_agent=body.user_agent,
+        user_id=str(user.get("user_id") or ""),
     )
 
     return {

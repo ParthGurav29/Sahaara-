@@ -599,6 +599,25 @@ def test_push_outcome_does_not_touch_alert_or_tier_state():
     )
 
 
+def test_accepted_send_records_last_success_per_subscription():
+    _enable_push()
+    _clear_subscriptions()
+    _subscribe(endpoint=ENDPOINT)
+    _subscribe(endpoint=ENDPOINT_2)
+
+    from database import get_push_subscription
+
+    sender = PerEndpointSender({ENDPOINT: 201, ENDPOINT_2: 500})
+    push_notify.send_alert_push(_alert(), None, now=1234.5, sender=sender)
+
+    accepted = get_push_subscription(ENDPOINT)
+    rejected = get_push_subscription(ENDPOINT_2)
+    assert accepted["last_success_at"] == 1234.5, accepted
+    assert rejected["last_success_at"] is None, (
+        "a failed send must not be recorded as an accepted one"
+    )
+
+
 def test_malformed_vapid_key_reports_error_and_never_raises():
     _enable_push(key="not-a-real-key")
     _clear_subscriptions()
@@ -761,6 +780,7 @@ def run_all_tests():
         test_red_window_is_two_minutes,
         test_cooldown_survives_a_restart,
         test_results_are_per_subscription_and_never_contain_endpoints,
+        test_accepted_send_records_last_success_per_subscription,
         test_push_outcome_does_not_touch_alert_or_tier_state,
         test_malformed_vapid_key_reports_error_and_never_raises,
         test_ttl_defaults_to_one_hour_and_can_be_overridden,

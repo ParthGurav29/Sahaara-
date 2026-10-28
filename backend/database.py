@@ -28,6 +28,18 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    """
+    Add a column only when it is missing (SQLite has no IF NOT EXISTS here).
+
+    Called from `init_db`, so an already-installed database migrates in place
+    and a fresh one gets the same shape.
+    """
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_db():
     """Create tables and migrate existing JSON data."""
     conn = get_connection()
@@ -165,7 +177,13 @@ def init_db():
             updated_at REAL NOT NULL
         );
     """)
-    
+
+    # M5 Step 8: additive columns on push_subscriptions. SQLite has no
+    # "ADD COLUMN IF NOT EXISTS", so each one is checked first — the table above
+    # already exists on every installed DB and must migrate in place.
+    _ensure_column(conn, "push_subscriptions", "user_id", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "push_subscriptions", "last_success_at", "REAL")
+
     conn.commit()
     
     # Migrate existing JSON profile if DB is empty
@@ -524,12 +542,20 @@ def update_checkin_audio_delivery(profile_id: str, slot_id: str, delivered_audio
 # M5 Step 3: Web Push subscriptions (storage only — nothing is delivered yet)
 # ---------------------------------------------------------------------------
 
-def add_push_subscription(profile_id: str, endpoint: str, p256dh: str, auth: str, user_agent: str = "") -> dict:
+def add_push_subscription(
+    profile_id: str,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+    user_agent: str = "",
+    user_id: str = "",
+) -> dict:
     """
     Store a browser push subscription, keyed by its endpoint.
 
     Re-subscribing the same endpoint updates the keys and un-revokes it, so a
-    browser that re-registers does not accumulate duplicate rows.
+    browser that re-registers does not accumulate duplicate rows. `user_id` is
+    the caregiver account that registered it (empty when auth is disabled).
     """
     now = time.time()
     conn = get_connection()
@@ -541,22 +567,42 @@ def add_push_subscription(profile_id: str, endpoint: str, p256dh: str, auth: str
             conn.execute(
                 """UPDATE push_subscriptions
                    SET profile_id = ?, p256dh = ?, auth = ?, user_agent = ?,
-                       updated_at = ?, revoked = 0
+                       user_id = ?, updated_at = ?, revoked = 0
                    WHERE endpoint = ?""",
-                (profile_id, p256dh, auth, user_agent, now, endpoint),
+                (profile_id, p256dh, auth, user_agent, str(user_id or ""), now, endpoint),
             )
         else:
             conn.execute(
                 """INSERT INTO push_subscriptions
-                   (profile_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, revoked)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 0)""",
-                (profile_id, endpoint, p256dh, auth, user_agent, now, now),
+                   (profile_id, endpoint, p256dh, auth, user_agent, user_id,
+                    created_at, updated_at, revoked)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (profile_id, endpoint, p256dh, auth, user_agent, str(user_id or ""), now, now),
             )
         conn.commit()
     finally:
         conn.close()
 
     return get_push_subscription(endpoint) or {}
+
+
+def mark_push_subscription_success(endpoint: str, when: Optional[float] = None) -> bool:
+    """
+    Record that the push service accepted a message for this endpoint.
+
+    This is the last *accepted* time, not a delivery time: a 2xx says the push
+    service took the message, never that a phone showed it.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "UPDATE push_subscriptions SET last_success_at = ?, updated_at = ? WHERE endpoint = ?",
+            (float(when if when is not None else time.time()), time.time(), endpoint),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
 
 
 def get_push_subscription(endpoint: str) -> Optional[dict]:

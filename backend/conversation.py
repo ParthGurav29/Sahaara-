@@ -24,6 +24,7 @@ from events.event_log import EventType, FallbackType
 from session_manager import SessionManager
 import time
 import re
+import threading
 
 # ---- Single session manager for the app ----
 _session_manager = SessionManager()
@@ -85,9 +86,64 @@ def process_turn(user_message: str) -> dict:
         consent_result = s.consent_manager.interpret_response(user_message)
         
         if consent_result == ConsentState.ACCEPTED:
-            s.alert_builder.build_consent_alert("accepted", pending_contact, s.escalation_engine.current_tier)
+            alert = s.alert_builder.build_consent_alert("accepted", pending_contact, s.escalation_engine.current_tier)
+
+            # Step 8a: attempt the push and wait up to ~1.0 s for the result.
+            # If at least one subscription accepted, tell the person the alert
+            # was sent — honestly, without claiming delivery or that the
+            # caregiver has seen it. Otherwise fall back to the dashboard-only
+            # line. Never blocks the turn: daemon thread, bounded join.
+            #
+            # A lock guards the handoff between the main thread (which chooses
+            # the response wording) and the worker thread (which may finish
+            # after the 1.0 s window). The worker logs push_sent_late only if
+            # it succeeds after the dashboard-only wording was already chosen.
+            push_accepted = False
+            push_result = {}
+            response_chosen = False
+            decision_lock = threading.Lock()
+
+            def _do_send():
+                push_result.update(send_alert_push(alert, s.event_log))
+                accepted = push_result.get("sent", 0) >= 1
+                with decision_lock:
+                    if accepted and response_chosen:
+                        # Push succeeded after we already chose dashboard-only
+                        # wording. Log it so the event log reflects reality.
+                        try:
+                            s.event_log.log_alert_sent(
+                                alert_id=getattr(alert, "alert_id", ""),
+                                tier=s.escalation_engine.current_tier.value,
+                                status="sent",
+                                sent=push_result.get("sent", 0),
+                                failed=push_result.get("failed", 0),
+                                revoked=push_result.get("revoked", 0),
+                                reason="push_sent_late",
+                                results=push_result.get("results", []),
+                            )
+                        except Exception:
+                            pass
+
+            try:
+                from push_notify import send_alert_push
+                _t = threading.Thread(target=_do_send, daemon=True, name="sahaara-push-consent")
+                _t.start()
+                _t.join(timeout=1.0)
+                with decision_lock:
+                    push_accepted = push_result.get("sent", 0) >= 1
+            except Exception:
+                push_accepted = False
+
+            if push_accepted:
+                response_text = f"I've sent {pending_contact} an alert."
+            else:
+                response_text = f"I've noted that you'd like to reach out to {pending_contact}. An alert has been logged on Rohan's dashboard."
+
+            with decision_lock:
+                response_chosen = True
+
             return {
-                "response": f"I've noted that you'd like to reach out to {pending_contact}. An alert has been logged on Rohan's dashboard.",
+                "response": response_text,
                 "meta": {"emotion": "neutral", "is_repeated_question": False,
                          "sustained_distress": False, "consent_outcome": "accepted",
                          "contact_called": None, "tier": s.escalation_engine.current_tier.value},

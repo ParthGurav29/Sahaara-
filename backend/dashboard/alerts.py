@@ -111,20 +111,27 @@ class AlertBuilder:
         self.profile = profile
         self.alert_store = alert_store
     
-    def _store(self, alert: "Alert") -> "Alert":
-        """Store alert if a store is configured."""
+    def _store(self, alert: "Alert", send_push: bool = True) -> "Alert":
+        """Store alert if a store is configured.
+
+        When `send_push` is False (used by the consent-accepted path in
+        conversation.py), the alert is stored in the dashboard store but push
+        dispatch is left to the caller, which can wait ~1.0 s for the result
+        before choosing its response wording (Step 8a).
+        """
         if self.alert_store:
             self.alert_store.add(alert)
-            # M5 Step 5: fan the alert out to caregiver devices. Fire-and-forget
-            # and never raises, so a push failure cannot break the turn.
-            try:
-                from push_notify import notify_alert
+            if send_push:
+                # M5 Step 5: fan the alert out to caregiver devices. Fire-and-forget
+                # and never raises, so a push failure cannot break the turn.
+                try:
+                    from push_notify import notify_alert
 
-                notify_alert(alert, self.event_log)
-            except Exception:
-                # Push must never break the turn; still leave a trace, because a
-                # silently missing import would look like "alerts are just quiet".
-                logger.exception("Push dispatch could not start")
+                    notify_alert(alert, self.event_log)
+                except Exception:
+                    # Push must never break the turn; still leave a trace, because a
+                    # silently missing import would look like "alerts are just quiet".
+                    logger.exception("Push dispatch could not start")
         return alert
     
     def _get_contact_name(self, tier: EscalationTier, reason: str, context: dict) -> Optional[str]:
@@ -360,7 +367,7 @@ class AlertBuilder:
                 "tier": tier.value,
             },
         )
-        self._store(alert)
+        self._store(alert, send_push=False)
         return alert
     
     def build_fallback_alert(self, fallback_type: str, detail: dict) -> Alert:

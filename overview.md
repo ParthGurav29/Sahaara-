@@ -316,8 +316,10 @@ post-generation gate — two layers, because a model can drift from its instruct
 
 ### What the caregiver cannot do yet
 - No authentication/authorization (any browser on localhost is the caregiver).
-- No real alert delivery outside the web app — **no SMS, no phone call, no webhook.**
-  Acknowledgement is in-app only.
+- No real alert delivery outside the web app — **no SMS, no phone call.** Web Push
+  alerts reach the caregiver's Android device when the push gate is ON and a
+  subscription exists; acknowledgement is in-app only, and "sent" means the push
+  service accepted the message, never that a phone displayed it.
 - No Memory Box playback and no way to record clips in-app (file must be placed manually).
 - No session export/replay UI (the event log exists; the view does not).
 
@@ -542,11 +544,15 @@ only from the event log.
    endpoint (or WS "play clip" action) and trigger it on consent. Clip, match, and offer
    line all exist; `pydub` + `ffmpeg` are now in requirements. Mic-mute-during-playback
    comment already sits in `VoiceOrb.tsx`.
-2. **Real alert dispatch** — 🛣 **Roadmap.** Twilio SMS/voice or a generic webhook;
-   `Alert.to_dict()` is already shaped for it. In-app acknowledge exists; nothing leaves
-   the browser.
-3. **Make consent-accept true** — 🛣 **Roadmap.** Ties #1 + #2 together; requires #2 first
-   so no call is ever claimed without being placed.
+2. **Real alert dispatch** — ✅ **Built (M5 Step 5 + Step 8a).** Web Push sends a
+   fixed minimal payload to the caregiver's subscribed Android device when the
+   push gate is ON and an upward tier move or consent acceptance occurs. Push to
+   the dashboard device only — not SMS or calls. "Sent" means the push service
+   accepted (2xx), never that a phone displayed it.
+3. **Make consent-accept true** — ✅ **Built (M5 Step 8a).** When the person
+   accepts a call offer, Sahaara waits ~1.0 s for the push result and says
+   *"I've sent {contact} an alert."* if accepted, otherwise keeps the
+   dashboard-only line. Never claims delivery or that the caregiver has seen it.
 4. **Caregiver controls** — ✅ **Built** (Oct 20, Phase 1 + 4): profile editor
    (`ProfileForm.tsx`), tri-state topic management, monitoring pause/resume, Reset Demo,
    scheduler toggle.
@@ -589,8 +595,9 @@ only from the event log.
 
 ## 10. Brainstorming opportunities — status-tagged
 
-1. **"The voicemail that isn't a voicemail"** — 🛣 **Roadmap.** Needs alert dispatch (#2
-   above) + playback (#1) first; still the single most demo-able emotional payoff.
+1. **"The voicemail that isn't a voicemail"** — 🛣 **Roadmap.** Alert dispatch (#2
+   above) is now built; still needs Memory Box playback (#1). Then this becomes
+   the single most demo-able emotional payoff.
 2. **Consent as a first-class dashboard object** — 🛣 **Roadmap.** Partially covered by
    AlertCenter + Day Timeline consent events; no dedicated Consent History panel yet.
 3. **Replay the day** — 🛣 **Roadmap.** The JSONL (6,372 events) is still the raw material;

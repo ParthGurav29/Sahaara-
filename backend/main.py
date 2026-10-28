@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -554,6 +554,29 @@ def list_profiles(user: dict = Depends(require_caregiver)):
     """List all available profiles."""
     import database
     return {"profiles": database.list_profiles()}
+
+
+@app.get("/profile/current")
+def get_current_profile(user: dict = Depends(require_caregiver)):
+    """Return the active profile for the authenticated caregiver."""
+    import database
+    profile_id = user.get("profile_id") or "asha_demo_001"
+    profile = database.get_profile(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="profile not found")
+    return {"data": profile, "profile_id": profile_id}
+
+
+@app.put("/profile/{profile_id}")
+def update_profile(profile_id: str, body: dict, user: dict = Depends(require_caregiver)):
+    """Save profile edits for the authenticated caregiver."""
+    import database
+    existing = database.get_profile(profile_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="profile not found")
+    data = body.get("data", body)
+    database.save_profile(profile_id, data)
+    return {"status": "ok", "profile_id": profile_id}
 
 
 # Public routes (no auth required) - Person's side

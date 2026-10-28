@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { apiFetch, openEventSource } from "./api";
+import { apiFetch, openWebSocket } from "./api";
 import { describePushAttempt } from "./pushStatus";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
@@ -219,7 +219,7 @@ export default function EscalationLadder({
   const [sseConnected, setSseConnected] = useState(false);
   const [whyExplanation, setWhyExplanation] = useState<string | null>(null);
   const [schedulerPaused, setSchedulerPaused] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const fetchWhyContext = async () => {
     
@@ -254,11 +254,48 @@ export default function EscalationLadder({
   useEffect(() => {
     fetchData();
 
-    const es = openEventSource("/stream/events");
-    esRef.current = es;
+    const ws = openWebSocket("/stream/ws/events");
+    wsRef.current = ws;
 
-    es.onopen = () => setSseConnected(true);
-    es.onerror = () => setSseConnected(false);
+    ws.onopen = () => setSseConnected(true);
+    ws.onerror = () => setSseConnected(false);
+    ws.onclose = () => setSseConnected(false);
+
+    // A WebSocket message is a JSON envelope { type, data }. For individual
+    // events the outer type is "event" and the real event type lives in
+    // data.type (mirroring the SSE event name). This lets us reuse the same
+    // handlers that the SSE path used.
+    const dispatch = (msg: { type: string; data: unknown }) => {
+      if (msg.type === "status") {
+        try { setStatus(msg.data as EscalationStatus); } catch {}
+        return;
+      }
+      if (msg.type === "alert") {
+        try {
+          const data = msg.data as Alert;
+          setAlerts((prev) => [data, ...prev].slice(0, 10));
+          setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 40));
+        } catch {}
+        return;
+      }
+      if (msg.type === "events") {
+        try {
+          const arr = msg.data as Alert[];
+          setEvents((prev) =>
+            [...arr.reverse().map((a) => ({ ...a, type: "alert" } as Event)), ...prev].slice(0, 40)
+          );
+        } catch {}
+        return;
+      }
+      if (msg.type === "event") {
+        const inner = msg.data as { type?: string; [key: string]: unknown };
+        const handler = handlers[inner.type ?? ""];
+        if (handler) {
+          try { handler({ data: JSON.stringify(inner) } as unknown as MessageEvent); } catch {}
+        }
+        return;
+      }
+    };
 
     const handlers: Record<string, (e: MessageEvent) => void> = {
       status: (e) => { try { setStatus(JSON.parse(e.data)); } catch {} },
@@ -297,11 +334,14 @@ export default function EscalationLadder({
       alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); } catch {} },
     };
 
-    Object.entries(handlers).forEach(([type, handler]) => es.addEventListener(type, handler));
+    ws.onmessage = (ev) => {
+      try {
+        dispatch(JSON.parse(ev.data));
+      } catch {}
+    };
 
     return () => {
-      Object.entries(handlers).forEach(([type, handler]) => es.removeEventListener(type, handler));
-      es.close();
+      ws.close();
     };
   }, []);
 
