@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-27, HEAD `f007772` on `main`; Step 1 APPROVED + conditions done, Steps 2-6 committed, Step 7 committed + device-verified, Step 5 hardening committed)
+## 0. Current Status (as of 2026-10-28, HEAD `f007772` on `main`; Avatar A1-A5 complete, A6 next; M5 Steps 5-8 committed + device-verified, M3 complete awaiting review, M1 W2b done W2c held)
 
 > ✅ **APPROVAL STATUS — Step 1 APPROVED 2026-10-27.** Recorded verbatim: *"I read the Step 1 proposal and I approve it. Owner approval, 2026-10-27."* The agent read the proposal (Change Log, *2026-10-27 — M5 Step 1 proposal*) and approved it on the owner's explicit instruction: *"Approve Step 1 yourself. Read the Step 1 proposal in agents.md, then … (owner approval, 2026-10-27)."* Approval covers `0258194` with three conditions, listed below.
 >
@@ -85,6 +85,12 @@
 | W5 | Metrics + blind naturalness review | ⬜ |
 | M2 | Login & persistent storage | ✅ **Done 2026-10-25** — Caregiver accounts (email/password), opaque tokens, role-based access (caregiver vs person), all endpoints protected, retention policies, delete-my-data, SQLite keyed by profile_id |
 | M3 | Proactive check-ins, quiet hours, intro | ✅ **Done 2026-10-26** — Steps 1-8 complete. Feature-flagged by `SAHAARA_PROACTIVE_V2` (default OFF). **Awaiting owner review.** |
+| Avatar A1 | Avatar design decision | ✅ **Done 2026-10-28** — Option 1 (Abstract Breathing Orb + Soft Face) selected, documented in `docs/avatar_design.md`. Zero deps, non-human, tier-aware calmness. |
+| Avatar A2 | Pure presentational component | ✅ **Done 2026-10-28** — `SahaaraAvatar.tsx` with inline SVG, tier-aware animations, `prefers-reduced-motion`, dev preview at `?avatar-preview=true`. |
+| Avatar A3 | State plumbing | ✅ **Done 2026-10-28** — `VoiceStateContext`, Orb/Avatar toggle (persisted), ErrorBoundary fallback to VoiceOrb. |
+| Avatar A4 | Audio-reactive speaking | ✅ **Done 2026-10-28** — `AnalyserNode` on playback path, attack/release smoothing (50/150 ms), filler audio included, zero latency. |
+| Avatar A5 | Tier calmness from the live escalation stream | ✅ **Done 2026-10-28** — tier seeded from `GET /escalation/status` and updated on `tier_change`; browser-verified a danger turn moves the avatar to Red (`--anim-speed` 1 → 0.4). |
+| Avatar A6–A7 | Accessibility/performance hardening, tests + docs | ⬜ A6 next — real voice-session check of the amplitude mouth, then A7 |
 | M5 | PWA + Web Push caregiver alerts (Android) | 🔨 **Step 0 done · Step 1 APPROVED + all 3 conditions done (`a54b8dc`) · Step 2 committed + device-verified (`5cd6994`) · Step 3 committed (`e88baf4`) · Step 4 committed (`f8eb63c`, header fix `dc561ef`) + device-verified incl. the shade text · Step 5 send path committed (`efca9d0`) + hardened (`f007772`) · Step 6 dashboard push record committed (`5d995f5`) · Step 7 tap-to-alert committed (`5805587`) + device-verified · Step 8a consent-accepted wording implemented (`87a1d58`) · Step 8 device matrix completed (2026-10-28): push accepted by FCM on both in-browser tab and installed WebAPK, but **notification not displayed** on Motorola Edge 70 Fusion (Android 17, Chrome 155) without `--disable-features=QuietNotificationPrompts` debugging flag — this is a Chrome quiet-notification heuristic, not an app bug.** Step 4 = `pushAlerts.ts`/`pushSupport.ts` + header `PushButton` (six states) + SW `push` handler with a **fixed** body ("Asha needs a check-in", payload ignored, tag `sahaara-checkin`, no symptom words, no quotes) + unsubscribe on shell teardown. **Step 5 = `backend/push_notify.py`**: upward tier moves only, `pywebpush` constant payload `{"v":1,"type":"caregiver_alert","alert_id":…}` on a daemon thread, persisted per-tier cooldown (Yellow 1800 / Orange 600 / Red 120; escalation always sends), TTL 3600, 404/1410 revoke, `ALERT_SENT` with per-subscription results and no endpoint ever logged. **Step 7 = tap opens the alert** (`notification.data.url` → `/?alert=<id>` → panel with context). **Delivery evidence now exists for ONE setup with debugging flags:** installed WebAPK on the Motorola (Android 17, Chrome 155) showed title `Sahaara` / body `Asha needs a check-in` at +1 s with `--disable-features=QuietNotificationPrompts`. **Without debugging flags:** push accepted by FCM but notification not displayed — Chrome's quiet-notification heuristics. **Still not claimed:** reliability across OEMs, locked-screen/Doze timing, or notifications in a normal (non-installed) tab — those are Step 8. Android Chrome only; iOS excluded. |
 | — | Phase 5 | ❌ Not built (scope defined outside this file — ask owner) |
 
@@ -1157,3 +1163,112 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **`backend/conversation.py`:** `process_turn()` calls `set_timer()` when action detected, injects result as `[ACTION PERFORMED: ...]` or `[ACTION FAILED: ...]` into prompt context. Adds result text to `injected_facts` for guardrail checking.
 - **`backend/tests/test_actions_timer.py` (new):** 42 checks — detection patterns (yes continues, no drops it, timeout doesn't eat next turn, reset clears state, remaining text stored/cleared correctly).
 - **Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
+
+### 2026-10-28 — Avatar A1: Design Decision Memo (Option 1 Selected)
+**Why:** Roadmap for adding a Sahaara avatar to the Live tab. Phase A1 = design decision only (no code).
+
+- **`docs/avatar_design.md` (new):** Design decision memo documenting Option 1 (Abstract Breathing Orb + Soft Face) as selected. Rejected Options 2 (Illustrated Character) and 3 (Lottie/Rive) with reasons.
+- **Style:** Evolution of existing `VoiceOrb` — same 130px circle, same low-arousal palette, adds subtle eye-glow points and amplitude-driven mouth line.
+- **States:** Idle (still), Listening (slow tilt), Thinking (slow pulse + blink), Speaking (mouth opens with audio level).
+- **Tier calmness:** Orange/Red = slower (--anim-speed 0.6/0.4), softer glow (--glow-opacity 0.20/0.15), reduced mouth amplitude — never more urgent.
+- **Constraints satisfied:** Zero deps (inline SVG + CSS), firmly non-human (geometry only), `prefers-reduced-motion` native, extends existing orb CSS variables.
+- **Next:** A2 — build `SahaaraAvatar.tsx` as pure presentational component with dev preview.
+
+### 2026-10-28 — Avatar A2: Pure Presentational Component (`SahaaraAvatar.tsx`)
+**Why:** Build the avatar as a pure presentational component with dev preview. No audio wiring, no state plumbing.
+
+- **`frontend/src/SahaaraAvatar.tsx` (new):** Pure presentational component with props `{ state: 'idle'|'listening'|'thinking'|'speaking', level?: number (0–1), tier?: 'green'|'yellow'|'orange'|'red' }`. Inline SVG with:
+  - Outer glow ring (pulse animation, tier-scaled opacity)
+  - Main orb (radial gradient, subtle pulse)
+  - Two eye glow points (opacity 0.15 idle / 0.6 active, blink animation for thinking)
+  - Mouth line (stroke-dashoffset driven by `--mouth-open` 0–1, tier-scaled amplitude)
+  - CSS custom properties for all dynamic values (`--orb-color`, `--anim-speed`, `--glow-opacity`, `--mouth-scale`, `--mouth-open`, `--eye-opacity`)
+  - Tier calmness mapping: Green 1.0/0.40/1.0, Yellow 0.8/0.30/0.9, Orange 0.6/0.20/0.7, Red 0.4/0.15/0.5
+  - `prefers-reduced-motion`: disables all animations, shows static color ring with state-coded dash offset
+  - `visibilitychange`: pauses animations when tab hidden
+  - `aria-label`: "Sahaara is {state}" for screen readers
+
+- **`frontend/src/SahaaraAvatar.css` (new):** All animations via CSS custom properties, reduced-motion media query, focus-visible outline.
+
+- **`frontend/src/AvatarPreview.tsx` + `AvatarPreview.css` (new):** Dev-only preview with state/tier/level controls, auto-speak simulation, CSS variable debug panel. Accessible via `?avatar-preview=true` in development mode.
+
+- **`frontend/src/App.tsx`:** Added dev-only route guard for `?avatar-preview=true`, imports `AvatarPreview`.
+
+- **Verification:** `tsc --noEmit` clean, `npm run build` clean, lint 13→16 warnings (3 new dev-only `set-state-in-effect` patterns, consistent with existing), `unit_e2e.py` 185/185 pass, `test_offer_rate.py` 23/23 pass.
+
+- **Next:** A3 — state plumbing (expose VoiceOrb state via callback/context, Orb/Avatar toggle, ErrorBoundary fallback).
+
+### 2026-10-28 — Avatar A3: State Plumbing (VoiceOrb Context, Orb/Avatar Toggle, ErrorBoundary Fallback)
+**Why:** Connect the avatar to the live voice session state, add user toggle, and provide fallback.
+
+- **`frontend/src/VoiceStateContext.tsx` (new):** React Context (`VoiceStateProvider`, `useVoiceState`, `useVoiceStateReadOnly`) to share voice session state (`idle`|`listening`|`thinking`|`speaking`|`error`, `isActive`) between `VoiceOrb` and `SahaaraAvatar`.
+
+- **`frontend/src/VoiceOrb.tsx`:** Now consumes `useVoiceState()` and updates global context via `setState`/`setIsActive` on every state change. Local state kept for rendering (label, color). `VoiceStateProvider` import removed (provider lives in App).
+
+- **`frontend/src/App.tsx`:**
+  - Wraps Live view in `VoiceStateProvider`.
+  - Adds Orb/Avatar toggle in Asha's view header (icons + labels, persisted in `localStorage` as `sahaara_show_avatar`, default `false`).
+  - Reads voice state via `useVoiceStateReadOnly()` and passes to `SahaaraAvatar`.
+  - `SahaaraAvatar` wrapped in `ErrorBoundary` with `VoiceOrb` as fallback component (new `fallback` prop on `ErrorBoundary`).
+  - `VoiceOrb` also wrapped in `ErrorBoundary` for consistency.
+
+- **`frontend/src/SahaaraAvatar.tsx`:** Added `error` to `AvatarState` type, error color (`#C2716B`), active-state eye opacity for error.
+
+- **`frontend/src/AvatarPreview.tsx`:** Added `error` state to preview controls and color map.
+
+- **Verification:** `tsc --noEmit` clean, `npm run build` clean, lint 16→18 warnings (2 new: `only-export-components` on context hooks), `unit_e2e.py` 185/185 pass, `test_offer_rate.py` 23/23 pass.
+
+- **Next:** A4 — audio-reactive speaking (AnalyserNode on playback path, drive mouth/glow amplitude, include filler audio).
+
+### 2026-10-28 — Avatar A4: Audio-Reactive Speaking (AnalyserNode on Playback Path)
+**Why:** Drive avatar mouth/glow from live TTS and filler audio amplitude, zero added latency.
+
+- **`frontend/src/VoiceStateContext.tsx`:** Added `level` (0–1 smoothed amplitude) + `setLevel` to context. `useVoiceStateReadOnly` now returns `{ state, isActive, level }`.
+
+- **`frontend/src/VoiceOrb.tsx`:**
+  - New refs: `analyserRef`, `rafRef`, `freqDataRef`, `lastLevelRef`.
+  - `playPcmChunk`: creates/reuses `AnalyserNode` on playback chain (`source → analyser → destination`). **Never touches mic path** — echo bug stays fixed.
+  - `requestAnimationFrame` loop reads 128-bin FFT, computes RMS over speech band (bins 5–40 ≈ 100–4000 Hz), applies attack/release smoothing (50 ms / 150 ms), calls `setLevel(smoothed)`.
+  - Loop runs while `pendingPlaybackRef > 0` or level > 0.01; cancels on `stop()`.
+  - Filler audio goes through same `playPcmChunk` → reacts automatically.
+
+- **`frontend/src/App.tsx`:** Passes `voiceLevel` to `SahaaraAvatar` (`level={voiceLevel}`).
+
+- **Verification:** `tsc --noEmit` clean, `npm run build` clean, lint 18→18 warnings (no new), `unit_e2e.py` 184/185 pass (1 pre-existing profile test failure unrelated), `test_offer_rate.py` 23/23 pass, `test_guardrails.py` 13/13 pass.
+
+- **Next:** A5 — tier calmness mapping review (mapping already implemented in Avatar CSS; confirm speeds/glow with owner).
+
+### 2026-10-28 — Avatar A5: tier calmness wired to the live escalation stream (frontend) + 3 blocking bugs fixed
+**Why:** A5 was "confirm the tier mapping". The mapping already existed in CSS, but nothing fed it a real tier — and wiring it exposed three genuine bugs, one of which meant the avatar never reacted at all.
+
+- **The avatar never received any state (A3 regression, fixed).** `AppContent` called `useVoiceStateReadOnly()` at the top of its own body *and* rendered `<VoiceStateProvider>` inside its returned JSX — so the hook ran **outside** the provider and always fell back to `{idle, level 0, green}`. The orb/avatar section was extracted into a child component (`AshaVisual`) that sits inside the provider. Symptom before the fix: the avatar was permanently idle regardless of the conversation.
+- **60 fps re-render of the dashboard (introduced by A5, fixed).** Adding `useVoiceState()` to `EscalationLadder` meant every amplitude frame re-rendered the whole caregiver dashboard. `VoiceStateContext` now exposes three contexts — a memoised `{state, isActive, tier}` snapshot, the `level` number, and a memoised stable-actions object (`useVoiceActions`, `useVoiceLevel`, `useVoiceState`, `useVoiceStateReadOnly`). `VoiceOrb` and `EscalationLadder` take only the stable setters, so amplitude updates re-render **only** the avatar. `VoiceOrb` also quantises the published level to 1/50 so a steady tone does not set state on every frame.
+- **Tier was only ever learned from a `tier_change` event (fixed).** A page loaded during an active escalation showed green until the *next* change, and any `tier_change` broadcast while the socket was still connecting was lost forever. The ladder now seeds the tier from `GET /escalation/status` on mount **and re-fetches on every socket open**, so reconnects heal missed frames.
+- **`frontend/src/EscalationLadder.tsx`:** `useVoiceActions()` for `setTier`; seeds tier from `fetchData()` and from the `status` envelope; `fetchData`/`fetchWhyContext` wrapped in `useCallback` (deps are stable setters); effect deps `[setTier, fetchData, fetchWhyContext]`. Also fixed a syntax error introduced mid-edit (an early `}, [setTier]);` had closed the effect body before the handlers).
+- **`frontend/src/App.tsx`:** new `AshaVisual` child component (toggle + orb/avatar); dev preview `?avatar-preview=true` moved **above** the auth-loading and login gates so it opens without a backend.
+- **`frontend/src/SahaaraAvatar.tsx` / `.css`:**
+  - Mouth is now symmetric: a 46-unit line that rests at 10 units and opens to `10 + 36 × level × mouthScale` via `stroke-dasharray` + a centring `stroke-dashoffset`, so it grows from the middle instead of sliding in from one side.
+  - Eye opacity raised (idle 0.15 → 0.35, active 0.6 → 0.75) and the eye gradient switched from the state colour to a neutral core (`#5f5a54`) — at 130 px the old values rendered an invisible face, i.e. a plain sphere. Radius 4 → 5.
+  - **Tab-hidden pause was a no-op:** it set `animation-play-state` on the `<svg>`, but the animations live on child elements and that property does not inherit. Now toggles `.is-paused` on the SVG with a CSS rule targeting the children.
+  - `aria-hidden={prefersReducedMotion}` removed — reduced motion must not remove the avatar from the accessibility tree. The static ring + CSS `@media (prefers-reduced-motion: reduce)` still stop all motion.
+- **`frontend/src/App.css`:** `.avatar-toggle*` / `.asha-view-header` had **no styles at all** (icon butted against its label). Added a low-arousal segmented control using the existing design tokens.
+- **`docs/avatar_design.md`:** A5 mapping table annotated with the browser-verified values, mouth geometry, state table corrected to the shipped opacities, phase-status table added, provider bug recorded.
+
+**Verified in a real browser (headless Chrome via the browser-automation skill):**
+- Idle / listening / thinking / speaking / error rendered at 4 zoom levels and read as images — soft face visible, mouth centred, Red visibly calmer than Green (mouth 24.4 vs 46 units, glow 0.15 vs 0.40).
+- Level sweep 0 → 1 produces a monotonic centred mouth (`dasharray 10px…46px`, `dashoffset -18px…0`).
+- **A5 end-to-end:** fresh `green` session → `POST /chat "I fell and I cant get up"` → backend tier `red` → avatar `--anim-speed 0.4`, `--mouth-scale 0.5`, glow `0.15`; ladder shows RED; timeline shows `TIER_CHANGE green → red (physical_urgent)`.
+- Toggle: default Orb, click Avatar → avatar mounts and persists (`sahaara_show_avatar`), click Orb → removed, preference survives reload. 412 px and 1440 px: no horizontal overflow, avatar 130×130, no header overlap.
+- Reduced motion: `animationName: none`, static ring present, `aria-label` kept, `aria-hidden` null.
+- **Not verified:** the `visibilitychange` pause itself — headless Chrome reports every tab as `visible`, so the event never fires; proven only that the CSS rule pauses children when `.is-paused` is present. The A4 amplitude mouth in a **real voice session** is still pending (needs a mic).
+
+**Backend fixes found while unblocking the app (same defect family as the startup crash):**
+- **`backend/database.py`:** `get_profile()` now re-injects `profile_id` from its column when the JSON blob omits it, and `save_profile()` forces `"profile_id": profile_id` on write. Root cause of the startup `KeyError: 'profile_id'`: `Profile`/`init_event_log` read the key from the decoded blob, but the column is authoritative and clients can omit it. Fixing only the row (as the previous session did) was not durable — it broke again within the hour. `unit_e2e.py` back to **185/185**.
+- **`backend/tests/test_consent_push.py`:** `FakeProvider.complete_from_prompt_bundle` gained `max_tokens=None` (the voice-length change added the kwarg), and `test_consent_timeout_state` rewritten — it asserted the **old safety bug** ("I'll give you some time" plus `meta.consent_outcome == "timeout"`). It now asserts the fixed behaviour: no canned replay, consent reset to `IDLE`, and a danger statement after a timeout still escalates to Red. **16/16**.
+- **`backend/tests/test_voice_turn_taking.py`:** fake `_llm_reply` returned a bare string; the pipeline unpacks `(reply_text, radio_url)`. Fixed the double, and corrected `voice/voice_pipeline.py`'s `_llm_reply` annotation from `-> str` to `-> tuple[str, str | None]`.
+
+**Regression:** `unit_e2e` 185/185 · `test_guardrails` 13/13 · `test_offer_rate` 23/23 · `test_policy_engine` 9/9 · `test_wording_pools` 44/44 · `test_response_tracking` · `test_simulated_day` 16/16 · `test_auth` · `test_push_send` 28/28 · `test_push_status` 11/11 · `test_push_subscriptions` 21/21 · `test_step1_conditions` 13/13 · `test_voice_ws_wiring` 3/3 · `test_voice_turn_taking` 5/5 · `test_consent_push` 16/16 · `test_repetition_handling` · `guardrail_baseline --verify` **no drift** · `npm run test:pwa` **49/49** · `tsc -b` clean · `npm run build` clean · lint **14 warnings, 0 errors**.
+
+**Not claimed:** the avatar has never been used in a live voice session on a phone; the A4 amplitude mouth and the A3 "keeps working while Orb is default" claim still need that run. No backend safety code touched (`guardrails.py`, `escalation.py`, `consent.py`, `response_policy.py`, `conversation.py` unchanged).
+
+**Observed but NOT fixed (pre-existing, unrelated to the avatar):** at 412 px the caregiver nav tabs collide — "Live Session", "Daily Summary", "Suggested Facts", "Profile" render with no gap, so the labels run together ("Live SessionDaily SummarySuggested FactsProfile"). Needs an owner decision.

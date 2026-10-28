@@ -1,0 +1,140 @@
+/* SahaaraAvatar.css — Low-arousal, non-human avatar styles */
+
+.sahaara-avatar {
+  display: block;
+  /* CSS custom properties set via React style prop:
+   * --orb-color: state color (stone/slate/lavender/amber)
+   * --anim-speed: tier multiplier (1.0 / 0.8 / 0.6 / 0.4)
+   * --glow-opacity: tier glow (0.40 / 0.30 / 0.20 / 0.15)
+   * --mouth-scale: tier mouth amplitude (1.0 / 0.9 / 0.7 / 0.5)
+   * --mouth-open: 0–1 audio level (speaking only)
+   * --eye-opacity: 0.15 (idle) / 0.6 (active)
+   */
+}
+
+/* Outer glow pulse — slow, calm */
+.avatar-glow {
+  animation: avatar-glow-pulse calc(4s / var(--anim-speed)) ease-in-out infinite;
+}
+
+@keyframes avatar-glow-pulse {
+  0%, 100% { opacity: var(--glow-opacity); }
+  50% { opacity: calc(var(--glow-opacity) * 0.4); }
+}
+
+/* Orb group — tilt for listening, pulse for thinking */
+.avatar-orb-group {
+  transform-origin: 65px 65px;
+  transition: transform 0.3s ease;
+}
+
+.avatar-orb {
+  animation: avatar-orb-pulse calc(3.6s / var(--anim-speed)) ease-in-out infinite;
+}
+
+@keyframes avatar-orb-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.015);
+    filter: brightness(1.05);
+  }
+}
+
+/* Listening: slow attentive tilt */
+.sahaara-avatar[data-state="listening"] .avatar-orb-group {
+  animation: avatar-tilt calc(8s / var(--anim-speed)) ease-in-out infinite;
+}
+
+@keyframes avatar-tilt {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+/* Thinking: subtle blink on eyes */
+.avatar-eye {
+  animation: avatar-blink calc(6s / var(--anim-speed)) ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes avatar-blink {
+  0%, 45%, 55%, 100% { transform: scaleY(1); opacity: var(--eye-opacity); }
+  50% { transform: scaleY(0.1); opacity: calc(var(--eye-opacity) * 0.3); }
+}
+
+/* Speaking: mouth opens/closes via stroke-dashoffset (driven by --mouth-open) */
+.avatar-mouth {
+  transition: stroke-dashoffset 0.03s linear, opacity 0.1s ease;
+  filter: drop-shadow(0 0 2px var(--orb-color));
+}
+
+/* Paused while the tab is hidden — saves work and stops motion offscreen */
+.sahaara-avatar.is-paused .avatar-glow,
+.sahaara-avatar.is-paused .avatar-orb,
+.sahaara-avatar.is-paused .avatar-orb-group,
+.sahaara-avatar.is-paused .avatar-eye {
+  animation-play-state: paused !important;
+}
+
+/* Reduced motion: static color ring with state-coded dash offset */
+.avatar-reduced-indicator {
+  animation: none;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Hidden state for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .avatar-glow,
+  .avatar-orb,
+  .avatar-orb-group,
+  .avatar-eye,
+  .avatar-mouth {
+    animation: none !important;
+  }
+}
+
+/* Focus visible for accessibility */
+.sahaara-avatar:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--orb-color) 60%, black);
+  outline-offset: 5px;
+  border-radius: 50%;
+}
+
+/* Dev preview helper — not used in production */
+.avatar-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.avatar-preview__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.avatar-preview__control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.avatar-preview__control label {
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.avatar-preview__control select,
+.avatar-preview__control input {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  background: var(--bg-color, white);
+  color: var(--text-primary, #333);
+}

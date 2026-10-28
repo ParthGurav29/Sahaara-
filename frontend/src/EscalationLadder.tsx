@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, openWebSocket } from "./api";
 import { describePushAttempt } from "./pushStatus";
+import { useVoiceActions } from "./VoiceStateContext";
 import "./EscalationLadder.css";
 import AlertCenter from "./AlertCenter";
 
@@ -213,6 +214,7 @@ export default function EscalationLadder({
 }: {
   focusAlertId?: string | null;
 }) {
+  const { setTier } = useVoiceActions();
   const [status, setStatus] = useState<EscalationStatus | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -221,7 +223,7 @@ export default function EscalationLadder({
   const [schedulerPaused, setSchedulerPaused] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const fetchWhyContext = async () => {
+  const fetchWhyContext = useCallback(async () => {
     
     try {
       const res = await apiFetch("/turn/context", {
@@ -231,9 +233,9 @@ export default function EscalationLadder({
         setWhyExplanation(data.explanation);
       }
     } catch {}
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     
     try {
       const [statusRes, eventsRes] = await Promise.all([
@@ -245,11 +247,14 @@ export default function EscalationLadder({
       const statusData = await statusRes.json();
       const eventsData = await eventsRes.json();
       setStatus(statusData);
+      // Seed the avatar tier from the current status, not just from the next
+      // tier_change event — otherwise a reload mid-escalation shows green.
+      if (statusData?.tier) setTier(statusData.tier as EscalationTier);
       setEvents(eventsData.events.reverse());
     } catch (err) {
       console.error("Failed to fetch escalation data:", err);
     }
-  };
+  }, [setTier]);
 
   useEffect(() => {
     fetchData();
@@ -257,7 +262,13 @@ export default function EscalationLadder({
     const ws = openWebSocket("/stream/ws/events");
     wsRef.current = ws;
 
-    ws.onopen = () => setSseConnected(true);
+    // Re-read the status whenever the socket opens: a tier_change broadcast
+    // while the socket was still connecting (or down) is never replayed, and
+    // both the ladder and the avatar would stay stale until a manual reload.
+    ws.onopen = () => {
+      setSseConnected(true);
+      fetchData();
+    };
     ws.onerror = () => setSseConnected(false);
     ws.onclose = () => setSseConnected(false);
 
@@ -267,7 +278,11 @@ export default function EscalationLadder({
     // handlers that the SSE path used.
     const dispatch = (msg: { type: string; data: unknown }) => {
       if (msg.type === "status") {
-        try { setStatus(msg.data as EscalationStatus); } catch {}
+        try {
+          const data = msg.data as EscalationStatus;
+          setStatus(data);
+          if (data?.tier) setTier(data.tier);
+        } catch {}
         return;
       }
       if (msg.type === "alert") {
@@ -303,7 +318,9 @@ export default function EscalationLadder({
         try {
           const data = JSON.parse(e.data);
           setEvents((prev) => [{ ...data, type: "tier_change" }, ...prev].slice(0, 40));
-          setStatus((prev) => prev ? { ...prev, tier: data.detail.new_tier as EscalationTier } : null);
+          const newTier = data.detail.new_tier as EscalationTier;
+          setStatus((prev) => prev ? { ...prev, tier: newTier } : null);
+          setTier(newTier);
         } catch {}
       },
       alert: (e) => {
@@ -343,7 +360,7 @@ export default function EscalationLadder({
     return () => {
       ws.close();
     };
-  }, []);
+  }, [setTier, fetchData, fetchWhyContext]);
 
   if (!status) {
     return (

@@ -4,19 +4,22 @@ import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
 import LoginPage from "./LoginPage";
 import VoiceOrb from "./VoiceOrb";
+import { VoiceStateProvider, useVoiceLevel, useVoiceStateReadOnly } from "./VoiceStateContext";
+import SahaaraAvatar from "./SahaaraAvatar";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import SuggestedFacts from "./SuggestedFacts";
 import ProfileForm from "./ProfileForm";
 import PushButton from "./PushButton";
+import AvatarPreview from "./AvatarPreview";
 import { parseAlertId, withoutAlertParam } from "./deepLink";
 import "./App.css";
 
 class ErrorBoundary extends Component<
-  { children: React.ReactNode; name: string },
+  { children: React.ReactNode; name: string; fallback?: React.ReactNode },
   { hasError: boolean }
 > {
-  constructor(props: { children: React.ReactNode; name: string }) {
+  constructor(props: { children: React.ReactNode; name: string; fallback?: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -28,6 +31,9 @@ class ErrorBoundary extends Component<
   }
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
         <div className="error-boundary-fallback">
           <p>Something went wrong in {this.props.name}.</p>
@@ -37,6 +43,71 @@ class ErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+// Avatar A3/A4/A5: the orb/avatar toggle must live INSIDE VoiceStateProvider,
+// otherwise useVoiceStateReadOnly() falls back to its defaults (idle / level 0 /
+// green) and the visual never reacts. AppContent renders the provider, so the
+// consumer has to be a child component.
+function AshaVisual() {
+  const { state: voiceState, tier: voiceTier } = useVoiceStateReadOnly();
+  const voiceLevel = useVoiceLevel();
+
+  // Avatar A3: Orb/Avatar toggle (persisted in localStorage, default = Orb)
+  const [showAvatar, setShowAvatar] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sahaara_show_avatar") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sahaara_show_avatar", String(showAvatar));
+  }, [showAvatar]);
+
+  return (
+    <section className="asha-view">
+      <div className="asha-view-header">
+        <h2 className="view-title">Asha's View</h2>
+        <div className="avatar-toggle" role="group" aria-label="Choose voice visual">
+          <button
+            className={`avatar-toggle__btn ${showAvatar ? "" : "active"}`}
+            onClick={() => setShowAvatar(false)}
+            aria-pressed={!showAvatar}
+            title="Voice Orb (original)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            <span className="avatar-toggle__label">Orb</span>
+          </button>
+          <button
+            className={`avatar-toggle__btn ${showAvatar ? "active" : ""}`}
+            onClick={() => setShowAvatar(true)}
+            aria-pressed={showAvatar}
+            title="Sahaara Avatar (expressive)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5-2 4-2 4 2 4 2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+            <span className="avatar-toggle__label">Avatar</span>
+          </button>
+        </div>
+      </div>
+      {showAvatar ? (
+        <ErrorBoundary name="SahaaraAvatar" fallback={<VoiceOrb />}>
+          <SahaaraAvatar state={voiceState} level={voiceLevel} tier={voiceTier} />
+        </ErrorBoundary>
+      ) : (
+        <ErrorBoundary name="VoiceOrb">
+          <VoiceOrb />
+        </ErrorBoundary>
+      )}
+    </section>
+  );
 }
 
 function AppContent() {
@@ -51,6 +122,9 @@ function AppContent() {
     parseAlertId(window.location.search),
   );
   const [showChat, setShowChat] = useState(false);
+
+  // Avatar A2: Dev preview access via `?avatar-preview=true`
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
 
   useEffect(() => {
     if (!focusAlertId) return;
@@ -77,6 +151,19 @@ function AppContent() {
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
+
+  // Dev-only: check for avatar preview flag
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("avatar-preview") === "true") {
+        setShowAvatarPreview(true);
+        // Clean the URL
+        params.delete("avatar-preview");
+        window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}`);
+      }
+    }
   }, []);
 
   // When auth is enabled, check if we should show caregiver tabs
@@ -110,6 +197,16 @@ function AppContent() {
     }
   }
 
+  // Dev-only: Avatar preview full-screen overlay. Checked BEFORE the auth
+  // gates so the preview can be opened without a running backend.
+  if (showAvatarPreview) {
+    return (
+      <div className="app-container" style={{ minHeight: "100vh" }}>
+        <AvatarPreview />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="app-container loading">
@@ -123,6 +220,7 @@ function AppContent() {
   if (authEnabled && !user) {
     return <LoginPage />;
   }
+
 
   return (
     <div className="app-container">
@@ -172,25 +270,22 @@ function AppContent() {
       )}
 
       {view === "live" && (
-        <div className="app-main">
-          {/* Asha's view - Voice Orb (always accessible) */}
-          <section className="asha-view">
-            <h2 className="view-title">Asha's View</h2>
-            <ErrorBoundary name="VoiceOrb">
-              <VoiceOrb />
-            </ErrorBoundary>
-          </section>
+        <VoiceStateProvider>
+          <div className="app-main">
+            {/* Asha's view - Voice Orb / Avatar (always accessible) */}
+            <AshaVisual />
 
-          {/* Rohan's view - Escalation Ladder (caregiver only) */}
-          {showCaregiverTabs && (
-            <section className="caregiver-view">
-              <h2 className="view-title">Rohan's View</h2>
-              <ErrorBoundary name="EscalationLadder">
-                <EscalationLadder focusAlertId={focusAlertId} />
-              </ErrorBoundary>
-            </section>
-          )}
-        </div>
+            {/* Rohan's view - Escalation Ladder (caregiver only) */}
+            {showCaregiverTabs && (
+              <section className="caregiver-view">
+                <h2 className="view-title">Rohan's View</h2>
+                <ErrorBoundary name="EscalationLadder">
+                  <EscalationLadder focusAlertId={focusAlertId} />
+                </ErrorBoundary>
+              </section>
+            )}
+          </div>
+        </VoiceStateProvider>
       )}
 
       {showCaregiverTabs && view === "summary" && (

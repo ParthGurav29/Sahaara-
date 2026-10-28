@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { wsUrl } from "./api";
+import { useVoiceActions } from "./VoiceStateContext";
 import "./VoiceOrb.css";
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking" | "error";
@@ -58,6 +59,7 @@ function downsampleTo16k(input: Float32Array, inputSampleRate: number): Int16Arr
 }
 
 export default function VoiceOrb() {
+  const { setState: setGlobalState, setIsActive, setLevel } = useVoiceActions();
   const [state, setState] = useState<OrbState>("idle");
   const activeRef = useRef(false);
   const [initiativePrompt, setInitiativePrompt] = useState<string | null>(null);
@@ -75,10 +77,23 @@ export default function VoiceOrb() {
   const pendingPlaybackRef = useRef(0);
   const unmuteTimerRef = useRef<number | null>(null);
 
+  // Audio amplitude analysis (AnalyserNode on playback path only)
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastPublishedRef = useRef(0);
+  const freqDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const lastLevelRef = useRef(0);
+
   // Radio stream handling
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const radioStreamUrlRef = useRef<string | null>(null);
   const isRadioPlayingRef = useRef(false);
+
+  // Sync local state to global context whenever it changes
+  useEffect(() => {
+    setGlobalState(state);
+    setIsActive(activeRef.current);
+  }, [state, setGlobalState, setIsActive]);
 
   // Single source of truth for "should the mic be sent to Deepgram?".
   // The old code adjusted a GainNode that was only wired to the silent
@@ -119,6 +134,13 @@ export default function VoiceOrb() {
     micCtxRef.current?.close().catch(() => {});
     wsRef.current?.close();
 
+    // Stop amplitude analysis RAF loop
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      setLevel(0);
+    }
+
     if (unmuteTimerRef.current !== null) {
       window.clearTimeout(unmuteTimerRef.current);
       unmuteTimerRef.current = null;
@@ -134,7 +156,7 @@ export default function VoiceOrb() {
     wsRef.current = null;
 
     setState(nextState);
-  }, []);
+  }, [setLevel]);
 
   // ---- Radio stream control ----
 
@@ -196,16 +218,67 @@ export default function VoiceOrb() {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
 
-    // Keep the mic closed while any Sahaara audio is scheduled. The old
-    // GainNode mute was on a silent branch and never affected the WebSocket
-    // send, so the speaker tail leaked back into Deepgram.
+    // Create or reuse AnalyserNode on the playback path (never on mic path)
+    if (!analyserRef.current) {
+      analyserRef.current = ctx.createAnalyser();
+      analyserRef.current.fftSize = 256;              // 128 frequency bins
+      analyserRef.current.smoothingTimeConstant = 0.3;
+      analyserRef.current.connect(ctx.destination);
+      freqDataRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+    }
+    // Playback chain: source -> analyser -> destination
+    source.connect(analyserRef.current);
+
+    // Keep the mic closed while any Sahaara audio is scheduled.
     pendingPlaybackRef.current += 1;
     syncMicGate();
 
-    // Schedule chunks back-to-back so playback is gapless even though
-    // they arrive over the network as separate messages.
+    // Start RAF amplitude loop if not already running
+    if (rafRef.current === null && analyserRef.current && freqDataRef.current) {
+      const attack = 0.05;   // 50ms attack
+      const release = 0.15;  // 150ms release
+
+      const tick = () => {
+        const analyser = analyserRef.current;
+        const freqData = freqDataRef.current;
+        if (!analyser || !freqData) {
+          rafRef.current = null;
+          return;
+        }
+        analyser.getByteFrequencyData(freqData);
+
+        // Speech band: bins ~5–40 (≈100–4000 Hz at 22050 Hz / 256 FFT)
+        let sum = 0;
+        for (let i = 5; i < 40; i++) sum += freqData[i];
+        const rms = Math.sqrt(sum / 35) / 255;  // 0–1
+
+        // Attack/release smoothing
+        const dt = 1 / 60;
+        const alpha = rms > lastLevelRef.current ? attack : release;
+        const smoothed = lastLevelRef.current + (rms - lastLevelRef.current) * (1 - Math.exp(-dt / alpha));
+        lastLevelRef.current = smoothed;
+
+        // Quantise to 1/50 so a steady tone does not re-render React 60×/s.
+        const quantised = Math.round(Math.max(0, Math.min(1, smoothed)) * 50) / 50;
+        if (quantised !== lastPublishedRef.current) {
+          lastPublishedRef.current = quantised;
+          setLevel(quantised);
+        }
+
+        // Continue while audio is playing or level is above noise floor
+        if (pendingPlaybackRef.current > 0 || smoothed > 0.01) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          rafRef.current = null;
+          lastPublishedRef.current = 0;
+          setLevel(0);
+        }
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    }
+
+    // Schedule chunks back-to-back so playback is gapless
     const startAt = Math.max(nextPlaybackTimeRef.current, ctx.currentTime);
     source.start(startAt);
     nextPlaybackTimeRef.current = startAt + buffer.duration;
@@ -214,7 +287,7 @@ export default function VoiceOrb() {
       pendingPlaybackRef.current = Math.max(0, pendingPlaybackRef.current - 1);
       syncMicGate();
     };
-  }, [syncMicGate]);
+  }, [syncMicGate, setLevel]);
 
   const start = useCallback(async () => {
     setState("listening");

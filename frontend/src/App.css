@@ -169,6 +169,67 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* ── Avatar A3: Orb/Avatar toggle ── */
+.asha-view-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.asha-view-header .view-title {
+  width: 100%;
+  text-align: center;
+}
+
+.avatar-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.avatar-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.avatar-toggle__btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.avatar-toggle__btn.active {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--bg-card);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.avatar-toggle__btn svg {
+  flex: none;
+}
+
+.avatar-toggle__label {
+  display: block;
+}
+
 .asha-view,
 .caregiver-view {
   background: var(--bg-card);
