@@ -202,6 +202,86 @@ def parse_duration(text: str) -> Optional[int]:
     return None
 
 
+def list_timers(profile_id: str) -> ActionResult:
+    """List pending (unresponded) timers for a profile."""
+    import database
+    timers = database.list_timers(profile_id)
+    
+    if not timers:
+        return ActionResult(
+            success=True,
+            action_type="list_timers",
+            result_text="You don't have any timers set.",
+            detail={"timers": []},
+        )
+    
+    timer_list = []
+    for t in timers:
+        mins = int((t["fired_at"] - time.time()) / 60)
+        if mins <= 0:
+            mins = 0
+        timer_list.append({
+            "slot_id": t["slot_id"],
+            "label": t.get("detail", {}).get("text", "timer") if isinstance(t.get("detail"), dict) else "timer",
+            "minutes_remaining": max(0, mins),
+        })
+    
+    timer_desc = ", ".join(f"{t['label']} in {t['minutes_remaining']} min" for t in timer_list)
+    return ActionResult(
+        success=True,
+        action_type="list_timers",
+        result_text=f"You have {len(timer_list)} timer(s): {timer_list}.",
+        detail={"timers": timer_list},
+    )
+
+
+def cancel_timer(timer_id: str, scheduler=None) -> ActionResult:
+    """Cancel a pending timer by slot_id."""
+    import database
+    
+    # We need the profile_id to cancel. The timer_id is the slot_id.
+    # We need to know which profile this belongs to. For now, we'll
+    # need to look it up. But since cancel_timer is called from conversation.py
+    # which has access to the session/profile, we should pass profile_id.
+    # However, the current signature only takes timer_id. Let's look up
+    # the profile from the timer.
+    
+    # First, try to find which profile this timer belongs to
+    conn = database.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT profile_id FROM checkin_fired_history WHERE slot_id = ? AND response_received = 0",
+            (timer_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    
+    if not row:
+        return ActionResult(
+            success=False,
+            action_type="cancel_timer",
+            result_text="I don't have a timer by that name.",
+            detail={"timer_id": timer_id},
+        )
+    
+    profile_id = row["profile_id"]
+    
+    if database.cancel_timer(profile_id, timer_id):
+        return ActionResult(
+            success=True,
+            action_type="cancel_timer",
+            result_text="I've cancelled that timer.",
+            detail={"timer_id": timer_id, "profile_id": profile_id},
+        )
+    else:
+        return ActionResult(
+            success=False,
+            action_type="cancel_timer",
+            result_text="I couldn't cancel that timer. It may have already fired or been cancelled.",
+            detail={"timer_id": timer_id, "profile_id": profile_id},
+        )
+
+
 def get_weather(latitude: float = PUNE_LATITUDE, longitude: float = PUNE_LONGITUDE) -> ActionResult:
     """Get current weather for a location using the Open-Meteo API.
 
@@ -318,6 +398,12 @@ ACTION_TRIGGERS = [
     # set_timer
     (r"\bset (?:a )?timer for (.+?)\s*(minute|minutes|min|mins|hour|hours)(?: (?:called|named) (.+?))?(?: please| now|[.!?])?$", "set_timer"),
     (r"\btimer for (.+?)\s*(minute|minutes|min|mins|hour|hours)(?: (?:called|named) (.+?))?(?: please| now|[.!?])?$", "set_timer"),
+    # list_timers
+    (r"\b(?:what|which) timers? (?:do i have|are set|active)\b", "list_timers"),
+    (r"\b(?:list|show) (?:my )?timers\b", "list_timers"),
+    # cancel_timer
+    (r"\b(?:cancel|remove|delete|stop) (?:the )?(?:timer|alarm)(?: for (.+?))?(?: please| now|[.!?])?$", "cancel_timer"),
+    (r"\bcancel (?:the )?(?:timer|alarm)(?: named| called) (.+?)(?: please| now|[.!?])?$", "cancel_timer"),
 ]
 
 
@@ -383,6 +469,17 @@ def detect_action(user_message: str) -> Optional[dict]:
             return {
                 "action_type": "set_timer",
                 "params": {"text": label, "minutes": minutes},
+            }
+        
+        elif action_type == "list_timers":
+            return {"action_type": "list_timers", "params": {}}
+        
+        elif action_type == "cancel_timer":
+            # cancel_timer pattern: group 1 = optional label
+            label = match.group(1).strip() if match.group(1) else None
+            return {
+                "action_type": "cancel_timer",
+                "params": {"label": label},
             }
         
         elif action_type == "get_weather":

@@ -207,7 +207,7 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     # ---- MEMORY / CONTEXT ----
     
     # Check for safe task actions
-    from actions import detect_action, tell_time, play_song, set_reminder, get_weather
+    from actions import detect_action, tell_time, play_song, set_reminder, get_weather, list_timers, cancel_timer
     action_result = detect_action(user_message)
     action_context = ""
     injected_facts: list[str] = []
@@ -231,6 +231,21 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
                 action_context = f"[ACTION PERFORMED: {result.result_text}]"
         elif atype == "set_timer":
             result = set_timer(params.get("minutes", 0), params.get("text", "timer"), scheduler=_scheduler)
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
+                injected_facts.append(result.result_text)
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
+        elif atype == "list_timers":
+            result = list_timers(user_message=params.get("text", "")) if False else None
+            result = list_timers(s.profile.profile_id)
+            if result.success:
+                action_context = f"[FACT: {result.result_text}]"
+                injected_facts.append(result.result_text)
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
+        elif atype == "cancel_timer":
+            result = cancel_timer(params.get("label", ""), profile_id=s.profile.profile_id)
             if result.success:
                 action_context = f"[ACTION PERFORMED: {result.result_text}]"
                 injected_facts.append(result.result_text)

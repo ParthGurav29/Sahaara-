@@ -538,6 +538,33 @@ def update_checkin_audio_delivery(profile_id: str, slot_id: str, delivered_audio
     conn.close()
 
 
+def list_timers(profile_id: str) -> list[dict]:
+    """List pending (not yet responded) timers for a profile."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM checkin_fired_history WHERE profile_id = ? AND response_received = 0 ORDER BY fired_at ASC",
+            (profile_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def cancel_timer(profile_id: str, slot_id: str) -> bool:
+    """Cancel a pending timer by deleting its row from checkin_fired_history."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM checkin_fired_history WHERE profile_id = ? AND slot_id = ? AND response_received = 0",
+            (profile_id, slot_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # M5 Step 3: Web Push subscriptions (storage only — nothing is delivered yet)
 # ---------------------------------------------------------------------------
