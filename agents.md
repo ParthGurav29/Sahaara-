@@ -1077,3 +1077,14 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **Not tested (requires working notification display first):** screen locked, app closed / battery saver, Doze delay. Remain for Step 8 when notification display is resolved.
 - **Regression:** No code changes for device testing — all backend/frontend regression tests previously pass.
 - **Not claimed:** "sent" still means the push service answered 2xx, never that a phone displayed it.
+
+### 2026-10-28 — Fixes: voice turn delay, profile cache invalidation
+**Why:** Three issues found during manual device testing:
+
+- **`backend/voice/voice_pipeline.py`:** `TURN_PAUSE_SECONDS` default changed from `1.5` → `1.0` (env `SAHAARA_TURN_PAUSE_SECONDS` still overrides). Reduces the gap between Sahaara's reply and the mic reopening from 1.5s to 1.0s.
+- **`backend/session_manager.py`:** Added `reload_profile(profile_id)` method that forces a re-read of the profile from SQLite and rebuilds the `ProfileSession`. Extracted shared `_build_session(profile_id)` helper used by both `get()` and `reload_profile()`.
+- **`backend/main.py`:** `PUT /profile/{profile_id}` now calls `conversation._session_manager.reload_profile(profile_id)` after saving, so caregiver profile edits take effect immediately without a server restart.
+
+**Not fixed:** general-knowledge questions (e.g., "what's 2+2") — the model answers with its own unrelated response instead. This is a prompt/behavior issue, not a simple code fix. The model needs to answer general knowledge like ChatGPT (within safety bounds). Needs owner direction on how to handle.
+
+**Regression:** unit_e2e **157/157**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**.

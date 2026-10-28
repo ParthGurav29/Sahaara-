@@ -576,6 +576,12 @@ def update_profile(profile_id: str, body: dict, user: dict = Depends(require_car
         raise HTTPException(status_code=404, detail="profile not found")
     data = body.get("data", body)
     database.save_profile(profile_id, data)
+    # Reload the in-memory session so the caregiver's changes take effect
+    # immediately without restarting the server.
+    try:
+        conversation._session_manager.reload_profile(profile_id)
+    except Exception:
+        logger.exception("Could not reload profile session after save")
     return {"status": "ok", "profile_id": profile_id}
 
 

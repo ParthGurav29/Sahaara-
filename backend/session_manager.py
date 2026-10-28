@@ -77,7 +77,18 @@ class SessionManager:
         if profile_id in self._sessions:
             return self._sessions[profile_id]
         
-        # Load profile from database
+        return self._build_session(profile_id)
+
+    def reload_profile(self, profile_id: str) -> ProfileSession:
+        """Force re-read the profile from the database and rebuild the session.
+
+        Call this after a PUT /profile/{id} edit so the in-memory session
+        picks up the caregiver's changes immediately.
+        """
+        return self._build_session(profile_id)
+
+    def _build_session(self, profile_id: str) -> ProfileSession:
+        """Build a fresh ProfileSession from the database profile row."""
         data = database.get_profile(profile_id)
         if data is None:
             raise ValueError(f"Profile not found: {profile_id}")

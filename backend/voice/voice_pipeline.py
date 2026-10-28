@@ -81,7 +81,7 @@ REAL_DELAY_THRESHOLD = 5.0
 # before handing the turn back. The mic gate stays closed during this pause,
 # so the speaker tail decays with no chance of becoming a new turn, and the
 # person gets a clear gap instead of an instant flip to "listening".
-TURN_PAUSE_SECONDS = float(os.environ.get("SAHAARA_TURN_PAUSE_SECONDS", "1.5"))
+TURN_PAUSE_SECONDS = float(os.environ.get("SAHAARA_TURN_PAUSE_SECONDS", "1.0"))
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY")
 VOICECHAT_AVAILABILITY_TTL_SECONDS = 300
