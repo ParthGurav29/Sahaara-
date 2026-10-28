@@ -1122,3 +1122,19 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **`backend/tests/unit_e2e.py`:** +7 continuation tests (yes continues, no drops it, timeout doesn't eat next turn, reset clears state, remaining text stored/cleared correctly).
 
 **Regression:** unit_e2e **180 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
+
+### 2026-10-28 — Voice Pipeline: Stop Discarding Late Replies + Cap Reply Length
+**Owner decision (2026-10-28):** Sahaara answers general-knowledge questions factually (like ChatGPT). Owner specified voice constraints: 2-4 sentence default, short version first + check-in, one check-in per answer, plain-language summary for code. Implementing as its own item with changelog entry.
+
+- **`backend/voice/voice_pipeline.py`:** 
+  - `MILD_DELAY_THRESHOLD`: 2.5s → 3.5s (less aggressive filler, keeps MILD near 3.0-3.5s per owner guidance)
+  - `REAL_DELAY_THRESHOLD`: 5.0s → 8.0s (grace period for LLM to complete)
+  - Mild delay no longer cancels LLM task — if LLM completes before REAL_DELAY_THRESHOLD, reply is spoken after the filler
+  - Only REAL_DELAY_THRESHOLD discards the LLM result (hard fallback)
+  - `_llm_reply` passes `max_tokens=150` to `process_turn` for voice turns (caps reply at ~120-150 words, matching 2-4 sentence design)
+  - Added LLM latency logging per turn
+- **`backend/conversation.py`:** `process_turn()` accepts `max_tokens` parameter (default 300), passes to `provider.complete_from_prompt_bundle()`
+- **`backend/llm/nemotron_client.py`:** `complete()` and `complete_from_prompt_bundle()` accept `max_tokens` parameter
+- **`backend/tests/unit_e2e.py`:** +4 tests (MILD_DELAY_THRESHOLD=3.5, REAL_DELAY_THRESHOLD=8.0, MILD < REAL, process_turn accepts max_tokens)
+
+**Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.

@@ -15,6 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 from llm.intent_emotion import classify_intent
+from llm.nemotron_client import DEFAULT_MAX_TOKENS
 from llm.provider import ProviderError, get_provider
 from llm.response_policy import build_prompt, check_response_structure
 from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
@@ -54,7 +55,7 @@ def get_session_for_profile(profile_id: str):
     return _session_manager.get(profile_id)
 
 
-def process_turn(user_message: str) -> dict:
+def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dict:
     """Runs one full turn through the pipeline."""
     s = _get_session()
 
@@ -289,7 +290,7 @@ def process_turn(user_message: str) -> dict:
     
     # ---- CALL LLM ----
     try:
-        result = provider.complete_from_prompt_bundle(bundle)
+        result = provider.complete_from_prompt_bundle(bundle, max_tokens=max_tokens)
     except ProviderError as e:
         return {"error": f"LLM request failed: {e}"}
     

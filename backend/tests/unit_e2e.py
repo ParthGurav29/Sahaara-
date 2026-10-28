@@ -331,6 +331,26 @@ check("continuation context cleared after reset", cm5.context is None, f"got: {c
 check("continuation timeout cleared after reset", cm5._timeout_at is None, f"got: {cm5._timeout_at}")
 
 # ============================================================
+# 3c. Voice Pipeline: Late-Reply Behavior
+# ============================================================
+section("3c. VOICE PIPELINE: LATE-REPLY BEHAVIOR")
+
+from voice.voice_pipeline import MILD_DELAY_THRESHOLD, REAL_DELAY_THRESHOLD
+
+# Check that thresholds are set to the intended values
+check("MILD_DELAY_THRESHOLD is 3.5s", MILD_DELAY_THRESHOLD == 3.5, f"got {MILD_DELAY_THRESHOLD}")
+check("REAL_DELAY_THRESHOLD is 8.0s", REAL_DELAY_THRESHOLD == 8.0, f"got {REAL_DELAY_THRESHOLD}")
+check("MILD < REAL threshold", MILD_DELAY_THRESHOLD < REAL_DELAY_THRESHOLD)
+
+# Test that process_turn accepts max_tokens parameter
+# (voice pipeline passes max_tokens=150 for voice turns)
+from conversation import process_turn
+import inspect
+sig = inspect.signature(process_turn)
+check("process_turn accepts max_tokens param", "max_tokens" in sig.parameters)
+check("max_tokens defaults to 300", sig.parameters["max_tokens"].default == 300)
+
+# ============================================================
 # 4. Memory Box
 # ============================================================
 section("4. MEMORY BOX")

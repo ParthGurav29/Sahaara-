@@ -74,8 +74,14 @@ class VoiceEvent:
     initiative: Optional[InitiativeEvent] = None
 
 # Standby ladder timing thresholds (seconds after ack sound fires)
-MILD_DELAY_THRESHOLD = 2.5
-REAL_DELAY_THRESHOLD = 5.0
+# MILD_DELAY_THRESHOLD: when to play the "let me think" filler — but KEEP
+# the LLM task running; if it completes before REAL_DELAY_THRESHOLD, speak it
+# right after the filler.
+MILD_DELAY_THRESHOLD = 3.5
+# REAL_DELAY_THRESHOLD: if the LLM hasn't answered by this point, play the
+# hard-failure fallback and cancel the LLM task. Danger and Red tier alerts
+# are not affected by this ladder (they bypass the standby logic).
+REAL_DELAY_THRESHOLD = 8.0
 
 # After Sahaara finishes speaking, hold the "speaking" state for a beat
 # before handing the turn back. The mic gate stays closed during this pause,
@@ -156,10 +162,16 @@ async def _llm_reply(user_text: str) -> str:
     process_turn() is synchronous (same as main.py's usage), so it's run
     in a thread to avoid blocking the event loop — audio streaming for
     other things shouldn't stall on one LLM call.
+
+    Voice turns use max_tokens=150 (~120-150 words) to keep replies short
+    enough for TTS — this matches the 2-4 sentence reply-length rule.
     """
     from conversation import process_turn
 
-    result = await asyncio.to_thread(process_turn, user_text)
+    t_start = time.time()
+    result = await asyncio.to_thread(process_turn, user_text, max_tokens=150)
+    t_elapsed = time.time() - t_start
+    logger.info(f"[voice] LLM reply took {t_elapsed:.2f}s for: {user_text[:60]}...")
 
     if "error" in result:
         # Mirrors main.py's behavior: provider not configured, or the LLM
@@ -214,11 +226,12 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
             logger.warning("Ack filler unavailable, continuing without it: %s", e)
 
         # --- Standby Ladder (Part 2.3) ---
-        # Race the LLM call against delay thresholds. Once ANY fallback
-        # fires, the turn is considered closed — late LLM responses are
-        # discarded to avoid splicing stale audio into a new turn.
+        # Race the LLM call against delay thresholds. Key design: mild_delay
+        # fires a filler but does NOT cancel the LLM task — if the reply
+        # arrives before REAL_DELAY_THRESHOLD, it's spoken right after the
+        # filler. Only REAL_DELAY_THRESHOLD discards the LLM result.
+        # Danger/Red turns are not affected by this ladder (they bypass it).
         
-        # t_llm_request: LLM task created
         t_llm_request = time.time()
         timings["t_llm_request"] = t_llm_request
         
@@ -229,98 +242,114 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
         real_delay_task = asyncio.create_task(
             _delayed_filler(REAL_DELAY_THRESHOLD, fillers.get_hard_failure_audio)
         )
-
+        
         done, pending = await asyncio.wait(
             [llm_task, mild_delay_task, real_delay_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
-
-        # Cancel any pending tasks (the LLM call keeps running in background
-        # but its result will be ignored since the turn is over)
-        for t in pending:
-            t.cancel()
-
+        
         if llm_task in done:
-            # LLM won — normal path
+            # LLM completed first (before any filler) — normal path
+            for t in pending:
+                t.cancel()
             try:
                 reply_text = llm_task.result()
-                
-                # t_first_llm_token: LLM reply received
                 t_first_llm_token = time.time()
                 timings["t_first_llm_token"] = t_first_llm_token
-                
                 logger.info("Agent reply: %s", reply_text)
-
-                # thinking -> speaking
                 yield VoiceEvent(kind="state", state="speaking")
-
-                # t_first_tts_byte: first TTS audio chunk yielded
                 first_tts = True
                 async for audio_chunk in tts.stream_speech(reply_text):
                     if first_tts:
                         timings["t_first_tts_byte"] = time.time()
                         first_tts = False
                     yield VoiceEvent(kind="audio", audio=audio_chunk)
-                    
-                    # t_first_audio_sent: first audio chunk actually yielded to browser
                     if "t_first_audio_sent" not in timings:
                         timings["t_first_audio_sent"] = time.time()
-                
-                # Log timing event
                 _write_timing_log(turn_id, timings)
                 event_log = get_event_log()
                 if event_log:
                     event_log.log_timing(turn_id, timings)
-                    
             except Exception as e:
-                # Check if it's a TTS quota exceeded error
                 error_msg = str(e)
                 if "quota_exceeded" in error_msg.lower() or "quota exceeded" in error_msg.lower() or "402" in str(e):
                     logger.error("TTS quota exceeded: %s", e)
                     logger.info("TTS quota exceeded, playing quota exceeded fallback")
-                    yield VoiceEvent(
-                        kind="audio", 
-                        audio=await fillers.get_quota_exceeded_audio()
-                    )
+                    yield VoiceEvent(kind="audio", audio=await fillers.get_quota_exceeded_audio())
                 else:
-                    # LLM error (provider failure, guardrail violation, etc.)
-                    # Treat as hard failure — play safe fallback
                     logger.error("LLM call failed, playing hard failure fallback: %s", e)
-                    logger.info(
-                        "standby_ladder_fallback tier=hard_failure latency_ms=%d",
-                        int(REAL_DELAY_THRESHOLD * 1000),
-                    )
-                    # Log to event log
+                    logger.info("standby_ladder_fallback tier=hard_failure latency_ms=%d", int(REAL_DELAY_THRESHOLD * 1000))
                     event_log = get_event_log()
                     if event_log:
                         event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
-                    yield VoiceEvent(
-                        kind="audio", audio=await fillers.get_hard_failure_audio()
-                    )
+                    yield VoiceEvent(kind="audio", audio=await fillers.get_hard_failure_audio())
+        
         elif mild_delay_task in done:
-            # Mild delay fired — play filler, turn ends
-            logger.info("Standby ladder: mild delay triggered")
-            logger.info(
-                "standby_ladder_fallback tier=mild_delay latency_ms=%d",
-                int(MILD_DELAY_THRESHOLD * 1000),
+            # Mild delay fired — play filler but KEEP LLM running.
+            # If LLM completes before REAL_DELAY_THRESHOLD, speak it after
+            # the filler.
+            yield VoiceEvent(kind="audio", audio=mild_delay_task.result())
+            
+            remaining = REAL_DELAY_THRESHOLD - MILD_DELAY_THRESHOLD
+            done2, _ = await asyncio.wait(
+                [llm_task, real_delay_task],
+                timeout=remaining,
+                return_when=asyncio.FIRST_COMPLETED,
             )
-            # Log to event log
+            
+            if llm_task in done2:
+                # LLM completed before real delay — speak it after the filler
+                for t in pending:
+                    if t is not llm_task:
+                        t.cancel()
+                try:
+                    reply_text = llm_task.result()
+                    t_first_llm_token = time.time()
+                    timings["t_first_llm_token"] = t_first_llm_token
+                    logger.info("Agent reply (after mild delay): %s", reply_text)
+                    yield VoiceEvent(kind="state", state="speaking")
+                    first_tts = True
+                    async for audio_chunk in tts.stream_speech(reply_text):
+                        if first_tts:
+                            timings["t_first_tts_byte"] = time.time()
+                            first_tts = False
+                        yield VoiceEvent(kind="audio", audio=audio_chunk)
+                        if "t_first_audio_sent" not in timings:
+                            timings["t_first_audio_sent"] = time.time()
+                    _write_timing_log(turn_id, timings)
+                    event_log = get_event_log()
+                    if event_log:
+                        event_log.log_timing(turn_id, timings)
+                except Exception as e:
+                    error_msg = str(e)
+                    if "quota_exceeded" in error_msg.lower() or "quota exceeded" in error_msg.lower() or "402" in str(e):
+                        logger.error("TTS quota exceeded: %s", e)
+                        yield VoiceEvent(kind="audio", audio=await fillers.get_quota_exceeded_audio())
+                    else:
+                        logger.error("LLM call failed after mild delay: %s", e)
+                        event_log = get_event_log()
+                        if event_log:
+                            event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
+                        yield VoiceEvent(kind="audio", audio=await fillers.get_hard_failure_audio())
+            elif real_delay_task in done2:
+                # Real delay fired before LLM — hard failure fallback
+                for t in pending:
+                    t.cancel()
+                logger.warning("LLM did not respond within %.0fs — hard fallback", REAL_DELAY_THRESHOLD)
+                event_log = get_event_log()
+                if event_log:
+                    event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
+                yield VoiceEvent(kind="audio", audio=await real_delay_task)
+        
+        else:
+            # real_delay_task fired first (before mild_delay) — hard fallback
+            for t in pending:
+                t.cancel()
+            logger.warning("LLM did not respond within %.0fs — hard fallback", REAL_DELAY_THRESHOLD)
             event_log = get_event_log()
             if event_log:
-                event_log.log_fallback(FallbackType.STANDBY_MILD_DELAY)
-            yield VoiceEvent(kind="audio", audio=await fillers.get_mild_delay_audio())
-        elif real_delay_task in done:
-            # Real delay / hard failure — play safe fallback, turn ends
-            logger.info("Standby ladder: real delay / hard failure triggered")
-            logger.info(
-                "standby_ladder_fallback tier=real_delay latency_ms=%d",
-                int(REAL_DELAY_THRESHOLD * 1000),
-            )
-            # Log to event log
-            event_log = get_event_log()
-            if event_log:
-                event_log.log_fallback(FallbackType.STANDBY_REAL_DELAY)
-            yield VoiceEvent(kind="audio", audio=await fillers.get_hard_failure_audio())
+                event_log.log_fallback(FallbackType.STANDBY_HARD_FAILURE)
+            yield VoiceEvent(kind="audio", audio=await real_delay_task)
 
         # Hold the turn briefly after the reply audio. The orb stays
         # "speaking" here, so the frontend keeps the mic gated while the
