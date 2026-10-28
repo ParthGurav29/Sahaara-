@@ -76,12 +76,13 @@ class VoiceEvent:
 # Standby ladder timing thresholds (seconds after ack sound fires)
 # MILD_DELAY_THRESHOLD: when to play the "let me think" filler — but KEEP
 # the LLM task running; if it completes before REAL_DELAY_THRESHOLD, speak it
-# right after the filler.
-MILD_DELAY_THRESHOLD = 3.5
+# right after the filler. Set high enough that normal replies (<3s) don't
+# trigger the filler.
+MILD_DELAY_THRESHOLD = 5.0
 # REAL_DELAY_THRESHOLD: if the LLM hasn't answered by this point, play the
 # hard-failure fallback and cancel the LLM task. Danger and Red tier alerts
 # are not affected by this ladder (they bypass the standby logic).
-REAL_DELAY_THRESHOLD = 8.0
+REAL_DELAY_THRESHOLD = 10.0
 
 # After Sahaara finishes speaking, hold the "speaking" state for a beat
 # before handing the turn back. The mic gate stays closed during this pause,

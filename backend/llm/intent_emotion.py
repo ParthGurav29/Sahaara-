@@ -70,8 +70,13 @@ PHYSICAL_URGENT_PATTERNS = [
     r"\bcan'?t breathe\b", r"\bcannot breathe\b", r"\btrouble breathing\b",
     r"\bdifficulty breathing\b", r"\bshort of breath\b", r"\bout of breath\b",
     r"\bcan'?t catch (my )?breath\b",
+    r"\bnot able to breathe\b", r"\bnot able to breath\b",
+    r"\bunable to breathe\b", r"\bunable to breath\b",
+    r"\btrouble breathing\b", r"\bhaving trouble breathing\b",
+    r"\bhard to breathe\b", r"\bhard to breath\b",
     # ASR variants for breathing
     r"\bcant breathe\b", r"\bi cant breathe\b", r"\bi cant breath\b",
+    r"\bi cant breathe\b", r"\bi cant breath\b",
     # Chest pain / cardiac
     r"\bchest pain\b", r"\bchest hurts\b", r"\bchest (is )?hurting\b",
     r"\bheart (hurts|pain)\b", r"\btight (in|across) (my )?chest\b",

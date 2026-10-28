@@ -580,6 +580,7 @@ def update_profile(profile_id: str, body: dict, user: dict = Depends(require_car
     # immediately without restarting the server.
     try:
         conversation._session_manager.reload_profile(profile_id)
+        logger.info("Profile %s reloaded after save", profile_id)
     except Exception:
         logger.exception("Could not reload profile session after save")
     return {"status": "ok", "profile_id": profile_id}
