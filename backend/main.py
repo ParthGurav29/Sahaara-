@@ -30,6 +30,7 @@ from pydantic import BaseModel
 import conversation
 from conversation import process_turn, provider, _get_session
 from dashboard.stream import router as stream_router, set_main_loop
+from dashboard.companion import router as companion_router
 from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
 from auth_routes import router as auth_router, require_caregiver, auth_enabled
@@ -42,6 +43,7 @@ logger = logging.getLogger("main")
 app = FastAPI(title="Sahaara API")
 
 app.include_router(stream_router)
+app.include_router(companion_router)
 app.include_router(auth_router)
 app.include_router(push_router)
 

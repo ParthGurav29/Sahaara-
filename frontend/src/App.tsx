@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
@@ -15,38 +15,11 @@ import ProfileForm from "./ProfileForm";
 import PushButton from "./PushButton";
 import AvatarPreview from "./AvatarPreview";
 import TaskAlarm from "./TaskAlarm";
+import CompanionView from "./CompanionView";
+import ErrorBoundary from "./ErrorBoundary";
 import { parseAlertId, withoutAlertParam } from "./deepLink";
+import { useRoute } from "./useRoute";
 import "./App.css";
-
-class ErrorBoundary extends Component<
-  { children: React.ReactNode; name: string; fallback?: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode; name: string; fallback?: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error(`[ErrorBoundary:${this.props.name}]`, error, info.componentStack);
-  }
-  render() {
-    if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
-      return (
-        <div className="error-boundary-fallback">
-          <p>Something went wrong in {this.props.name}.</p>
-          <button onClick={() => this.setState({ hasError: false })}>Retry</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 // The avatar replaced the orb completely (owner decision, 2026-10-28). It is
 // the only voice visual and the only voice control: clicking it starts/stops
@@ -82,7 +55,13 @@ function AshaVisual() {
   );
 }
 
-function AppContent() {
+/**
+ * The caregiver experience (and the hidden demo layout).
+ *
+ * AuthProvider only wraps this branch. `/companion` never mounts it, so the
+ * person's screen makes no `/auth/status` or `/auth/me` call at all.
+ */
+function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
   const { user, isLoading, authEnabled, logout } = useAuth();
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
@@ -217,7 +196,6 @@ function AppContent() {
     return <LoginPage />;
   }
 
-
   return (
     <div className="app-container">
       <header className="app-header">
@@ -225,6 +203,7 @@ function AppContent() {
         <p className="app-subtitle">Consent-based AI companion for dementia care</p>
         {(authEnabled && user) || showCaregiverTabs ? (
           <div className="header-actions">
+            {demoSplit && <span className="user-badge">Demo split</span>}
             {authEnabled && user && (
               <>
                 <span className="user-badge">{user.username} ({user.role})</span>
@@ -269,9 +248,11 @@ function AppContent() {
 
       {view === "live" && (
         <VoiceStateProvider>
-          <div className="app-main">
-            {/* Asha's view - Voice Orb / Avatar (always accessible) */}
-            <AshaVisual />
+          <div className={`app-main${demoSplit ? "" : " app-main--caregiver"}`}>
+            {/* The person's avatar lives in the companion view. In the hidden
+                demo split it sits beside the caregiver panel; in the normal
+                caregiver route it is deliberately absent. */}
+            {demoSplit && <AshaVisual />}
 
             {/* Rohan's view - Escalation Ladder (caregiver only) */}
             {showCaregiverTabs && (
@@ -310,7 +291,8 @@ function AppContent() {
         </div>
       )}
 
-      {/* Collapsible chat fallback - always accessible for Asha */}
+      {/* Collapsible chat fallback - caregiver/demo side only. It is not
+          rendered on /companion (Step 2 requirement). */}
       <button
         className="chat-toggle"
         onClick={() => setShowChat(!showChat)}
@@ -341,10 +323,38 @@ function AppContent() {
   );
 }
 
+function CompanionCrashFallback() {
+  return (
+    <div className="companion-shell companion-shell--error">
+      <p>Sahaara is resting for a moment.</p>
+      <button type="button" onClick={() => window.location.reload()}>
+        Try again
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Route split (UI split Step 2).
+ *
+ * `/companion` is decided before `AuthProvider` mounts, so the person's screen
+ * never asks who the caregiver is. Everything else keeps the existing account
+ * gate and dashboard.
+ */
 function App() {
+  const route = useRoute();
+
+  if (route === "companion") {
+    return (
+      <ErrorBoundary name="CompanionView" fallback={<CompanionCrashFallback />}>
+        <CompanionView />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <AuthProvider>
-      <AppContent />
+      <CaregiverApp demoSplit={route === "demo-split"} />
     </AuthProvider>
   );
 }

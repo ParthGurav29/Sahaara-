@@ -151,7 +151,7 @@ export function AvatarVisual({
  * the real TTS amplitude and it calms down (slower fade, dimmer glow, smaller
  * mouth) as the escalation tier rises.
  */
-export default function SahaaraAvatar() {
+export default function SahaaraAvatar({ size = 168 }: { size?: number } = {}) {
   const { state, isActive, toggle, initiativePrompt, dismissInitiative, errorKind, audioRef } =
     useVoiceSession();
   const mouth = useVoiceMouth();
@@ -180,7 +180,7 @@ export default function SahaaraAvatar() {
           level={mouth.open}
           wide={mouth.wide}
           tier={tier}
-          size={168}
+          size={size}
         />
       </button>
 

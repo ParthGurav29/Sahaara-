@@ -1,6 +1,6 @@
 # UI Split Spec — Companion View / Caregiver View
 
-**Status:** Step 1 (recon + spec) committed. No feature code yet.
+**Status:** Step 1 (recon + spec) and Step 2 (route split + companion channel) committed. Step 2 delivered: `/companion`, `/caregiver`, hidden `/?demo=split`, whitelisted companion WebSocket, caregiver-stream role check, `VITE_DEV_API_TARGET`. The full companion activity strip is Step 6; Step 2 ships the avatar, real clock and live caption.
 **Date:** 2026-10-29
 **Owner:** project owner
 **Track:** UI/product structure. **Separate from M1/W2c.** This track does not change prompt policy text, `response_policy.py` checker logic, `guardrails.py`, or harness thresholds.
@@ -189,11 +189,13 @@ Commit this file plus the `agents.md` maintenance entry. No feature code. Stop.
 - `/caregiver` requires login; `/` goes to login.
 - `?demo=split` renders the old layout; no nav link.
 - Companion WS emits only the five kinds.
-- All 17 event types proved unable to leak tier/alert/consent/danger.
+- All 18 event types proved unable to leak tier/alert/consent/danger.
 - `person` token cannot read `/stream/*`.
 - `VITE_DEV_API_TARGET` replaces the hardcoded dev proxy target.
 - Manual: devtools network tab on `/companion` shows only `/stream/ws/companion`, `/ws/voice`, static assets. No `/escalation/*`, `/alerts*`, `/daily-summary`, `/suggestions*`, `/turn/context`, `/stream/ws/events`, `/auth/me`, `/push/*`.
 - Gates: `tsc -b`, lint, `unit_e2e`.
+
+**Delivered (2026-10-29, commit recorded in `agents.md`):** the route split lives in `App.tsx` + `route.ts` / `useRoute.ts` rather than three view shells; the hidden split view reuses the existing `AshaVisual` + caregiver section. The caregiver route is now single-column with no avatar. The companion view is avatar + real clock + live caption; the channel already carries now-playing/reminder/next-routine for Step 6. Companion smoke: network tab showed **zero `/api/*` requests** on load, no auth form/tabs/header, and only `/api/stream/ws/companion` sockets (plus Vite's own HMR socket, which uses a `?token=` HMR token — not an app session). `person` SSE/WS → **403** live; caregiver → 200. `test_companion_stream.py` **73/73**.
 
 ### Step 3 — Caregiver reorganisation
 
@@ -435,6 +437,8 @@ Standard gates after each step: `npx tsc -b`, `npm run lint` (baseline 9 warning
 | D4 | Named-song fallback | local-only by default; iTunes preview behind `SAHAARA_SONG_PREVIEW=off` |
 
 Step 2 implements the recommendations unless the owner overrides before saying "go".
+
+**Recorded 2026-10-29:** the owner said **"proceed"**; no D1-D4 override arrived, so Step 2 implemented the recommended column. D1 is accepted **for the demo**: document the exposure and demo over `adb reverse`; add a device secret only if a public tunnel is required. D4 is not touched yet (Step 4).
 
 ---
 

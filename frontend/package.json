@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:pwa": "node --test tests/pwaGate.test.ts tests/pushSupport.test.ts tests/pushStatus.test.ts tests/deepLink.test.ts tests/alarm.test.ts tests/mouthShape.test.ts tests/swInstall.test.js tests/swPush.test.js"
+    "test:pwa": "node --test tests/pwaGate.test.ts tests/pushSupport.test.ts tests/pushStatus.test.ts tests/deepLink.test.ts tests/alarm.test.ts tests/mouthShape.test.ts tests/route.test.ts tests/companionChannel.test.ts tests/companionImports.test.js tests/swInstall.test.js tests/swPush.test.js"
   },
   "dependencies": {
     "react": "^19.2.8",

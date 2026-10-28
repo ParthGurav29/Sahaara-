@@ -147,6 +147,15 @@
   min-height: 0;
 }
 
+/* The normal caregiver route has no avatar pane (UI split Step 2). The hidden
+   `?demo=split` layout keeps the two-column grid above. */
+.app-main--caregiver {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
 @media (max-width: 900px) {
   .app-main {
     grid-template-columns: minmax(0, 1fr);

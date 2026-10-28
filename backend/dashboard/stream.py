@@ -37,6 +37,18 @@ def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
     _main_loop = loop
 
 
+def stream_role_allowed(user_data: Optional[dict]) -> bool:
+    """Only caregivers may read the caregiver stream.
+
+    `None` means auth is disabled (the demo mode), where the stream has always
+    been open. A signed-in person token must not receive tiers, alerts or
+    quoted speech, so it is refused rather than served a filtered feed.
+    """
+    if user_data is None:
+        return True
+    return user_data.get("role") == "caregiver"
+
+
 async def _broadcast_event(event_type: str, data: dict):
     """Broadcast an event to all SSE subscribers."""
     message = {
@@ -82,7 +94,11 @@ async def _validate_stream_token(request: Request) -> Optional[dict]:
     user_data = validate_token_and_get_user(token)
     if not user_data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
-    
+    if not stream_role_allowed(user_data):
+        # A person login exists only for the person's own side; the caregiver
+        # stream is not theirs to read (UI split Step 2, D2).
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Caregiver access required")
+
     return user_data
 
 
@@ -184,6 +200,9 @@ async def websocket_events(websocket: WebSocket, token: Optional[str] = Query(No
         if not user_data:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
             return
+        if not stream_role_allowed(user_data):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Caregiver access required")
+            return
     else:
         user_data = None
     
@@ -282,6 +301,10 @@ def setup_stream_hooks():
     This ensures events from the default session are broadcast to SSE subscribers.
     """
     import conversation
+    from dashboard import companion
+
+    companion.set_main_loop(_main_loop)
+
     s = conversation._get_session()
     event_log = s.event_log
     
@@ -290,4 +313,7 @@ def setup_stream_hooks():
         original_append(event)
         # Broadcast to all SSE subscribers
         asyncio.run_coroutine_threadsafe(_broadcast_to_queues(event.type.value, event.to_dict()), _main_loop)
+        # The companion channel is a separate, whitelisted fan-out. It never
+        # receives the raw event — `observe` maps only the five allowed kinds.
+        companion.observe(event)
     event_log.append = hooked_append

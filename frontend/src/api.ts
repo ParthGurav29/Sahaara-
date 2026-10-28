@@ -49,6 +49,15 @@ export function wsUrl(path: string): string {
   const explicit = (import.meta as any).env?.VITE_VOICE_WS_URL as string | undefined;
   if (explicit?.trim()) return explicit.trim();
 
+  return streamWsUrl(path);
+}
+
+/**
+ * WebSocket URL for a same-origin stream endpoint, ignoring the voice-only
+ * override. Used by the companion channel: `VITE_VOICE_WS_URL` points at the
+ * voice socket and must never redirect a different stream.
+ */
+export function streamWsUrl(path: string): string {
   const url = new URL(apiUrl(path), window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
