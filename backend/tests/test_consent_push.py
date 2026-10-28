@@ -99,7 +99,7 @@ def _subscribe(profile_id: str = "asha_demo_001") -> None:
 
 # Fake provider so process_turn doesn't error out (consent path returns before LLM).
 class FakeProvider:
-    def complete_from_prompt_bundle(self, bundle):
+    def complete_from_prompt_bundle(self, bundle, max_tokens=None):
         return SimpleNamespace(text="fake", model="fake")
 
 
@@ -256,7 +256,13 @@ def test_consent_declined():
 
 
 def test_consent_timeout_state():
-    """4. Consent timed out -> 'I'll give you some time...'"""
+    """4. Consent timed out -> the turn is processed normally, not wedged.
+
+    Safety bug fixed 2026-10-28: the timeout branch used to return a canned
+    "I'll give you some time" reply AND leave the session in TIMED_OUT, so every
+    later turn hit the same branch and danger/physical-urgent statements were
+    never classified. A timeout must reset consent to IDLE and fall through.
+    """
     _disable_push()
     _clear_subscriptions()
 
@@ -271,11 +277,18 @@ def test_consent_timeout_state():
 
     result = conversation.process_turn("anything")
 
-    check("response offers time",
-          "give you some time" in result["response"].lower(),
+    check("timeout does not replay the canned reply",
+          "give you some time" not in result["response"].lower(),
           f"got: {result['response']}")
-    check("meta consent_outcome is timeout",
-          result["meta"]["consent_outcome"] == "timeout", f"got: {result['meta']}")
+    check("consent state cleared after timeout",
+          s.consent_manager.state == ConsentState.IDLE,
+          f"got: {s.consent_manager.state}")
+
+    # The next turn must still be able to escalate on danger.
+    danger = conversation.process_turn("I can't breathe")
+    check("danger after timeout still escalates",
+          danger["meta"].get("tier") == "red",
+          f"got: {danger['meta'].get('tier')}")
 
 
 def test_push_sent_late_event_logged():

@@ -227,7 +227,14 @@ def get_profile(profile_id: str) -> Optional[dict]:
     conn.close()
     if row is None:
         return None
-    return json.loads(row["data"])
+    data = json.loads(row["data"])
+    # `profile_id` is authoritative in its own column, but `Profile` (and the
+    # event log) read it from the JSON blob. Rows written before that key was
+    # part of the document — or written back from a client that omitted it —
+    # would otherwise raise KeyError('profile_id') at startup. Always restore it.
+    if not data.get("profile_id"):
+        data["profile_id"] = row["profile_id"]
+    return data
 
 
 def list_profiles() -> list[dict]:
@@ -239,6 +246,9 @@ def list_profiles() -> list[dict]:
 
 def save_profile(profile_id: str, data: dict):
     conn = get_connection()
+    # The path id always wins, so a client that round-trips a profile without
+    # `profile_id` cannot silently strip the key from the stored document.
+    data = {**data, "profile_id": profile_id}
     name = data.get("name", {}).get("preferred_address", profile_id)
     now = time.time()
     conn.execute(

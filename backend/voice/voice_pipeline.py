@@ -152,7 +152,7 @@ async def check_voicechat_availability() -> bool:
     return False
 
 
-async def _llm_reply(user_text: str) -> str:
+async def _llm_reply(user_text: str) -> tuple[str, str | None]:
     """
     Runs the exact same pipeline /chat uses: intent classification, memory
     box matching, repeated-question/sustained-distress checks, prompt

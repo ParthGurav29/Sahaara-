@@ -27,6 +27,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, sta
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import conversation
 from conversation import process_turn, provider, _get_session
 from dashboard.stream import router as stream_router, set_main_loop
 from dashboard.summary import generate_daily_summary, DailySummary
