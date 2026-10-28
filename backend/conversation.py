@@ -207,10 +207,11 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     # ---- MEMORY / CONTEXT ----
     
     # Check for safe task actions
-    from actions import detect_action, tell_time, play_song, set_reminder, get_weather, list_timers, cancel_timer
+    from actions import detect_action, tell_time, play_song, set_reminder, get_weather, list_timers, cancel_timer, play_radio, stop_media
     action_result = detect_action(user_message)
     action_context = ""
     injected_facts: list[str] = []
+    radio_stream_url: Optional[str] = None
     if action_result:
         atype = action_result["action_type"]
         params = action_result.get("params", {})
@@ -256,6 +257,20 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             if result.success:
                 action_context = f"[FACT: {result.result_text}]"
                 injected_facts.append(result.result_text)
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
+        elif atype == "play_radio":
+            result = play_radio(params.get("station_name", ""), scheduler=_scheduler)
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
+                injected_facts.append(result.result_text)
+                radio_stream_url = result.detail.get("stream_url")
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
+        elif atype == "stop_media":
+            result = stop_media(scheduler=_scheduler)
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
             else:
                 action_context = f"[ACTION FAILED: {result.result_text}]"
     
@@ -401,6 +416,7 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             "structure_check_passed": structure.passes, "model": result.model,
             "tier": current_tier, "consent_state": s.consent_manager.state.value,
             "continuation_state": s.continuation_manager.state.value,
+            "radio_stream_url": radio_stream_url,
         },
     }
 

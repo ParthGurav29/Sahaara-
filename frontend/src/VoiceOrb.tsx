@@ -75,6 +75,11 @@ export default function VoiceOrb() {
   const pendingPlaybackRef = useRef(0);
   const unmuteTimerRef = useRef<number | null>(null);
 
+  // Radio stream handling
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const radioStreamUrlRef = useRef<string | null>(null);
+  const isRadioPlayingRef = useRef(false);
+
   // Single source of truth for "should the mic be sent to Deepgram?".
   // The old code adjusted a GainNode that was only wired to the silent
   // speaker path, so it never actually muted the WebSocket send — Sahaara's
@@ -130,6 +135,50 @@ export default function VoiceOrb() {
 
     setState(nextState);
   }, []);
+
+  // ---- Radio stream control ----
+
+  const startRadio = useCallback((url: string) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Stop any existing playback first
+    if (audio.src && audio.src !== url) {
+      audio.pause();
+      audio.src = "";
+    }
+
+    if (audio.src === url && !audio.paused) {
+      // Already playing this stream
+      return;
+    }
+
+    audio.src = url;
+    audio.play().catch((err) => {
+      console.error("Radio playback failed:", err);
+      radioStreamUrlRef.current = null;
+      isRadioPlayingRef.current = false;
+    });
+    radioStreamUrlRef.current = url;
+    isRadioPlayingRef.current = true;
+
+    // Mute mic while radio plays so ASR doesn't pick up broadcast audio
+    micMutedRef.current = true;
+    syncMicGate();
+  }, []);
+
+  const stopRadio = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.src = "";
+    }
+    radioStreamUrlRef.current = null;
+    isRadioPlayingRef.current = false;
+    micMutedRef.current = false;
+    syncMicGate();
+  }, []);
+
 
   const playPcmChunk = useCallback((bytes: ArrayBuffer) => {
     if (!playbackCtxRef.current) {
@@ -197,6 +246,15 @@ export default function VoiceOrb() {
             if (msg.text) {
               setInitiativePrompt(msg.text);
             }
+          } else if (msg.type === "play_stream") {
+            // Start playing the radio stream
+            const url = msg.url;
+            if (url) {
+              startRadio(url);
+            }
+          } else if (msg.type === "stop_media") {
+            // Stop any playing audio
+            stopRadio();
           }
         } catch {
           // ignore malformed control messages
@@ -262,10 +320,10 @@ export default function VoiceOrb() {
     source.connect(processor);
     processor.connect(zeroGain);
     zeroGain.connect(audioContext.destination);
-  }, [syncMicGate, playPcmChunk, stop]);
+  }, [syncMicGate, playPcmChunk, stop, startRadio, stopRadio]);
 
   // Stop everything if the component unmounts mid-session.
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => () => stop(), [stop, startRadio, stopRadio]);
 
   const handleClick = () => {
     if (activeRef.current) {
@@ -292,6 +350,8 @@ export default function VoiceOrb() {
       >
         <span className="voice-orb__core" />
       </button>
+      {/* Hidden audio element for radio streaming */}
+      <audio ref={audioRef} />
       <p className="voice-orb__label">{STATE_LABEL[state]}</p>
       {initiativePrompt && (
         <div className="voice-initiative-prompt" role="status" aria-live="polite">

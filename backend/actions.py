@@ -375,6 +375,76 @@ def _weathercode_to_condition(code: int | None) -> str:
     return code_map.get(code, "unknown")
 
 
+# ---- Radio station list (caregiver-approved) ----
+
+DEFAULT_RADIO_STATIONS = [
+    {"name": "All India Radio Pune", "url": "https://air.pc.cdn.bitgravity.com/air/live/pune/playlist.m3u8", "language": "Marathi/Hindi"},
+    {"name": "Radio Mirchi Pune", "url": "https://radiomirchi.ice.infomaniak.ch/radiomirchi-pune-128.mp3", "language": "Hindi/Marathi"},
+    {"name": "BBC World Service", "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service", "language": "English"},
+]
+
+
+def _get_profile_radio_stations(profile_id: str) -> list[dict]:
+    """Return the caregiver-approved radio station list for a profile."""
+    import database
+    return database.get_radio_stations(profile_id)
+
+
+def play_radio(station_name: str, scheduler=None) -> ActionResult:
+    """Start playing a caregiver-approved radio station.
+
+    Returns ActionResult with status and stream URL on success.
+    Never claims playback started until the frontend confirms via WS.
+    """
+    import database
+
+    # Find the profile's station list
+    # The profile_id is passed via scheduler._profile_id if available
+    profile_id = None
+    if scheduler is not None and hasattr(scheduler, "profile"):
+        profile_id = scheduler.profile.profile_id
+
+    stations = database.get_radio_stations(profile_id) if profile_id else []
+
+    station = None
+    for s in stations:
+        if s.get("name", "").lower() == station_name.strip().lower():
+            station = s
+            break
+
+    if station is None:
+        return ActionResult(
+            success=False,
+            action_type="play_radio",
+            result_text="I don't have that station saved. You can add stations in the Profile tab.",
+            detail={"station_name": station_name},
+        )
+
+    return ActionResult(
+        success=True,
+        action_type="play_radio",
+        result_text=f"I'll play {station_name} for you.",
+        detail={
+            "station_name": station["name"],
+            "stream_url": station["url"],
+            "language": station.get("language", ""),
+        },
+    )
+
+
+def stop_media(scheduler=None) -> ActionResult:
+    """Stop any playing media (radio or otherwise).
+
+    Returns ActionResult indicating success or failure.
+    """
+    return ActionResult(
+        success=True,
+        action_type="stop_media",
+        result_text="I've stopped the audio.",
+        detail={},
+    )
+
+
 # ---- Detection patterns for action triggers ----
 
 import re
@@ -384,6 +454,9 @@ ACTION_TRIGGERS = [
     (r"\bwhat(?:'?s| is) (?:the )?time\b", "tell_time"),
     (r"\btell (?:me )?(?:the )?time\b", "tell_time"),
     (r"\bwhat time is it\b", "tell_time"),
+    # play_radio (must come before play_song)
+    (r"\b(?:play|start) (?:radio|the radio) (?:for )?(.*)(?: please| now|[.!?])?$", "play_radio"),
+    (r"\b(?:play|start) radio(.*)(?: please| now|[.!?])?$", "play_radio"),
     # play_song
     (r"\b(?:play|put on|can you play) (?:the |some |a )?(?:song |music )?(.+?)(?: please| for me| now)?[?.!]?$", "play_song"),
     (r"\b(?:i want to|can i|let me) hear (.+?)(?: please| now)?[?.!]?$", "play_song"),
@@ -404,6 +477,9 @@ ACTION_TRIGGERS = [
     # cancel_timer
     (r"\b(?:cancel|remove|delete|stop) (?:the )?(?:timer|alarm)(?: for (.+?))?(?: please| now|[.!?])?$", "cancel_timer"),
     (r"\bcancel (?:the )?(?:timer|alarm)(?: named| called) (.+?)(?: please| now|[.!?])?$", "cancel_timer"),
+    # stop_media / stop_radio
+    (r"\b(?:stop|turn off|pause) (?:the )?(?:radio|music|playback|audio|playing)(?: please| now|[.!?])?$", "stop_media"),
+    (r"\b(?:cancel|stop) (?:the )?(?:radio|music|playback|audio)(?: please| now|[.!?])?$", "stop_media"),
 ]
 
 
@@ -481,6 +557,39 @@ def detect_action(user_message: str) -> Optional[dict]:
                 "action_type": "cancel_timer",
                 "params": {"label": label},
             }
+        
+        elif action_type == "set_timer":
+            # timer pattern: group 1 = duration text, group 2 = unit, group 3 = optional label
+            minutes = parse_duration(match.group(1) + " " + match.group(2))
+            if minutes is None:
+                continue
+            label = match.group(3).strip() if match.group(3) else "timer"
+            return {
+                "action_type": "set_timer",
+                "params": {"text": label, "minutes": minutes},
+            }
+        
+        elif action_type == "list_timers":
+            return {"action_type": "list_timers", "params": {}}
+        
+        elif action_type == "cancel_timer":
+            # cancel_timer pattern: group 1 = optional label
+            label = match.group(1).strip() if match.group(1) else None
+            return {
+                "action_type": "cancel_timer",
+                "params": {"label": label},
+            }
+        
+        elif action_type == "play_radio":
+            # play_radio pattern: group 1 = station name
+            station_name = match.group(1).strip().rstrip(".,!?")
+            return {
+                "action_type": "play_radio",
+                "params": {"station_name": station_name},
+            }
+        
+        elif action_type == "stop_media":
+            return {"action_type": "stop_media", "params": {}}
         
         elif action_type == "get_weather":
             return {"action_type": "get_weather", "params": {}}

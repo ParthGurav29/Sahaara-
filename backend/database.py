@@ -49,6 +49,7 @@ def init_db():
             profile_id TEXT PRIMARY KEY,
             name TEXT NOT NULL DEFAULT '',
             data JSON NOT NULL DEFAULT '{}',
+            radio_stations TEXT NOT NULL DEFAULT '[]',
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL
         );
@@ -184,12 +185,17 @@ def init_db():
     _ensure_column(conn, "push_subscriptions", "user_id", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "push_subscriptions", "last_success_at", "REAL")
 
+    # M5 Step 5: Radio stations column on profiles table
+    _ensure_column(conn, "profiles", "radio_stations", "TEXT NOT NULL DEFAULT '[]'")
+    
     conn.commit()
     
     # Migrate existing JSON profile if DB is empty
     cursor = conn.execute("SELECT COUNT(*) FROM profiles")
     if cursor.fetchone()[0] == 0:
         _migrate_profile(conn)
+    
+    conn.close()
     
     conn.close()
 
@@ -718,6 +724,73 @@ def clear_push_cooldown_state(profile_id: Optional[str] = None) -> None:
             conn.execute(
                 "DELETE FROM push_cooldown_state WHERE profile_id = ?", (profile_id,)
             )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# M5 Task 5: Radio / Web Push (real streams)
+# ---------------------------------------------------------------------------
+
+def get_radio_stations(profile_id: str) -> list[dict]:
+    """Return the caregiver-approved radio station list for a profile."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT radio_stations FROM profiles WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return []
+    try:
+        stations = json.loads(row["radio_stations"])
+        if isinstance(stations, list):
+            return stations
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
+def save_radio_stations(profile_id: str, stations: list[dict]) -> None:
+    """Save the caregiver-approved radio station list for a profile."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE profiles SET radio_stations = ?, updated_at = ? WHERE profile_id = ?",
+            (json.dumps(stations), time.time(), profile_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_radio_stations(profile_id: str) -> list[dict]:
+    """Return the caregiver-approved radio station list for a profile."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT radio_stations FROM profiles WHERE profile_id = ?", (profile_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return []
+    try:
+        return json.loads(row["radio_stations"])
+    except Exception:
+        return []
+
+
+def save_radio_stations(profile_id: str, stations: list[dict]) -> None:
+    """Save the caregiver-approved radio station list for a profile."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE profiles SET radio_stations = ?, updated_at = ? WHERE profile_id = ?",
+            (json.dumps(stations), time.time(), profile_id),
+        )
         conn.commit()
     finally:
         conn.close()

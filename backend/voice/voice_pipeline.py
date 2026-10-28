@@ -184,7 +184,7 @@ async def _llm_reply(user_text: str) -> str:
     # meta (emotion, guardrail_fallback_used, etc.) is available on `result`
     # too, if voice mode ever wants to log/surface it the way the text
     # frontend can — not used here, just noting it's not being thrown away.
-    return result["response"]
+    return result["response"], result.get("radio_stream_url")
 
 
 async def _delayed_filler(seconds: float, filler_fn):
@@ -254,19 +254,32 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
             for t in pending:
                 t.cancel()
             try:
-                reply_text = llm_task.result()
+                reply_text, radio_url = llm_task.result()
                 t_first_llm_token = time.time()
                 timings["t_first_llm_token"] = t_first_llm_token
                 logger.info("Agent reply: %s", reply_text)
-                yield VoiceEvent(kind="state", state="speaking")
-                first_tts = True
-                async for audio_chunk in tts.stream_speech(reply_text):
-                    if first_tts:
-                        timings["t_first_tts_byte"] = time.time()
-                        first_tts = False
-                    yield VoiceEvent(kind="audio", audio=audio_chunk)
-                    if "t_first_audio_sent" not in timings:
-                        timings["t_first_audio_sent"] = time.time()
+                if radio_url:
+                    # Radio started — stream the URL to the frontend instead of TTS
+                    yield VoiceEvent(kind="play_stream", url=radio_url)
+                    # Still speak the reply text so the person hears what's playing
+                    first_tts = True
+                    async for audio_chunk in tts.stream_speech(reply_text):
+                        if first_tts:
+                            timings["t_first_tts_byte"] = time.time()
+                            first_tts = False
+                        yield VoiceEvent(kind="audio", audio=audio_chunk)
+                        if "t_first_audio_sent" not in timings:
+                            timings["t_first_audio_sent"] = time.time()
+                else:
+                    yield VoiceEvent(kind="state", state="speaking")
+                    first_tts = True
+                    async for audio_chunk in tts.stream_speech(reply_text):
+                        if first_tts:
+                            timings["t_first_tts_byte"] = time.time()
+                            first_tts = False
+                        yield VoiceEvent(kind="audio", audio=audio_chunk)
+                        if "t_first_audio_sent" not in timings:
+                            timings["t_first_audio_sent"] = time.time()
                 _write_timing_log(turn_id, timings)
                 event_log = get_event_log()
                 if event_log:
@@ -304,10 +317,12 @@ async def run_cascaded(audio_in: AsyncIterator[bytes]) -> AsyncIterator[VoiceEve
                     if t is not llm_task:
                         t.cancel()
                 try:
-                    reply_text = llm_task.result()
+                    reply_text, radio_url = llm_task.result()
                     t_first_llm_token = time.time()
                     timings["t_first_llm_token"] = t_first_llm_token
                     logger.info("Agent reply (after mild delay): %s", reply_text)
+                    if radio_url:
+                        yield VoiceEvent(kind="play_stream", url=radio_url)
                     yield VoiceEvent(kind="state", state="speaking")
                     first_tts = True
                     async for audio_chunk in tts.stream_speech(reply_text):
