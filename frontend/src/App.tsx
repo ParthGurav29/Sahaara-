@@ -3,6 +3,7 @@ import { Component, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { apiFetch } from "./api";
 import { playMediaUrl, stopMediaUrl } from "./mediaPlayer";
+import { unlockAlarmAudio } from "./alarm";
 import LoginPage from "./LoginPage";
 import { VoiceStateProvider } from "./VoiceStateContext";
 import SahaaraAvatar from "./SahaaraAvatar";
@@ -13,6 +14,7 @@ import SuggestedFacts from "./SuggestedFacts";
 import ProfileForm from "./ProfileForm";
 import PushButton from "./PushButton";
 import AvatarPreview from "./AvatarPreview";
+import TaskAlarm from "./TaskAlarm";
 import { parseAlertId, withoutAlertParam } from "./deepLink";
 import "./App.css";
 
@@ -102,6 +104,20 @@ function AppContent() {
     // refresh does not reopen the same alert.
     window.history.replaceState({}, "", withoutAlertParam(window.location.href));
   }, [focusAlertId]);
+
+  // A timer has to ring even when nobody touches the screen at the moment it
+  // fires, so unlock the audio context on the first real gesture. Browsers
+  // refuse to start audio without one; doing it here means the chime is ready
+  // long before the timer is due.
+  useEffect(() => {
+    const unlock = () => unlockAlarmAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   // A notification tap on an already-open app arrives here when the service
   // worker cannot reload the window (M5 Step 7).
@@ -219,6 +235,8 @@ function AppContent() {
           </div>
         ) : null}
       </header>
+
+      <TaskAlarm />
 
       {showCaregiverTabs && (
         <nav className="app-tabs">

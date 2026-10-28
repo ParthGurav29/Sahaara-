@@ -31,6 +31,10 @@ from actions import (  # noqa: E402
     stop_media,
 )
 
+# Keep this file offline: the real lookup calls Apple. The streaming path has
+# its own suite (tests/test_song_streaming.py) with an injected lookup.
+actions._itunes_lookup = lambda query: None
+
 passed = 0
 failed = 0
 
@@ -207,10 +211,12 @@ with patch("actions.urlopen", side_effect=OSError("no route")):
 
 print("\n=== Test 3: Local music ===")
 
-# The shipped repo has an empty music folder.
+# The shipped repo has an empty music folder. A named song is now looked up
+# online first; this file stubs the lookup out (top of file), so the honest
+# failure is "couldn't find that song", not "no music is loaded".
 result = play_song("lag ja gale", profile_id="asha_demo_001")
 check("empty folder -> success=False", result.success is False)
-check("honest about the empty folder", "don't have any music" in result.result_text, result.result_text)
+check("says it could not find it", "couldn't find" in result.result_text, result.result_text)
 check("offers the radio", "radio" in result.result_text.lower(), result.result_text)
 check("no audio url on failure", "audio_url" not in result.detail)
 

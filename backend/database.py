@@ -635,6 +635,28 @@ def get_due_reminders(profile_id: str, now: Optional[float] = None) -> list[dict
     return [dict(row) for row in rows]
 
 
+def get_due_reminders_all(now: Optional[float] = None) -> list[dict]:
+    """Every pending timer that is due, across ALL profiles.
+
+    The timer loop must not be tied to the profile its Scheduler happened to
+    be built for. A timer belongs to the person who asked for it, and that
+    person may not be the "active" profile at the moment the clock runs out
+    (switching profiles at login used to leave every timer unfired forever).
+    """
+    now = time.time() if now is None else now
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT * FROM one_time_reminders
+                WHERE status = 'pending' AND fire_at <= ?
+                ORDER BY fire_at ASC""",
+            (float(now),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
 def mark_reminder_fired(reminder_id: int, delivered_voice: bool = False) -> bool:
     """Flip a pending reminder to 'fired'. Returns False if it was already gone."""
     conn = get_connection()

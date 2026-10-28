@@ -1,0 +1,110 @@
+/*
+ * TaskAlarm.css
+ *
+ * A calm banner for a timer that actually fired. It must be noticeable on a
+ * phone without ever looking like an emergency: no flashing, no red, no
+ * shaking — the escalation palette is warm and low-arousal on purpose.
+ */
+
+.task-alarm-stack {
+  position: sticky;
+  top: 8px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, calc(100% - 24px));
+  margin: 8px auto 0;
+}
+
+.task-alarm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e3d5bd;
+  border-left: 5px solid #c9963f;
+  background: #fdf8ee;
+  box-shadow: 0 6px 20px rgba(88, 74, 52, 0.12);
+  animation: task-alarm-in 220ms ease-out;
+}
+
+.task-alarm__badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f3e6cd;
+  color: #7a5a1f;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.task-alarm__text {
+  flex: 1 1 auto;
+  margin: 0;
+  color: #4a3f30;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.task-alarm__stop {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d9c6a4;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #5a4a30;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task-alarm__stop:hover,
+.task-alarm__stop:focus-visible {
+  background: #f7efe0;
+}
+
+.task-alarm__hint {
+  margin: 0;
+  padding: 0 6px;
+  color: #6b6660;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@keyframes task-alarm-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-alarm {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .task-alarm {
+    flex-wrap: wrap;
+  }
+
+  .task-alarm__text {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .task-alarm__stop {
+    margin-left: auto;
+  }
+}

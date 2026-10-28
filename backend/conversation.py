@@ -440,8 +440,14 @@ def _handle_action(s, user_message: str, current_tier: str):
         media_url = detail.get("stream_url")
         mark_media_playing(profile_id, detail.get("station_name") or "radio")
     elif atype == "play_song" and result.success:
-        media_url = detail.get("audio_url")
-        mark_media_playing(profile_id, detail.get("title") or "music")
+        # A named song can resolve to a local file (audio_url) or, when the
+        # folder has no match, to a radio stream (stream_url) — a generic
+        # "play some music" does exactly that.
+        media_url = detail.get("audio_url") or detail.get("stream_url")
+        mark_media_playing(
+            profile_id,
+            detail.get("title") or detail.get("station_name") or "music",
+        )
 
     text = result.result_text
     guardrail = check_guardrails(text, s.profile, injected_facts=[text])
@@ -458,13 +464,16 @@ def _handle_action(s, user_message: str, current_tier: str):
     # the caregiver only — it is never spoken back.
     try:
         s.event_log.log_action(
-            action_type=atype,
+            # `result.action_type` is the action that actually ran, which is
+            # not always the one detected: "play some music" with an empty
+            # folder falls back to the radio.
+            action_type=result.action_type or atype,
             success=result.success,
             spoken=text,
             raw_text=user_message if atype in ("set_timer", "set_reminder") else "",
             detail={k: detail[k] for k in (
                 "id", "label", "seconds", "fire_at", "station_name", "title",
-                "medication", "needs",
+                "artist", "medication", "needs", "preview", "source",
             ) if k in detail},
         )
     except Exception:

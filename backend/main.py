@@ -75,13 +75,23 @@ async def startup_event():
 
 
 async def _broadcast_scheduler_initiatives():
-    """Push scheduler initiative messages into SSE broadcast."""
+    """Push scheduler initiative messages into SSE broadcast.
+
+    Drains every per-profile Scheduler: a timer belongs to the person who set
+    it, and its dashboard line must appear even when the process is currently
+    serving another profile.
+    """
     from dashboard.stream import _broadcast_to_queues
+    import scheduler as scheduler_module
+
     while True:
         try:
-            initiative = await scheduler.get_initiative()
-            if initiative:
-                _broadcast_to_queues("sahaara_initiative", initiative["data"])
+            for sched in list(scheduler_module._scheduler_instances.values()):
+                while True:
+                    initiative = await sched.get_initiative()
+                    if not initiative:
+                        break
+                    _broadcast_to_queues("sahaara_initiative", initiative["data"])
         except Exception:
             pass
         await asyncio.sleep(1)

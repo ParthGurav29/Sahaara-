@@ -44,7 +44,6 @@ from database import (
     update_checkin_audio_delivery,
     get_profile,
     decode_json_field,
-    get_due_reminders,
     mark_reminder_fired,
 )
 from safety.escalation import EscalationTier
@@ -192,12 +191,31 @@ class Scheduler:
             await asyncio.sleep(TIMER_POLL_SECONDS)
 
     async def _fire_due_reminders(self):
-        """Deliver every pending timer whose time has come."""
-        from actions import describe_reminder_fired
+        """Deliver every pending timer whose time has come.
 
-        rows = get_due_reminders(self.profile_id)
+        Timers are read **across all profiles** and routed to the Scheduler
+        instance that owns the row's profile, because that instance is the one
+        holding the open voice session (if any) and its initiative queue. A
+        timer set for Asha must still ring when the process's active profile is
+        something else — that mismatch is exactly what kept her 5-second timer
+        silent on 2026-10-28.
+        """
+        from actions import describe_reminder_fired
+        from database import get_due_reminders_all
+
+        rows = get_due_reminders_all()
         for row in rows:
-            voice = self.voice_session_open
+            target = self
+            if row["profile_id"] != self.profile_id:
+                try:
+                    target = get_scheduler_for_profile(row["profile_id"])
+                except Exception:
+                    # A reminder for a profile that no longer exists must not
+                    # block the rest of the queue.
+                    logger.warning("No scheduler for profile %s", row["profile_id"])
+                    continue
+
+            voice = target.voice_session_open
             # Claim the row first: a second tick (or a second worker) must not
             # announce the same timer twice.
             if not mark_reminder_fired(row["id"], delivered_voice=voice):
@@ -205,7 +223,7 @@ class Scheduler:
 
             spoken = describe_reminder_fired(row)
             self._log_reminder_fired(row, spoken, voice)
-            await self._queue_initiative(
+            await target._queue_initiative(
                 spoken,
                 category="reminder" if row["kind"] == "reminder" else "timer",
                 slot_id=f"reminder_{row['id']}",
@@ -213,12 +231,14 @@ class Scheduler:
                 voice=voice,
             )
             logger.info("Fired %s %s for profile %s (voice=%s)",
-                        row["kind"], row["id"], self.profile_id, voice)
+                        row["kind"], row["id"], row["profile_id"], voice)
 
     def _log_reminder_fired(self, row: dict, spoken: str, voice: bool) -> None:
         try:
-            from conversation import _get_session
-            s = _get_session()
+            from conversation import get_session_for_profile
+            # Log against the row's own profile — the dashboard polls the
+            # session it connected with, and the person's event log is theirs.
+            s = get_session_for_profile(row["profile_id"])
             s.event_log.log_reminder_fired(
                 reminder_id=row["id"],
                 kind=row["kind"],

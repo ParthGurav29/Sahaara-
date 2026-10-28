@@ -546,17 +546,22 @@ def _title(path: Path) -> str:
     return name
 
 
-def play_song(song_name: str = "", profile_id: Optional[str] = None) -> ActionResult:
-    """Play a local music file. Honest when nothing matches or nothing is loaded."""
-    files = _music_files()
+def play_song(
+    song_name: str = "",
+    profile_id: Optional[str] = None,
+    lookup=None,
+) -> ActionResult:
+    """Play a song: a local file first, then a real stream from the internet.
 
-    if not files:
-        return ActionResult(
-            success=False,
-            action_type="play_song",
-            result_text="I don't have any music loaded yet. I could play the radio instead.",
-            detail={"reason": "no_music_files"},
-        )
+    Nothing is claimed before it exists. A local file plays in full; when the
+    folder has no match, `lookup` (iTunes by default) returns a **short
+    preview** and Sahaara says "a short clip", never "the song". With no music
+    folder at all, a generic "play some music" falls through to the radio so
+    the person still hears something instead of being told nothing is loaded.
+
+    `lookup` is injectable so tests never touch the network.
+    """
+    files = _music_files()
 
     query = (song_name or "").strip().lower()
     for filler in ("some music", "music", "a song", "song", "something", "anything"):
@@ -571,28 +576,139 @@ def play_song(song_name: str = "", profile_id: Optional[str] = None) -> ActionRe
             if needle and (needle in haystack or haystack in needle):
                 chosen = path
                 break
-    if chosen is None and not query:
+    if chosen is None and not query and files:
         chosen = files[0]
 
-    if chosen is None:
-        available = ", ".join(_title(p) for p in files[:5])
+    if chosen is not None:
+        return ActionResult(
+            success=True,
+            action_type="play_song",
+            result_text=f"Playing {_title(chosen)}.",
+            detail={
+                "filename": chosen.name,
+                "title": _title(chosen),
+                "audio_url": _media_url(chosen),
+            },
+        )
+
+    if query:
+        # An injected lookup is allowed to raise (the real one never does); a
+        # failure must become "I couldn't find it", never a crash.
+        stream = None
+        try:
+            stream = (lookup or _itunes_lookup)(query)
+        except Exception as exc:
+            logger.info("Song lookup failed: %s", type(exc).__name__)
+            stream = None
+        if stream:
+            title = stream.get("title") or query
+            artist = stream.get("artist") or ""
+            spoken = f"Here's a short clip of {title}"
+            if artist:
+                spoken += f" by {artist}"
+            spoken += "."
+            return ActionResult(
+                success=True,
+                action_type="play_song",
+                result_text=spoken,
+                detail={
+                    "title": title,
+                    "artist": artist,
+                    "audio_url": stream["url"],
+                    "preview": True,
+                    "source": stream.get("source", "itunes"),
+                },
+            )
+        if files:
+            available = ", ".join(_title(p) for p in files[:5])
+            return ActionResult(
+                success=False,
+                action_type="play_song",
+                result_text=f"I couldn't find that song. I have {available}. Or I could play the radio.",
+                detail={"available": [_title(p) for p in files]},
+            )
         return ActionResult(
             success=False,
             action_type="play_song",
-            result_text=f"I couldn't find that song. I have {available}. Or I could play the radio.",
-            detail={"available": [_title(p) for p in files]},
+            result_text="I couldn't find that song. I could play the radio instead.",
+            detail={"reason": "not_found"},
         )
 
+    # A generic "play some music" with an empty folder: the radio is the only
+    # thing that can actually start playing, so try it instead of refusing.
+    radio = play_radio("", profile_id=profile_id)
+    if radio.success:
+        return ActionResult(
+            success=True,
+            action_type="play_radio",
+            result_text=radio.result_text,
+            detail=radio.detail,
+        )
     return ActionResult(
-        success=True,
+        success=False,
         action_type="play_song",
-        result_text=f"Playing {_title(chosen)}.",
-        detail={
-            "filename": chosen.name,
-            "title": _title(chosen),
-            "audio_url": _media_url(chosen),
-        },
+        result_text="I don't have any music loaded yet. I could play the radio instead.",
+        detail={"reason": "no_music_files"},
     )
+
+
+# ---- Internet song lookup (iTunes Search API: public, no key) ----
+
+ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
+
+# A lookup is one network call; caching keeps "play it again" instant and keeps
+# the same query from hitting Apple twice in a session.
+_SONG_CACHE: dict[str, Optional[dict]] = {}
+_SONG_CACHE_LIMIT = 40
+
+
+def _itunes_lookup(query: str) -> Optional[dict]:
+    """Find a playable preview for `query`, or None.
+
+    Returns a dict with title/artist/url. Apple's preview is ~30 seconds and
+    licensed for exactly this kind of playback — Sahaara says "a short clip"
+    so nobody is told a full song started.
+    """
+    key = (query or "").strip().lower()
+    if not key:
+        return None
+    if key in _SONG_CACHE:
+        return _SONG_CACHE[key]
+
+    found: Optional[dict] = None
+    try:
+        params = urlencode({
+            "term": query,
+            "media": "music",
+            "entity": "song",
+            "limit": 5,
+        })
+        request = Request(
+            f"{ITUNES_SEARCH_URL}?{params}",
+            headers={"User-Agent": "Sahaara/1.0"},
+        )
+        with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed host
+            payload = json.loads(response.read().decode("utf-8", "replace"))
+        for item in payload.get("results", []):
+            url = item.get("previewUrl")
+            if not url:
+                continue
+            found = {
+                "title": item.get("trackName") or query,
+                "artist": item.get("artistName") or "",
+                "url": url,
+                "source": "itunes",
+            }
+            break
+    except Exception as exc:
+        # Never raise and never claim: a failed lookup means "couldn't find it".
+        logger.info("Song lookup failed: %s", type(exc).__name__)
+        found = None
+
+    _SONG_CACHE[key] = found
+    if len(_SONG_CACHE) > _SONG_CACHE_LIMIT:
+        _SONG_CACHE.pop(next(iter(_SONG_CACHE)))
+    return found
 
 
 # ---- Radio station list (caregiver-approved) ----

@@ -11,6 +11,7 @@ Usage:
     manager.reset("asha_demo_001")
 """
 
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -151,7 +152,13 @@ class SessionManager:
     
     def get_active(self) -> Optional[ProfileSession]:
         if not self._active_profile_id:
-            # Default to first profile
+            # The demo profile is the default, NOT "whichever row happens to
+            # be first". A test profile left in the database used to win here,
+            # so after a restart the whole app (escalation, timers, alerts)
+            # served a stranger's session while /chat created timers for Asha.
+            preferred = os.environ.get("SAHAARA_DEFAULT_PROFILE", "asha_demo_001")
+            if database.get_profile(preferred) is not None:
+                return self.activate(preferred)
             profiles = database.list_profiles()
             if profiles:
                 return self.activate(profiles[0]["profile_id"])

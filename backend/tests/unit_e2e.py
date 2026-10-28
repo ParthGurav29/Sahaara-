@@ -418,8 +418,9 @@ result = tell_time()
 check("tell_time success", result.success is True)
 check("tell_time has result_text", len(result.result_text) > 0)
 
-# play_song - no music files in the shipped repo
-result = play_song("lag ja gale")
+# play_song - no music files in the shipped repo. The lookup is stubbed so the
+# test stays offline; streaming has its own suite.
+result = play_song("lag ja gale", lookup=lambda _query: None)
 check("play_song no files -> success=False", result.success is False)
 
 # detect_action: tell_time

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch, openWebSocket } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "./api";
+import { subscribeConnection, subscribeEvents } from "./eventStream";
 import { describePushAttempt } from "./pushStatus";
 import { useVoiceActions } from "./VoiceStateContext";
 import "./EscalationLadder.css";
@@ -238,7 +239,6 @@ export default function EscalationLadder({
   const [sseConnected, setSseConnected] = useState(false);
   const [whyExplanation, setWhyExplanation] = useState<string | null>(null);
   const [schedulerPaused, setSchedulerPaused] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const fetchWhyContext = useCallback(async () => {
     
@@ -276,19 +276,9 @@ export default function EscalationLadder({
   useEffect(() => {
     fetchData();
 
-    const ws = openWebSocket("/stream/ws/events");
-    wsRef.current = ws;
-
-    // Re-read the status whenever the socket opens: a tier_change broadcast
-    // while the socket was still connecting (or down) is never replayed, and
-    // both the ladder and the avatar would stay stale until a manual reload.
-    ws.onopen = () => {
-      setSseConnected(true);
-      fetchData();
-    };
-    ws.onerror = () => setSseConnected(false);
-    ws.onclose = () => setSseConnected(false);
-
+    // The live connection is shared with the timer alarm and reconnects on its
+    // own, so switching tabs (which unmounts this component) no longer drops
+    // the dashboard, and a backend `--reload` no longer leaves it stale.
     // A WebSocket message is a JSON envelope { type, data }. For individual
     // events the outer type is "event" and the real event type lives in
     // data.type (mirroring the SSE event name). This lets us reuse the same
@@ -370,14 +360,18 @@ export default function EscalationLadder({
       reminder_fired: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "reminder_fired" }, ...prev].slice(0, 40)); } catch {} },
     };
 
-    ws.onmessage = (ev) => {
-      try {
-        dispatch(JSON.parse(ev.data));
-      } catch {}
-    };
+    // Re-read the status whenever the socket (re)connects: a tier_change
+    // broadcast while the socket was down is never replayed, and both the
+    // ladder and the avatar would stay stale until a manual reload.
+    const unsubscribeEvents = subscribeEvents(dispatch);
+    const unsubscribeConnection = subscribeConnection((live) => {
+      setSseConnected(live);
+      if (live) fetchData();
+    });
 
     return () => {
-      ws.close();
+      unsubscribeEvents();
+      unsubscribeConnection();
     };
   }, [setTier, fetchData, fetchWhyContext]);
 
