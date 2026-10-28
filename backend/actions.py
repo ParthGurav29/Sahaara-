@@ -135,6 +135,73 @@ def set_reminder(text: str, minutes: int, scheduler=None) -> ActionResult:
     )
 
 
+def set_timer(minutes: int, label: str, scheduler=None) -> ActionResult:
+    """Set a one-shot timer. Requires scheduler instance to store it."""
+    if not scheduler:
+        return ActionResult(
+            success=False,
+            action_type="set_timer",
+            result_text="I'm sorry, I can't set timers right now.",
+        )
+    
+    fire_at = time.time() + (minutes * 60)
+    scheduler.add_one_time_reminder(f"Timer: {label}", fire_at)
+    
+    if minutes <= 1:
+        time_desc = "in a moment"
+    elif minutes < 60:
+        time_desc = f"in {minutes} minutes"
+    else:
+        hours = minutes // 60
+        mins = minutes % 60
+        time_desc = f"in {hours} hour{'s' if hours > 1 else ''}"
+        if mins:
+            time_desc += f" and {mins} minutes"
+    
+    return ActionResult(
+        success=True,
+        action_type="set_timer",
+        result_text=f"I've set a timer for {time_desc}.",
+        detail={"text": label, "minutes": minutes, "fire_at": fire_at},
+    )
+
+
+def parse_duration(text: str) -> Optional[int]:
+    """Parse spoken duration like 'ten minutes', 'half an hour', '5 min'.
+    
+    Returns minutes or None if unparseable.
+    """
+    text = text.lower().strip()
+    
+    # Handle "half an hour" / "half hour"
+    if re.search(r"\bhalf ?(an )?hour\b", text):
+        return 30
+    
+    # Handle "an hour" / "one hour"
+    if re.search(r"\b(an|one) hour\b", text):
+        return 60
+    
+    # Handle "X minutes" / "X minute" / "X min" / "X mins"
+    match = re.search(r"(\d+)\s*(minute|minutes|min|mins)", text)
+    if match:
+        return int(match.group(1))
+    
+    # Handle written numbers
+    word_to_num = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20,
+        "twenty-five": 25, "thirty": 30, "forty": 40, "fifty": 50,
+        "sixty": 60,
+    }
+    
+    match = re.search(r"(?<![-\w])(" + "|".join(word_to_num.keys()) + r")\s*(minute|minutes|min|mins)\b", text)
+    if match:
+        return word_to_num[match.group(1)]
+    
+    return None
+
+
 def get_weather(latitude: float = PUNE_LATITUDE, longitude: float = PUNE_LONGITUDE) -> ActionResult:
     """Get current weather for a location using the Open-Meteo API.
 
@@ -248,6 +315,9 @@ ACTION_TRIGGERS = [
     (r"\bwhat'?s the weather like\b", "get_weather"),
     (r"\bwill it (rain|snow|storm)\b", "get_weather"),
     (r"\bis it (hot|cold|warm|chilly|humid)\b", "get_weather"),
+    # set_timer
+    (r"\bset (?:a )?timer for (.+?)\s*(minute|minutes|min|mins|hour|hours)(?: (?:called|named) (.+?))?(?: please| now|[.!?])?$", "set_timer"),
+    (r"\btimer for (.+?)\s*(minute|minutes|min|mins|hour|hours)(?: (?:called|named) (.+?))?(?: please| now|[.!?])?$", "set_timer"),
 ]
 
 
@@ -302,6 +372,17 @@ def detect_action(user_message: str) -> Optional[dict]:
             return {
                 "action_type": "set_reminder",
                 "params": {"text": reminder_text, "minutes": minutes},
+            }
+        
+        elif action_type == "set_timer":
+            # timer pattern: group 1 = duration text, group 2 = unit, group 3 = optional label
+            minutes = parse_duration(match.group(1) + " " + match.group(2))
+            if minutes is None:
+                continue
+            label = match.group(3).strip() if match.group(3) else "timer"
+            return {
+                "action_type": "set_timer",
+                "params": {"text": label, "minutes": minutes},
             }
         
         elif action_type == "get_weather":

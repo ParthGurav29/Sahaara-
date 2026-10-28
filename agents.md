@@ -1149,3 +1149,11 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - **`backend/tests/test_actions_weather.py` (new):** 22 checks — detection patterns, successful fetch, API timeout, API error, weather claim without action blocked, weather claim with action allowed, danger phrase with weather word still physical urgent.
 - **`backend/tests/unit_e2e.py`:** +2 tests (MILD_DELAY_THRESHOLD=3.5, REAL_DELAY_THRESHOLD=8.0 verified).
 - **Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.
+
+### 2026-10-28 — M5 Task 3: Timer action
+**Owner decision (2026-10-28):** Add timer action as a variant of `set_reminder`, reusing the scheduler.
+
+- **`backend/actions.py`:** Added `set_timer(minutes, label, scheduler)` — one-shot timer that stores via `scheduler.add_one_time_reminder()`. Added `parse_duration(text)` helper that handles spoken durations ("ten minutes", "half an hour", "5 min", "an hour", etc.) and digit durations ("5 min", "10 minutes"). Added detection patterns for "set a timer for X minutes", "timer for X minutes", "timer for X minutes called Y", etc.
+- **`backend/conversation.py`:** `process_turn()` calls `set_timer()` when action detected, injects result as `[ACTION PERFORMED: ...]` or `[ACTION FAILED: ...]` into prompt context. Adds result text to `injected_facts` for guardrail checking.
+- **`backend/tests/test_actions_timer.py` (new):** 42 checks — detection patterns (yes continues, no drops it, timeout doesn't eat next turn, reset clears state, remaining text stored/cleared correctly).
+- **Regression:** unit_e2e **185 passed**, test_auth **all pass**, test_push_send **28/28**, test_push_status **11/11**, test_guardrails **13/13**, guardrail_baseline `--verify` **no drift**.

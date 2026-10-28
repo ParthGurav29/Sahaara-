@@ -229,6 +229,13 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             result = set_reminder(params.get("text", ""), params.get("minutes", 5), scheduler=_scheduler)
             if result.success:
                 action_context = f"[ACTION PERFORMED: {result.result_text}]"
+        elif atype == "set_timer":
+            result = set_timer(params.get("minutes", 0), params.get("text", "timer"), scheduler=_scheduler)
+            if result.success:
+                action_context = f"[ACTION PERFORMED: {result.result_text}]"
+                injected_facts.append(result.result_text)
+            else:
+                action_context = f"[ACTION FAILED: {result.result_text}]"
         elif atype == "get_weather":
             result = get_weather()
             if result.success:
