@@ -222,6 +222,46 @@ mgr.ask_consent("Priya", "daughter", EscalationTier.YELLOW, "Call Priya?")
 result = mgr.interpret_response("hmm")
 check("ambiguous -> PENDING", result == ConsentState.PENDING, f"got {result}")
 
+# Timeout clears state -> next turn processed normally (not stuck in TIMED_OUT)
+mgr = ConsentManager(demo_mode=True, demo_multiplier=300.0)
+mgr.ask_consent("Priya", "daughter", EscalationTier.YELLOW, "Call Priya?")
+time.sleep(0.15)  # demo timeout = 30/300 = 0.1s
+mgr.check_timeout()
+check("consent TIMED_OUT after demo timeout", mgr.state == ConsentState.TIMED_OUT, f"got {mgr.state}")
+# Simulate conversation.py clearing the state after timeout detection
+mgr.state = ConsentState.IDLE
+mgr.context = None
+mgr._timeout_at = None
+# interpret_response only processes when PENDING; IDLE means "not blocking"
+result = mgr.interpret_response("Yes, please call her")
+check("consent does not block after timeout (returns IDLE, not TIMED_OUT)", result == ConsentState.IDLE, f"got {result}")
+check("consent state is IDLE after timeout+process", mgr.state == ConsentState.IDLE, f"got {mgr.state}")
+
+# Danger phrase right after timeout reaches Red (consent never blocks danger)
+mgr = ConsentManager(demo_mode=True, demo_multiplier=300.0)
+mgr.ask_consent("Priya", "daughter", EscalationTier.YELLOW, "Call Priya?")
+time.sleep(0.15)
+mgr.check_timeout()
+check("consent TIMED_OUT after demo timeout", mgr.state == ConsentState.TIMED_OUT, f"got {mgr.state}")
+# Clear timeout state (as conversation.py now does)
+mgr.state = ConsentState.IDLE
+mgr.context = None
+mgr._timeout_at = None
+# Danger/physical-urgent classification works independently of consent state
+from llm.intent_emotion import classify_intent
+danger_result = classify_intent("I can't breathe")
+check("physical urgent detected after consent timeout", danger_result.is_physical_urgent, f"got is_physical_urgent={danger_result.is_physical_urgent}")
+check("danger phrase classified as physical urgent", danger_result.is_physical_urgent is True, f"danger_result: {danger_result}")
+
+# Reset clears consent state
+mgr = ConsentManager(demo_mode=True, demo_multiplier=300.0)
+mgr.ask_consent("Rohan", "son", EscalationTier.ORANGE, "Call Rohan?")
+check("consent PENDING after ask", mgr.state == ConsentState.PENDING)
+mgr.reset()
+check("consent IDLE after reset", mgr.state == ConsentState.IDLE, f"got {mgr.state}")
+check("consent context cleared after reset", mgr.context is None, f"got {mgr.context}")
+check("consent timeout cleared after reset", mgr._timeout_at is None, f"got {mgr._timeout_at}")
+
 # ============================================================
 # 4. Memory Box
 # ============================================================

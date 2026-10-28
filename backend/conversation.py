@@ -73,13 +73,13 @@ def process_turn(user_message: str) -> dict:
     s.consent_manager.check_timeout()
     
     if s.consent_manager.state == ConsentState.TIMED_OUT:
-        pending_contact = s.consent_manager.context.contact_name if s.consent_manager.context else "caregiver"
-        return {
-            "response": "I'll give you some time. I'm here if you need anything.",
-            "meta": {"emotion": "neutral", "is_repeated_question": False,
-                     "sustained_distress": False, "consent_outcome": "timeout",
-                     "contact_called": None, "tier": s.escalation_engine.current_tier.value},
-        }
+        # Consent timed out — treat as implicit decline, clear state, and
+        # process this utterance normally. Never block danger/physical-urgent
+        # classification. Timeout was already logged by _handle_timeout().
+        s.consent_manager.state = ConsentState.IDLE
+        s.consent_manager.context = None
+        s.consent_manager._timeout_at = None
+        # Fall through to normal processing below.
     
     if s.consent_manager.state == ConsentState.PENDING:
         pending_contact = s.consent_manager.context.contact_name if s.consent_manager.context else "caregiver"
