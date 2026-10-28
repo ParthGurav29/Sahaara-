@@ -10,7 +10,7 @@ import SahaaraAvatar from "./SahaaraAvatar";
 import { useVoiceSession } from "./useVoiceSession";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
-import SuggestedFacts from "./SuggestedFacts";
+import ReviewInbox from "./ReviewInbox";
 import ProfileForm from "./ProfileForm";
 import PushButton from "./PushButton";
 import AvatarPreview from "./AvatarPreview";
@@ -77,6 +77,19 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
   // Avatar A2: Dev preview access via `?avatar-preview=true`
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
 
+  // Review inbox count (for badge next to alert bell and on tab)
+  const [suggestionsCount, setSuggestionsCount] = useState(0);
+
+  const fetchSuggestionsCount = async () => {
+    try {
+      const res = await apiFetch("/suggestions", {});
+      const data = await res.json();
+      setSuggestionsCount(data.suggestions?.length || 0);
+    } catch (err) {
+      console.error("Failed to fetch suggestions count:", err);
+    }
+  };
+
   useEffect(() => {
     if (!focusAlertId) return;
     // The default view is already "live"; only the URL needs cleaning so a
@@ -133,6 +146,14 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
 
   // When auth is enabled, check if we should show caregiver tabs
   const showCaregiverTabs = !authEnabled || (user?.role === "caregiver");
+
+  // Review inbox count — fetch on mount and every 30s while caregiver view is visible
+  useEffect(() => {
+    if (!showCaregiverTabs) return;
+    fetchSuggestionsCount();
+    const interval = setInterval(fetchSuggestionsCount, 30000);
+    return () => clearInterval(interval);
+  }, [showCaregiverTabs, authEnabled]);
 
   async function sendMessage() {
     if (!message.trim()) return;
@@ -235,7 +256,10 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
             className={`tab ${view === "suggestions" ? "active" : ""}`}
             onClick={() => { setView("suggestions"); setShowChat(false); }}
           >
-            Suggested Facts
+            Review
+            {suggestionsCount > 0 && (
+              <span className="tab-badge">{suggestionsCount}</span>
+            )}
           </button>
           <button
             className={`tab ${view === "profile" ? "active" : ""}`}
@@ -275,9 +299,9 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
 
       {showCaregiverTabs && view === "suggestions" && (
         <div className="app-main" style={{ display: "block", padding: "0 16px" }}>
-          <h2 className="view-title">Suggested Facts</h2>
-          <ErrorBoundary name="SuggestedFacts">
-            <SuggestedFacts />
+          <h2 className="view-title">Review</h2>
+          <ErrorBoundary name="ReviewInbox">
+            <ReviewInbox />
           </ErrorBoundary>
         </div>
       )}

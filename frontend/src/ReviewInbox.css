@@ -1,0 +1,167 @@
+/* Review Inbox — renamed from Suggested Facts */
+
+.review-loading {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.review-explainer {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.review-empty {
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+}
+
+.review-empty__text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 var(--space-sm);
+}
+
+.review-empty__hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.review-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.review-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.review-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.review-card__type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.review-card__type--music {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.review-card__type--topic {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.review-card__type--food {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.review-card__type--routine {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.review-card__type--memory {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.review-card__type--person {
+  background: #e0f2f1;
+  color: #00695c;
+}
+
+.review-card__field {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.review-card__value {
+  font-size: 15px;
+  color: var(--text);
+  margin: 0 0 var(--space-xs);
+}
+
+.review-card__source {
+  font-size: 12px;
+  color: var(--text-tertiary, #6b6660);
+  line-height: 1.4;
+  margin: 0 0 var(--space-md);
+}
+
+.review-card__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.review-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.review-btn--approve {
+  background: var(--success);
+  color: #fff;
+}
+
+.review-btn--approve:hover {
+  background: var(--success-hover);
+}
+
+.review-btn--reject {
+  background: var(--danger);
+  color: #fff;
+}
+
+.review-btn--reject:hover {
+  background: var(--danger-hover);
+}
+
+/* Mobile: stack buttons */
+@media (max-width: 480px) {
+  .review-card__actions {
+    flex-direction: column;
+  }
+}
