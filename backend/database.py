@@ -22,8 +22,12 @@ DB_PATH = Path(os.environ.get("SAHAARA_DB_PATH") or (Path(__file__).parent / "da
 
 def get_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    # A background thread (the emergency-call orchestrator) writes to this DB
+    # while the request thread reads it. Without a busy timeout SQLite raises
+    # "database is locked" instead of waiting a few milliseconds.
+    conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=10000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
@@ -1076,6 +1080,18 @@ def update_emergency_attempt_status(
         conn.commit()
     finally:
         conn.close()
+
+
+def get_emergency_attempt(attempt_id: str) -> Optional[dict]:
+    """One attempt row by id (used by the orchestrator monitor and tests)."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM emergency_attempts WHERE id = ?", (attempt_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
 
 
 def get_emergency_attempts(incident_id: str) -> list[dict]:

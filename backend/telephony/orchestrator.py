@@ -90,6 +90,20 @@ class AttemptStatus(str, Enum):
     CANCELED = "canceled"
 
 
+# Providers report status in their own vocabulary. Map everything the
+# orchestrator can receive onto the attempt states it knows, so a campaign
+# progresses the same way whether it is simulated or real.
+_PROVIDER_TERMINAL_STATUS = {
+    "acknowledged": AttemptStatus.ACKNOWLEDGED.value,
+    "no_answer": AttemptStatus.NO_ANSWER.value,
+    "no-answer": AttemptStatus.NO_ANSWER.value,
+    "busy": AttemptStatus.NO_ANSWER.value,
+    "failed": AttemptStatus.FAILED.value,
+    "canceled": AttemptStatus.CANCELED.value,
+    "cancelled": AttemptStatus.CANCELED.value,
+}
+
+
 @dataclass
 class IncidentContext:
     """All context needed to run the orchestrator for one incident."""
@@ -117,6 +131,10 @@ class EmergencyOrchestrator:
         self._current_attempt: Optional[str] = None
         self._handle: Optional[CallHandle] = None
         self._thread: Optional[threading.Thread] = None
+        # Set when the provider itself says the campaign cannot run (e.g.
+        # emergency calling is switched off). The incident then ends `failed`
+        # with that reason instead of pretending every contact went unanswered.
+        self._fatal_reason: Optional[str] = None
 
     def start(self) -> None:
         """Start the orchestrator in a daemon thread."""
@@ -201,9 +219,13 @@ class EmergencyOrchestrator:
                 attempt_id = f"{self.ctx.incident_id}_a{attempt_number}"
                 self._place_and_monitor_attempt(contact, contact_order, attempt_id, attempt_number, contact_attempt)
 
+                if self._fatal_reason:
+                    self._end_incident(IncidentStatus.FAILED, reason=self._fatal_reason)
+                    return
+
                 # If acknowledged, we're done
                 attempt = self._get_attempt(attempt_id)
-                if attempt and attempt["status"] == AttemptStatus.ACKNOWLEDGED:
+                if attempt and attempt["status"] == AttemptStatus.ACKNOWLEDGED.value:
                     self._end_incident(IncidentStatus.ACKNOWLEDGED, reason="acknowledged")
                     return
 
@@ -276,6 +298,11 @@ class EmergencyOrchestrator:
             "simulated": self.ctx.simulated,
         })
 
+        # Count the attempt as soon as it starts. Without this the incident's
+        # `attempts` counter stays 0, every retry reuses the id `<incident>_a1`
+        # (a primary-key collision) and the max-attempts guard never trips.
+        increment_emergency_incident_attempts(self.ctx.incident_id)
+
         # Place the call
         self._current_attempt = attempt_id
         try:
@@ -295,7 +322,30 @@ class EmergencyOrchestrator:
                 "status": "failed",
                 "simulated": self.ctx.simulated,
             })
-            increment_emergency_incident_attempts(self.ctx.incident_id)
+            return
+
+        # A provider can refuse the call outright (calling switched off,
+        # number not permitted on the account). Honour that before monitoring,
+        # otherwise the attempt sits at "dialing" forever and the dashboard
+        # shows a call that never happened.
+        initial_terminal = _PROVIDER_TERMINAL_STATUS.get(handle.status)
+        if initial_terminal:
+            reason = (handle.raw or {}).get("reason") or initial_terminal
+            if reason == "disabled":
+                self._fatal_reason = "disabled"
+            update_emergency_attempt_status(
+                attempt_id,
+                initial_terminal,
+                provider_call_id=handle.provider_call_id,
+                ended_at=time.time(),
+            )
+            self._log_event(EventType.EMERGENCY_CALL_STATUS, {
+                "incident_id": self.ctx.incident_id,
+                "attempt_id": attempt_id,
+                "status": initial_terminal,
+                "simulated": self.ctx.simulated,
+            })
+            self._handle = None
             return
 
         # Update to dialing
@@ -332,35 +382,63 @@ class EmergencyOrchestrator:
 
             status = self.provider.fetch_status(self._handle) if self._handle else attempt["status"]
 
+            # Providers speak different vocabularies: Twilio reports
+            # "in-progress"/"completed", the simulated provider reports
+            # "answered"/"acknowledged"/"no_answer". Normalise first, otherwise
+            # a simulated call that was answered looks like it is still ringing
+            # forever and the campaign never retries or ends.
+            provider_terminal = _PROVIDER_TERMINAL_STATUS.get(status)
+            if provider_terminal and attempt["status"] != provider_terminal:
+                now = time.time()
+                update_emergency_attempt_status(
+                    attempt_id,
+                    provider_terminal,
+                    acknowledged_at=now if provider_terminal == AttemptStatus.ACKNOWLEDGED.value else None,
+                    ended_at=now,
+                )
+                self._log_event(EventType.EMERGENCY_CALL_STATUS, {
+                    "incident_id": self.ctx.incident_id,
+                    "attempt_id": attempt_id,
+                    "status": provider_terminal,
+                    "simulated": self.ctx.simulated,
+                })
+                return
+
+            if status in ("answered", "in-progress") and attempt["status"] in (
+                AttemptStatus.QUEUED.value,
+                AttemptStatus.DIALING.value,
+                AttemptStatus.RINGING.value,
+            ):
+                answered_at = answered_at or time.time()
+                update_emergency_attempt_status(
+                    attempt_id, AttemptStatus.ANSWERED.value, answered_at=answered_at
+                )
+                ack_deadline = answered_at + _ack_seconds()
+                self._log_event(EventType.EMERGENCY_CALL_STATUS, {
+                    "incident_id": self.ctx.incident_id,
+                    "attempt_id": attempt_id,
+                    "status": "answered",
+                    "simulated": self.ctx.simulated,
+                })
+
             # State transitions
-            if attempt["status"] in (AttemptStatus.QUEUED.value, AttemptStatus.DIALING.value):
-                if status in ("ringing", "in-progress"):
-                    update_emergency_attempt_status(attempt_id, AttemptStatus.RINGING.value, answered_at=time.time() if status == "in-progress" else None)
+            elif attempt["status"] in (AttemptStatus.QUEUED.value, AttemptStatus.DIALING.value):
+                if status in ("ringing",):
+                    update_emergency_attempt_status(attempt_id, AttemptStatus.RINGING.value)
                     self._log_event(EventType.EMERGENCY_CALL_STATUS, {
                         "incident_id": self.ctx.incident_id,
                         "attempt_id": attempt_id,
                         "status": "ringing",
                         "simulated": self.ctx.simulated,
                     })
-                    if status == "in-progress":
-                        answered_at = time.time()
-
-            elif attempt["status"] == AttemptStatus.RINGING.value:
-                if status == "in-progress":
-                    update_emergency_attempt_status(attempt_id, AttemptStatus.ANSWERED.value, answered_at=time.time())
-                    answered_at = time.time()
-                    ack_deadline = time.time() + _ack_seconds()
-                    self._log_event(EventType.EMERGENCY_CALL_STATUS, {
-                        "incident_id": self.ctx.incident_id,
-                        "attempt_id": attempt_id,
-                        "status": "answered",
-                        "simulated": self.ctx.simulated,
-                    })
 
             elif attempt["status"] == AttemptStatus.ANSWERED.value:
-                # Check for acknowledgement (DTMF 1)
-                # For simulated provider, check if acked
-                if self.ctx.simulated and hasattr(self.provider, 'acknowledge'):
+                # Check for acknowledgement (DTMF 1).
+                # Only a provider that says it auto-acks may be polled here.
+                # Calling `acknowledge()` unconditionally made the simulated
+                # campaign claim an acknowledgement the instant the call was
+                # answered, so the retry / next-contact ladder could never run.
+                if getattr(self.provider, "auto_ack", False):
                     if self.provider.acknowledge(attempt_id):
                         update_emergency_attempt_status(attempt_id, AttemptStatus.ACKNOWLEDGED.value, acknowledged_at=time.time(), ended_at=time.time())
                         self._log_event(EventType.EMERGENCY_CALL_STATUS, {

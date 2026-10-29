@@ -28,11 +28,21 @@ class SimulatedCallProvider:
 
     name = "simulated"
     simulated = True
+    # Only the simulated provider can report an acknowledgement without a
+    # webhook. It does so only when SAHAARA_EMERGENCY_DEMO_ACK is on, so the
+    # demo can show the retry ladder as well as the happy path.
+    auto_ack = False
 
     def __init__(self, disabled: bool = False):
         self.disabled = disabled
         self.ack_seconds = float(os.environ.get("SAHAARA_EMERGENCY_ACK_SECONDS", "45"))
         self.demo_ack = _flag(os.environ.get("SAHAARA_EMERGENCY_DEMO_ACK", "0"))
+        self.auto_ack = self.demo_ack
+        # Simulation-only pacing. These do not exist for real calls — a real
+        # call is paced by the carrier. Tests set them very small so the whole
+        # retry ladder runs in well under a second.
+        self.dial_seconds = float(os.environ.get("SAHAARA_EMERGENCY_SIM_DIAL_SECONDS", "1.0"))
+        self.ring_seconds = float(os.environ.get("SAHAARA_EMERGENCY_SIM_RING_SECONDS", "3.0"))
         self._lock = threading.Lock()
         self._handles: dict[str, dict] = {}  # attempt_id -> handle state
 
@@ -63,8 +73,8 @@ class SimulatedCallProvider:
             "incident_id": incident_id,
             "attempt_id": attempt_id,
             "started_at": now,
-            "dialing_until": now + 1.0,
-            "ringing_until": now + 4.0,  # 1s dialing + 3s ringing
+            "dialing_until": now + self.dial_seconds,
+            "ringing_until": now + self.dial_seconds + self.ring_seconds,
             "acked": False,
         }
         with self._lock:
@@ -93,13 +103,19 @@ class SimulatedCallProvider:
                 elif state["status"] == "ringing" and now >= state["ringing_until"]:
                     state["status"] = "answered"
                     state["answered_at"] = now
-                    # If demo ack is enabled, auto-acknowledge after a short delay
+                    # If demo ack is enabled, auto-acknowledge after a short
+                    # delay. The provider sets `acked` itself: relying on the
+                    # orchestrator to poll `acknowledge()` inside a 0.5 s window
+                    # raced against this provider's own no-answer deadline.
                     if self.demo_ack:
                         state["ack_deadline"] = now + 0.5
+                        state["auto_ack_at"] = state["ack_deadline"]
                     else:
                         state["ack_deadline"] = now + self.ack_seconds
 
                 elif state["status"] == "answered":
+                    if state.get("auto_ack_at") and now >= state["auto_ack_at"]:
+                        state["acked"] = True
                     if state.get("acked"):
                         state["status"] = "acknowledged"
                         state["acknowledged_at"] = time.time()

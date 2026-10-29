@@ -280,14 +280,13 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     # Runs as daemon thread — does not block the turn.
     if intent and (intent.is_danger_statement or intent.is_physical_urgent):
         trigger = "danger" if intent.is_danger_statement else "physical_urgent"
-        trigger_phrase = None
-        if intent.is_physical_urgent:
-            # Use the matched pattern, sanitised and capped at 15 words
-            matched = intent.matched_physical_keywords[0] if intent.matched_physical_keywords else "unknown"
-            words = matched.split()
-            if len(words) > 15:
-                matched = " ".join(words[:15]) + "..."
-            trigger_phrase = matched
+        # The dashboard must show what Asha actually said — never the regex that
+        # matched it. `matched_physical_keywords` holds pattern text, which is
+        # useless to a caregiver and leaks the internals of the classifier.
+        phrase_words = user_message.strip().split()
+        trigger_phrase = " ".join(phrase_words[:30])
+        if len(phrase_words) > 30:
+            trigger_phrase += "…"
         
         try:
             trigger_emergency_call(

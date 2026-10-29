@@ -35,6 +35,7 @@ from dashboard.summary import generate_daily_summary, DailySummary
 from voice import voice_pipeline
 from auth_routes import router as auth_router, require_caregiver, auth_enabled
 from push_routes import router as push_router
+from emergency_routes import router as emergency_router
 import push
 import scheduler
 
@@ -46,6 +47,7 @@ app.include_router(stream_router)
 app.include_router(companion_router)
 app.include_router(auth_router)
 app.include_router(push_router)
+app.include_router(emergency_router)
 
 
 @app.on_event("startup")

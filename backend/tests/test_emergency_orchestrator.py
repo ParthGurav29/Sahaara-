@@ -23,6 +23,10 @@ def _fresh_db():
         Path(str(_TEST_DB) + _suffix).unlink(missing_ok=True)
     os.environ["SAHAARA_DB_PATH"] = str(_TEST_DB)
     os.environ["SAHAARA_PUSH_ENABLED"] = "false"
+    # The campaign only runs when calling is switched on; with it off the
+    # provider is the disabled variant and every incident ends `failed/disabled`.
+    os.environ["EMERGENCY_CALLS_ENABLED"] = "true"
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     # Fast demo mode for tests
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.5"
     os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
@@ -30,7 +34,34 @@ def _fresh_db():
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
     os.environ["SAHAARA_EMERGENCY_RETRIES"] = "1"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "0.1"
+    # Simulation-only pacing so a whole campaign finishes in ~1 s per attempt
+    # instead of the 4 s a demo shows on screen.
+    os.environ["SAHAARA_EMERGENCY_SIM_DIAL_SECONDS"] = "0.05"
+    os.environ["SAHAARA_EMERGENCY_SIM_RING_SECONDS"] = "0.05"
     return _TEST_DB
+
+
+def _wait_for_ended(event_log, timeout: float = 15.0):
+    """Poll the event log for EMERGENCY_CALL_ENDED instead of sleeping a guess."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ended = event_log.get_events(EventType.EMERGENCY_CALL_ENDED)
+        if ended:
+            return ended
+        time.sleep(0.05)
+    return event_log.get_events(EventType.EMERGENCY_CALL_ENDED)
+
+
+def _wait_for_attempt_status(attempt_id: str, statuses: tuple, timeout: float = 10.0) -> bool:
+    from database import get_emergency_attempt
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        row = get_emergency_attempt(attempt_id)
+        if row and row["status"] in statuses:
+            return True
+        time.sleep(0.05)
+    return False
 
 # Fake provider for tests
 class FakeProvider:
@@ -54,8 +85,28 @@ def check(name: str, condition, detail: str = "") -> None:
         print(f"  FAIL: {name} {detail}")
 
 
+def _drain_orchestrators(timeout: float = 10.0) -> None:
+    """Stop and join every live orchestrator before the DB is swapped.
+
+    `importlib.reload(database)` mutates the module object in place, so a
+    background campaign from an earlier test would suddenly write to the new
+    file and hold a write lock while the next test initialises it.
+    """
+    import telephony.orchestrator as orch_mod
+
+    deadline = time.time() + timeout
+    for incident_id, orch in list(orch_mod._active_orchestrators.items()):
+        orch.cancel()
+        thread = getattr(orch, "_thread", None)
+        if thread is not None:
+            thread.join(timeout=max(0.1, deadline - time.time()))
+    with orch_mod._lock:
+        orch_mod._active_orchestrators.clear()
+
+
 def _reset_session(db_path: Path):
     """Create fresh DB and session."""
+    _drain_orchestrators()
     for _suffix in ("", "-wal", "-shm"):
         Path(str(db_path) + _suffix).unlink(missing_ok=True)
     os.environ["SAHAARA_DB_PATH"] = str(db_path)
@@ -201,55 +252,60 @@ def test_acknowledged_ends_incident():
     """Caregiver acknowledging (DTMF 1) ends incident as acknowledged."""
     print("\n[6] Acknowledged ends incident")
     db = _fresh_db()
+    # No auto-ack: the test supplies the acknowledgement through the same
+    # public entry point the Twilio DTMF webhook uses.
+    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
+    os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "30"
     s = _reset_session(db)
     _give_phones_and_may_call()
-    
-    result = conversation.process_turn("I can't breathe")
-    
-    # Give the orchestrator time to run
-    time.sleep(1.5)
-    
-    # Find the incident and attempt
+
+    conversation.process_turn("I can't breathe")
+
     incidents = s.event_log.get_events(EventType.EMERGENCY_CALL_STARTED)
-    if incidents:
-        incident_id = incidents[-1].detail["incident_id"]
-        orch = get_orchestrator(incident_id)
-        if orch and orch._current_attempt:
-            # Simulate DTMF 1 ack
-            ack_result = orch.provider.acknowledge(orch._current_attempt)
-            check("acknowledge returned True", ack_result is True)
-    
-    # Wait for incident to end
-    time.sleep(1.0)
-    
-    ended = s.event_log.get_events(EventType.EMERGENCY_CALL_ENDED)
+    check("incident started", len(incidents) >= 1)
+    incident_id = incidents[-1].detail["incident_id"] if incidents else None
+    # The first attempt id is deterministic, so there is no race reading
+    # `orch._current_attempt` before the orchestrator thread has started.
+    attempt_id = f"{incident_id}_a1" if incident_id else None
+
+    answered = _wait_for_attempt_status(attempt_id, ("answered",)) if attempt_id else False
+    check("call reached answered", answered)
+
+    ack_result = False
+    if attempt_id:
+        from telephony.orchestrator import acknowledge_attempt
+        ack_result = acknowledge_attempt(attempt_id)
+
+    check("acknowledge returned True", ack_result is True)
+
+    ended = _wait_for_ended(s.event_log)
     check("EMERGENCY_CALL_ENDED event logged", len(ended) >= 1)
     if ended:
         check("status is acknowledged", ended[-1].detail.get("status") == "acknowledged")
 
+    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
+
 
 def test_max_attempts_exhausted():
-    """After 3 attempts (primary, retry, secondary), incident ends exhausted."""
+    """After the configured cap (primary, retry, secondary), ends exhausted."""
     print("\n[7] Max attempts exhausted")
     db = _fresh_db()
     s = _reset_session(db)
     _give_phones_and_may_call()
-    
-    # Disable demo ack so calls go to no_answer
+
+    # Disable demo ack so every call ends no_answer and the ladder runs.
     os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
-    os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.5"
-    
-    result = conversation.process_turn("I can't breathe")
-    
-    # Wait for all 3 attempts to complete (simulated is fast)
-    time.sleep(4.0)
-    
-    ended = s.event_log.get_events(EventType.EMERGENCY_CALL_ENDED)
+    os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.1"
+    os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
+
+    conversation.process_turn("I can't breathe")
+
+    ended = _wait_for_ended(s.event_log)
     check("EMERGENCY_CALL_ENDED event logged", len(ended) >= 1)
     if ended:
         check("status is exhausted", ended[-1].detail.get("status") == "exhausted")
         check("attempts == 3", ended[-1].detail.get("attempts") == 3)
-    
+
     # Restore demo ack
     os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
 

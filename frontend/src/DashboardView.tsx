@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "./api";
 import { subscribeEvents, subscribeConnection } from "./eventStream";
 import { describePushAttempt } from "./pushStatus";
+import { describeCallStatus } from "./callStatus";
 import { useVoiceActions } from "./VoiceStateContext";
 import { useAuth } from "./AuthContext";
 import { navigateTo } from "./useRoute";
@@ -43,6 +44,39 @@ interface Alert {
   acknowledged_note?: string;
 }
 
+interface EmergencyIncident {
+  id: string;
+  profile_id: string;
+  trigger: string;
+  trigger_phrase: string | null;
+  tier: string;
+  simulated: boolean;
+  provider: string;
+  status: string;
+  reason: string;
+  attempts: number;
+  started_at: number;
+  ended_at: number | null;
+  attempts_detail?: EmergencyAttempt[];
+}
+
+interface EmergencyAttempt {
+  id: string;
+  incident_id: string;
+  contact_order: number;
+  contact_name: string;
+  contact_rel: string;
+  phone_masked: string;
+  attempt: number;
+  status: string;
+  provider_call_id: string | null;
+  simulated: boolean;
+  started_at: number;
+  answered_at: number | null;
+  acknowledged_at: number | null;
+  ended_at: number | null;
+}
+
 interface Suggestion {
   suggestion_id: string;
   type: string;
@@ -63,6 +97,11 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   alert_sent: "PHONE ALERT",
   action: "TASK",
   reminder_fired: "TIMER / REMINDER",
+  emergency_call_started: "URGENT CALL",
+  emergency_call_attempt: "CALL ATTEMPT",
+  emergency_call_status: "CALL STATUS",
+  emergency_call_ended: "CALL ENDED",
+  emergency_call_skipped: "CALL SKIPPED",
 };
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
@@ -82,6 +121,11 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   alert_sent: "#eef2f7",
   action: "#eef2f0",
   reminder_fired: "#eef2f7",
+  emergency_call_started: "#fdf0e6",
+  emergency_call_attempt: "#fdf3ea",
+  emergency_call_status: "#f7f4ef",
+  emergency_call_ended: "#eef2f0",
+  emergency_call_skipped: "#f3f1ec",
 };
 
 const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
@@ -101,6 +145,11 @@ const EVENT_TYPE_TEXT_COLORS: Record<string, string> = {
   alert_sent: "#475569",
   action: "#3f5d4e",
   reminder_fired: "#475569",
+  emergency_call_started: "#8a4b16",
+  emergency_call_attempt: "#8a4b16",
+  emergency_call_status: "#5c5650",
+  emergency_call_ended: "#3f5d4e",
+  emergency_call_skipped: "#6b6660",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -110,6 +159,34 @@ const FIELD_LABELS: Record<string, string> = {
   key_events: "Life story event",
   daily_routine: "Daily routine",
   family: "Person mentioned",
+};
+
+// Plain-language reasons for an emergency campaign ending or being skipped.
+// These describe what the call provider reported — never what a person did or
+// understood ("acknowledged" means a keypress reached the provider).
+const CALL_END_REASONS: Record<string, string> = {
+  acknowledged: "acknowledged on the call",
+  exhausted: "no contact acknowledged a call",
+  failed: "the call could not be placed",
+  triggered: "still running",
+  all_contacts_exhausted: "no contact acknowledged a call",
+  max_attempts_reached: "every allowed attempt was used",
+  max_incident_time: "the time limit for this call-out was reached",
+  cancelled: "stopped by the caregiver",
+  canceled: "stopped by the caregiver",
+  caregiver_cancelled: "stopped by the caregiver",
+  cancelled_by_caregiver: "stopped by the caregiver", // legacy spelling, pre-Task-4 rows
+  disabled: "calling is switched off",
+  no_callable_contact: "no contact has both a number and permission to be called",
+  cooldown: "a recent emergency call was already placed",
+  orchestrator_error: "the call could not be placed",
+};
+
+const CALL_SKIP_REASONS: Record<string, string> = {
+  cooldown: "a recent emergency call was already placed",
+  no_callable_contact: "no contact has both a number and permission to be called",
+  disabled: "calling is switched off",
+  already_active: "a call-out was already running",
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -174,6 +251,23 @@ function getEventDetailText(event: Event): string {
     }
     case "reminder_fired":
       return d.spoken || `${d.kind || "timer"} fired`;
+    case "emergency_call_started":
+      return `Urgent symptom — contacting caregivers${d.simulated ? " · simulated" : ""}`;
+    case "emergency_call_attempt":
+      return `Calling ${d.contact_name} (${d.phone_masked}) — try ${d.attempt}${d.simulated ? " · simulated" : ""}`;
+    case "emergency_call_status": {
+      // `describeCallStatus` already appends "· simulated" — do not add it twice.
+      const desc = describeCallStatus({ status: String(d.status ?? ""), simulated: Boolean(d.simulated) });
+      return desc?.label ?? String(d.status ?? "status");
+    }
+    case "emergency_call_ended": {
+      const reason = CALL_END_REASONS[String(d.reason ?? "")] ?? `${d.status ?? "ended"}`;
+      return `Ended — ${reason}${d.simulated ? " · simulated" : ""}`;
+    }
+    case "emergency_call_skipped": {
+      const reason = CALL_SKIP_REASONS[String(d.reason ?? "")] ?? "not placed";
+      return `No call placed — ${reason}`;
+    }
     default: {
       const text = d.message || d.reason || d.text;
       if (typeof text === "string" && text.trim()) return text.slice(0, 100);
@@ -245,6 +339,108 @@ function AlertCard({ alert, onAcknowledge }: { alert: Alert; onAcknowledge: () =
         <small className="muted">{formatDate(alert.timestamp_iso)} · {formatTime(alert.timestamp_iso)}</small>
       </div>
       <button className="btn sm ghost" onClick={handleClick}>Acknowledge</button>
+    </div>
+  );
+}
+
+function EmergencyIncidentCard({ incident, onCancel }: { incident: EmergencyIncident; onCancel: () => void }) {
+  const tierColors: Record<string, string> = {
+    green: "var(--sage)",
+    yellow: "var(--amber)",
+    orange: "var(--orange)",
+    red: "var(--red)",
+  };
+  const tierColor = tierColors[incident.tier] || "var(--ink)";
+
+  const getAttemptDescription = (attempt: EmergencyAttempt) => {
+    const callStatus = {
+      status: attempt.status,
+      simulated: incident.simulated,
+      contact_name: attempt.contact_name,
+      phone_masked: attempt.phone_masked,
+      attempt: attempt.attempt,
+    };
+    const desc = describeCallStatus(callStatus);
+    if (desc) return desc.label;
+    return attempt.status;
+  };
+
+  const isActive = incident.status === "triggered" || incident.status === "dialing" || 
+                   incident.status === "ringing" || incident.status === "answered" || 
+                   incident.status === "answered_unacknowledged";
+
+  return (
+    <div className="card emergency-incident" style={{ borderLeftColor: tierColor } as React.CSSProperties}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+        <div>
+          <h3 style={{ color: tierColor }}>
+            EMERGENCY CALL · {incident.tier.toUpperCase()}
+          </h3>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>
+            {incident.trigger === "physical_urgent" && incident.trigger_phrase
+              ? `Physical urgent: "${incident.trigger_phrase}"`
+              : incident.trigger === "danger"
+              ? "Danger statement"
+              : incident.trigger === "consent_accepted"
+              ? "Consent accepted"
+              : incident.trigger}
+            {incident.simulated && <span className="simulated-badge">SIMULATED</span>}
+          </p>
+        </div>
+        {isActive && (
+          <button className="btn sm ghost" onClick={onCancel}>I'm on it</button>
+        )}
+      </div>
+
+      <div style={{ marginBottom: "0.5rem" }}>
+        <small className="muted">
+          {formatDate(new Date(incident.started_at * 1000).toISOString())} · {formatTime(new Date(incident.started_at * 1000).toISOString())}
+        </small>
+      </div>
+
+      <div style={{ borderTop: "1px solid var(--line)", paddingTop: "0.5rem" }}>
+        {incident.attempts_detail?.map((attempt) => (
+          <div key={attempt.id} className="attempt-row" style={{ marginBottom: "0.25rem", paddingLeft: "1rem", borderLeft: "2px solid var(--line)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+              <span>
+                Attempt {attempt.attempt} · {attempt.contact_name} {attempt.contact_rel && `(${attempt.contact_rel})`} · {attempt.phone_masked}
+              </span>
+              <span className="attempt-status">
+                {getAttemptDescription(attempt)}
+              </span>
+            </div>
+            {attempt.answered_at && (
+              <small className="muted">Answered at {formatTime(new Date(attempt.answered_at * 1000).toISOString())}</small>
+            )}
+            {attempt.acknowledged_at && (
+              <small style={{ color: "var(--sage)" }}>Acknowledged at {formatTime(new Date(attempt.acknowledged_at * 1000).toISOString())}</small>
+            )}
+          </div>
+        ))}
+        {(incident.attempts_detail?.length ?? 0) === 0 && incident.status === "triggered" && (
+          <small className="muted">Starting the call…</small>
+        )}
+      </div>
+
+      {incident.ended_at && (
+        <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid var(--line)" }}>
+          <small className="muted">
+            Ended: {CALL_END_REASONS[incident.status] ?? incident.status}
+            {incident.reason &&
+              // Compare the *phrased* text, not the raw keys: `cancelled` and
+              // `caregiver_cancelled` are different keys with the same sentence.
+              (CALL_END_REASONS[incident.reason] ?? incident.reason) !==
+                (CALL_END_REASONS[incident.status] ?? incident.status) &&
+              ` · ${CALL_END_REASONS[incident.reason] ?? incident.reason}`}
+          </small>
+        </div>
+      )}
+
+      {incident.simulated && (
+        <div className="simulated-banner" style={{ marginTop: "0.75rem", padding: "0.5rem", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "4px", fontSize: "0.8rem", color: "var(--muted)" }}>
+          ⚠ SIMULATED — no real call was placed
+        </div>
+      )}
     </div>
   );
 }
@@ -379,6 +575,8 @@ export default function DashboardView() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<"saved" | "error" | null>(null);
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
+  // Emergency Call incidents
+  const [emergencyIncidents, setEmergencyIncidents] = useState<EmergencyIncident[]>([]);
 
   const fetchWhyContext = useCallback(async () => {
     try {
@@ -422,6 +620,18 @@ export default function DashboardView() {
       setAlerts(data.alerts || []);
     } catch (err) {
       console.error("Failed to fetch alerts:", err);
+    }
+  }, []);
+
+  const fetchEmergencyIncidents = useCallback(async () => {
+    try {
+      const res = await apiFetch("/emergency/incidents?limit=20");
+      const data = await res.json();
+      if (data.incidents) {
+        setEmergencyIncidents(data.incidents);
+      }
+    } catch (err) {
+      console.error("Failed to fetch emergency incidents:", err);
     }
   }, []);
 
@@ -484,6 +694,7 @@ export default function DashboardView() {
   useEffect(() => {
     fetchData();
     fetchAlerts();
+    fetchEmergencyIncidents();
     fetchSuggestions();
     fetchProfile();
 
@@ -560,6 +771,35 @@ export default function DashboardView() {
       alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); } catch {} },
       action: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "action" }, ...prev].slice(0, 40)); } catch {} },
       reminder_fired: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "reminder_fired" }, ...prev].slice(0, 40)); } catch {} },
+      // Emergency Call events. The event envelope is
+      // {type, timestamp, profile_id, detail}; we add it to the Day Timeline
+      // and refetch the incident list so the attempt rows come from the
+      // database rather than being reconstructed from partial frames.
+      emergency_call_started: (e) => { try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [{ ...data, type: "emergency_call_started" }, ...prev].slice(0, 40));
+        fetchEmergencyIncidents();
+      } catch {} },
+      emergency_call_attempt: (e) => { try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [{ ...data, type: "emergency_call_attempt" }, ...prev].slice(0, 40));
+        fetchEmergencyIncidents();
+      } catch {} },
+      emergency_call_status: (e) => { try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [{ ...data, type: "emergency_call_status" }, ...prev].slice(0, 40));
+        fetchEmergencyIncidents();
+      } catch {} },
+      emergency_call_ended: (e) => { try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [{ ...data, type: "emergency_call_ended" }, ...prev].slice(0, 40));
+        fetchEmergencyIncidents();
+      } catch {} },
+      emergency_call_skipped: (e) => { try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [{ ...data, type: "emergency_call_skipped" }, ...prev].slice(0, 40));
+        fetchEmergencyIncidents();
+      } catch {} },
     };
 
     const unsubscribeConnection = subscribeConnection((live) => {
@@ -591,6 +831,17 @@ export default function DashboardView() {
       fetchSuggestions();
     } catch (err) {
       console.error("Failed to acknowledge alert:", err);
+    }
+  };
+
+  const handleCancelEmergencyIncident = async (incidentId: string) => {
+    try {
+      console.log("Cancelling emergency incident:", incidentId);
+      const res = await apiFetch(`/emergency/incidents/${incidentId}/cancel`, { method: "POST" });
+      console.log("Cancel response:", res.status, await res.json());
+      fetchEmergencyIncidents();
+    } catch (err) {
+      console.error("Failed to cancel emergency incident:", err);
     }
   };
 
@@ -687,7 +938,7 @@ export default function DashboardView() {
             onClick={() => setActiveTab("alerts")}
             aria-selected={activeTab === "alerts"}
           >
-            Alerts {alerts.length > 0 && <span className="badge">{alerts.length}</span>}
+            Alerts {(alerts.length + emergencyIncidents.length) > 0 && <span className="badge">{alerts.length + emergencyIncidents.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === "profile" ? "active" : ""}`}
@@ -754,18 +1005,40 @@ export default function DashboardView() {
 
         {activeTab === "alerts" && (
           <div className="pane on" id="p-alerts">
-            {alerts.length === 0 ? (
+            {emergencyIncidents.length === 0 && alerts.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
-                <p className="muted">No alerts</p>
+                <p className="muted">No alerts or emergency calls</p>
               </div>
             ) : (
-              alerts.map((alert) => (
-                <AlertCard
-                  key={alert.alert_id}
-                  alert={alert}
-                  onAcknowledge={() => handleAcknowledge(alert)}
-                />
-              ))
+              <>
+                {emergencyIncidents.length > 0 && (
+                  <div style={{ marginBottom: "1rem" }}>
+                    <h3 style={{ marginBottom: "0.5rem" }}>Emergency Calls</h3>
+                    {emergencyIncidents.map((incident) => (
+                      <EmergencyIncidentCard
+                        key={incident.id}
+                        incident={incident}
+                        onCancel={() => handleCancelEmergencyIncident(incident.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {alerts.length === 0 && emergencyIncidents.length > 0 ? null : (
+                  alerts.length === 0 ? (
+                    <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
+                      <p className="muted">No alerts</p>
+                    </div>
+                  ) : (
+                    alerts.map((alert) => (
+                      <AlertCard
+                        key={alert.alert_id}
+                        alert={alert}
+                        onAcknowledge={() => handleAcknowledge(alert)}
+                      />
+                    ))
+                  )
+                )}
+              </>
             )}
           </div>
         )}

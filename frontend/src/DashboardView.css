@@ -588,3 +588,49 @@ button.profile-add-btn {
 .chat-msg.user .chat-audio-btn {
   display: none;
 }
+/* ---------------------------------------------------------------------------
+   Emergency Call card (Task 4)
+   No red flash, no shaking: the card is calm and factual. The only signal that
+   matters is the SIMULATED banner, because a demo must never look like a real
+   call went out.
+   --------------------------------------------------------------------------- */
+
+.emergency-incident {
+  border-left: 3px solid var(--line);
+  margin-bottom: 0.75rem;
+}
+
+.emergency-incident h3 {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.simulated-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.simulated-banner {
+  font-style: italic;
+}
+
+.attempt-row .attempt-status {
+  color: var(--muted);
+  text-align: right;
+}
+
+/* Attempt timestamps stack. As inline elements they ran together in the
+   browser check as "08:36:07 PMAcknowledged at 08:36:08 PM". */
+.attempt-row small {
+  display: block;
+  line-height: 1.45;
+}

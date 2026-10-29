@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class TwilioCallProvider:
     name = "twilio"
     simulated = False
+    # Real acknowledgements arrive through the DTMF webhook, never by polling.
+    auto_ack = False
 
     def __init__(self):
         # All required config for Twilio
