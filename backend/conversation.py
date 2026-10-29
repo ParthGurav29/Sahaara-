@@ -70,9 +70,21 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
     if provider is None:
         return {"error": f"LLM provider not configured: {provider_init_error}"}
 
+    # ---- SAFETY-CRITICAL CLASSIFICATION (must run BEFORE consent) ----
+    # An emergency is never an answer to a consent question. Before this guard,
+    # while Sahaara was waiting for a yes/no about calling the caregiver:
+    #   "I can't breathe"                  -> consent re-ask (never classified, never Red)
+    #   "I fell and I cant get up"         -> consent re-ask (never classified, never Red)
+    #   "not able to breathe"              -> recorded as her DECLINING help
+    #   "Can you help me, I can't breathe" -> recorded as her DECLINING help
+    # Each of those silently dropped the emergency. Classify first, then let the
+    # urgent/danger path below raise the tier and log the alert as before.
+    intent = classify_intent(user_message)
+    is_safety_critical = intent.is_danger_statement or intent.is_physical_urgent
+
     # ---- CONSENT HANDLING ----
     s.consent_manager.check_timeout()
-    
+
     if s.consent_manager.state == ConsentState.TIMED_OUT:
         # Consent timed out — treat as implicit decline, clear state, and
         # process this utterance normally. Never block danger/physical-urgent
@@ -81,7 +93,13 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
         s.consent_manager.context = None
         s.consent_manager._timeout_at = None
         # Fall through to normal processing below.
-    
+
+    if s.consent_manager.state == ConsentState.PENDING and is_safety_critical:
+        # The question is abandoned, not answered. Logged as "superseded"
+        # (never "declined") so the dashboard cannot record a refusal that
+        # never happened. Processing then falls through to the emergency path.
+        s.consent_manager.supersede("urgent_override")
+
     if s.consent_manager.state == ConsentState.PENDING:
         pending_contact = s.consent_manager.context.contact_name if s.consent_manager.context else "caregiver"
         consent_result = s.consent_manager.interpret_response(user_message)
@@ -173,7 +191,8 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             }
 
     # ---- RED TIER TRIGGERS ----
-    intent = classify_intent(user_message)
+    # `intent` was already computed above, before the consent block, so an
+    # emergency is classified even while a consent question is pending.
     if intent.is_danger_statement:
         s.event_log.log_danger_statement(phrase=user_message, matched_pattern="danger_pattern")
         s.escalation_engine.force_tier(EscalationTier.RED, "danger_statement")

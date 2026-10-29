@@ -69,6 +69,10 @@ class ConsentOutcome(str, Enum):
     ACCEPTED = "accepted"
     DECLINED = "declined"
     TIMEOUT = "timeout"
+    # The pending question was abandoned, not answered — e.g. the person said
+    # something safety-critical while Sahaara was waiting for a yes/no. Logging
+    # this as DECLINED would be a false record that she refused help.
+    SUPERSEDED = "superseded"
 
 
 @dataclass
@@ -251,16 +255,26 @@ class EventLog:
         self.append(event)
         return event
     
-    def log_consent_answered(self, outcome: ConsentOutcome, contact_name: str) -> Event:
+    def log_consent_answered(
+        self,
+        outcome: ConsentOutcome,
+        contact_name: str,
+        reason: Optional[str] = None,
+    ) -> Event:
         """Log consent response."""
+        detail: dict[str, Any] = {
+            "outcome": outcome.value,
+            "contact_name": contact_name,
+        }
+        # Only add the reason when one was supplied, so existing events keep
+        # exactly the shape they had before.
+        if reason:
+            detail["reason"] = reason
         event = Event(
             timestamp=time.time(),
             type=EventType.CONSENT_ANSWERED,
             profile_id=self.profile_id,
-            detail={
-                "outcome": outcome.value,
-                "contact_name": contact_name,
-            },
+            detail=detail,
         )
         self.append(event)
         return event

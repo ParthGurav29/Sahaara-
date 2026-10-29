@@ -223,7 +223,12 @@ class ConsentManager:
     ]
     
     DECLINE_PATTERNS = [
-        r"\bno\b", r"\bnope\b", r"\bnah\b", r"\bnot\b",
+        r"\bno\b", r"\bnope\b", r"\bnah\b",
+        # A bare \bnot\b used to live here. It matched "not able to breathe"
+        # and "I'm not feeling well" and recorded them as her refusing help.
+        # Only phrases that are actually refusals belong in this list; genuine
+        # negatives are handled by the patterns below.
+        r"\bnot (now|really|right now|yet)\b",
         r"\bdon'?t\b", r"\bdon'?t (call|bother)\b",
         r"\bno (thanks|thank you)\b", r"\bno need\b",
         r"\bnot now\b", r"\bmaybe later\b", r"\bstop\b",
@@ -348,11 +353,17 @@ class ConsentManager:
                 self._handle_decline()
                 return ConsentState.DECLINED
         
-        # Check for accept
-        for pattern in self.ACCEPT_PATTERNS:
-            if re.search(pattern, text_lower):
-                self._handle_accept()
-                return ConsentState.ACCEPTED
+        # Check for accept — but never read an acceptance out of a negated
+        # sentence. "I'm not sure" contains "sure" and would otherwise be
+        # recorded as her agreeing to a call (this became reachable once the
+        # bare \bnot\b decline pattern was removed above). Ambiguous is safer
+        # than a false accept: it asks again instead of acting.
+        negated = re.search(r"\bnot\b|\bnever\b|n't\b", text_lower) is not None
+        if not negated:
+            for pattern in self.ACCEPT_PATTERNS:
+                if re.search(pattern, text_lower):
+                    self._handle_accept()
+                    return ConsentState.ACCEPTED
         
         # Ambiguous / not a clear answer - stay pending
         # But check if this looks like a completely new topic (topic shift)
@@ -396,6 +407,40 @@ class ConsentManager:
         
         self._reset_context()
     
+    def supersede(self, reason: str = "urgent_override") -> bool:
+        """Abandon a pending question *without* recording an answer.
+
+        Used when the person says something safety-critical while a consent
+        question is still pending. The question was never answered — the
+        emergency took priority — so it is logged as ``superseded``, never as
+        ``declined``. ``declined`` would record that she refused help, which
+        would be false and would make the dashboard lie about what happened.
+
+        Returns True if a pending question was actually abandoned.
+        """
+        if self.state != ConsentState.PENDING:
+            return False
+
+        contact_name = self.context.contact_name if self.context else "caregiver"
+        self.state = ConsentState.IDLE
+
+        if self.event_log:
+            self.event_log.log_consent_answered(
+                outcome=ConsentOutcome.SUPERSEDED,
+                contact_name=contact_name,
+                reason=reason,
+            )
+            self.event_log.log_system_health(
+                message=(
+                    f"Consent question for {contact_name} abandoned by an urgent "
+                    f"statement ({reason}) — not recorded as a decline"
+                ),
+                severity="warning",
+            )
+
+        self._reset_context()
+        return True
+
     def _handle_decline(self) -> None:
         """Handle explicit consent decline."""
         if not self.context:
