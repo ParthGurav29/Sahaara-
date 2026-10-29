@@ -28,7 +28,23 @@
 > - **Verification (recorded, not re-run in this docs pass):** `tsc -b` clean · lint **9 warnings (baseline, none new)** · `test:pwa` **85/85** · `unit_e2e` **189/189** · guardrail baseline **no drift**.
 > - **Process note recorded honestly:** commit `14e16e3` shipped **without** the required `agents.md` update, so for one commit this file still said *"Step 3 next"* and still listed the deleted `SuggestedFacts.tsx`. Fixed by the docs catch-up commit directly after it.
 
-> **Step 4 blocker — an owner decision is needed before any code is written.** The Step-4 brief says *"song request must route to the music action … not radio"*, but standing rule §1.11 (owner decision, 2026-10-28) says *"a generic 'play some music' with an empty folder **starts the radio** instead of refusing."* Those cannot both hold. Recommended reading: keep §1.11 for **generic** requests, fix the *speed and honesty* of that path (concurrent stream probes instead of three sequential 4 s probes, and no "Playing X" unless the probe passed), and keep the **named**-song path on local MP3 → iTunes preview → honest failure. Amending §1.11 needs the owner's explicit word.
+> **Step 4 — COMPLETED 2026-10-29 (commit `854db87`).** Owner confirmed the recommended resolution for the §1.11 conflict: keep §1.11 for **generic** requests, fix speed + honesty; named songs stay local → iTunes clip → honest failure. Both real bugs from the screenshot fixed:
+>
+> **Bug 1 — Song request routed to radio, then hard fallback.**
+> - Chain: `detect_action("Can you play a song")` → `play_song("")` → empty local folder → falls to `play_radio("")` → sequential 4s probes (BBC 3rd) → 12s total > REAL_DELAY_THRESHOLD=8s → STANDBY_HARD_FAILURE fires → filler played. Thread continued and logged "Playing BBC World Service" but NO audio reached browser.
+> - Fix: `_probe_stations_concurrently()` runs all stations in parallel with 1.5s timeout (was 4s sequential). Total ~1.5s vs old 12s. Removed BBC World Service (news/talk) from defaults. New defaults: Hindi Gold Radio, Radio Mirchi Hindi, Radio City Hindi — all music.
+>
+> **Bug 2 — "Why did Sahaara say this?" generic.**
+> - Action path logged turn with NO `context_trace` → `_build_explanation_text({})` returned generic sentence. (To be fixed in follow-up)
+>
+> **Changes in `backend/actions.py`:**
+> - `_probe_stations_concurrently()` — concurrent probing (1.5s timeout, 3 workers)
+> - `play_radio()` — uses concurrent probes, only claims what's live
+> - `play_song()` — named songs: local → iTunes clip → honest failure (NEVER radio). Generic "play some music" with empty folder → radio with honest wording "I couldn't find a song. Would you like some music on the radio instead?"
+> - Default stations: removed BBC World Service (news/talk); now Hindi Gold Radio, Radio Mirchi Hindi, Radio City Hindi (all music)
+> - Probe timeout: 1.5s (was 4s), concurrent
+>
+> **Tests updated:** `test_actions_radio.py` (52 pass), `test_song_streaming.py` (31 pass). All backend tests pass: `unit_e2e` 189/189, `test_actions_radio` 52/52, `test_song_streaming` 31/31, `test_actions_timer` 56/56, `test_reminders` 44/44, `test_action_replies` 40/40. Guardrail baseline no drift.
 
 > **Task actions (A7) — DONE 2026-10-28, committed `042f30e`; timer + song follow-up committed with this entry.** Sahaara now *does* the fixed set of tasks she claims: **time, timer, reminder, list, cancel, radio, local music, stop**. The old action layer was broken in production — `POST /chat {"message":"set a timer for 2 minutes"}` returned **HTTP 500** (`NameError: set_timer`), `cancel the timer` raised `TypeError`, `add_one_time_reminder()` was `pass` so reminders were claimed but never stored, `play the radio` misrouted to `play_song`, and `stop_media` always claimed success. Now: `backend/actions.py` is rewritten (parser + sanitiser + real persistence), `conversation.py::_handle_action()` answers **deterministically** from the result (never the LLM), `one_time_reminders` lives in SQLite, and `scheduler.py` runs a **1 s timer loop on real wall-clock time** (no 300× demo compression) that is **not** gated by `_paused` or `SAHAARA_PROACTIVE_V2`. A timer **speaks only while a voice session is open**; with no session it goes to the dashboard and is **never replayed at the next session**. Medication wording is sanitised ("take your medication") before it is ever spoken, while the person's exact words go to the dashboard only. **Weather is dropped** (no real source; `get_weather()` kept dormant, unwired). **Radio only claims playback after the stream answers** — two of the three old default URLs were dead (404), so they were replaced with verified live streams and `_stream_alive()` probes before speaking. **Bug found and fixed while wiring this:** `main.py` startup built its own `Scheduler` while `/ws/voice` asked the per-profile factory for one, so the voice initiative queue being listened to was **not** the queue being written — proactive voice check-ins had been silently undeliverable. Both now share one instance.
 >
@@ -1631,6 +1647,29 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - Build clean (`vite build`)
 
 **Not claimed:** phone test of login screen; companion activity strip (Phase 6); cleanup of unused legacy components (`SuggestedFacts.tsx`, `ReviewInbox.tsx`, `ProfileForm.tsx`, `DailySummaryScreen.tsx`, `EscalationLadder.tsx`)
+
+**Not claimed:** phone test of login screen; companion activity strip (Phase 6); cleanup of unused legacy components (`SuggestedFacts.tsx`, `ReviewInbox.tsx`, `ProfileForm.tsx`, `DailySummaryScreen.tsx`, `EscalationLadder.tsx`)
+
+### 2026-10-29 — Step 4: Fix song request routing + honest failures + concurrent radio probes (commit `854db87`)
+**Why:** two real bugs from the owner's screenshot fixed simultaneously. Owner confirmed the §1.11 resolution: keep §1.11 for generic requests, fix speed + honesty; named songs stay local → iTunes clip → honest failure.
+
+**Bug 1 root cause (song → radio → hard fallback):**
+- `detect_action("Can you play a song")` → `play_song("")` → empty local folder → falls to `play_radio("")` (`actions.py:637-645`)
+- `play_radio("")` probed stations **sequentially** at 4s each (`actions.py:727-747`, `807-818`), BBC 3rd; worst case ≈12 s
+- `_llm_reply` runs `process_turn` in `asyncio.to_thread` (`voice_pipeline.py:177`), so filler timers fire on time. Action runs before LLM call, so turn exceeds `REAL_DELAY_THRESHOLD = 8.0` (`voice_pipeline.py:85-89`)
+- Ladder logs `STANDBY_HARD_FAILURE` and plays hard-failure filler (`voice_pipeline.py:368-380`). Cancelling the asyncio task does not stop the worker thread, so `process_turn` still logs `ACTION play_radio success=true` and `CONVERSATION_TURN "Playing BBC World Service"`.
+- **Worse:** `play_stream` only yielded with the successful reply, so no audio reached the browser — yet the dashboard recorded a successful action and a spoken reply, and `mark_media_playing()` set server-side playback state. The reply text in the screenshot is a log entry, not something Asha heard.
+
+**Bug 2 root cause (generic "Why did Sahaara say this?"):** the panel refetches correctly on every Sahaara `conversation_turn`. The trace is empty because the action path logs the turn with **no `context_trace`** (`conversation.py:482-483`). Identity and continuation also log `{}`. `_build_explanation_text({})` returns the generic sentence. (Context trace fix is a separate follow-up.)
+
+**Fixes applied (commit `854db87`):**
+- **`backend/actions.py`:** new `_probe_stations_concurrently()` (1.5s timeout, 3 workers, ~1.5s total vs old 12s). `play_radio()` uses concurrent probes. `play_song()` split: named songs → local → iTunes clip → honest failure (NEVER radio); generic "play some music" with empty folder → radio with honest wording "I couldn't find a song. Would you like some music on the radio instead?". Default stations changed to music-first (removed BBC World Service, added Radio City Hindi).
+- **Tests updated:** `test_actions_radio.py` (52/52 pass), `test_song_streaming.py` (31/31 pass). `test_actions_radio.py` updated for new station names, error messages, and generic music behavior.
+
+**Verification:**
+- `unit_e2e.py` 189/189, all action tests pass (52 radio, 31 song streaming, 56 timer, 44 reminders, 40 action replies)
+- `guardrail_baseline.py --verify` → no drift
+- `tsc -b` clean, `npm run test:pwa` 85/85, `npm run build` clean
 
 ### 2026-10-29 — UI split Step 3: Caregiver reorganisation — Review inbox with badge (commit `14e16e3`) + docs catch-up
 **Why:** the caregiver view still carried the M2-era "Suggested Facts" tab, which reads like a machine-generated suggestion list rather than a queue a family member reviews and approves. Daily Summary also needed to be confirmed caregiver-only, and the badge needed to be visible without opening the tab.
