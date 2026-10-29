@@ -555,18 +555,20 @@ def play_song(
 
     Nothing is claimed before it exists. A local file plays in full; when the
     folder has no match, `lookup` (iTunes by default) returns a **short
-    preview** and Sahaara says "a short clip", never "the song". With no music
-    folder at all, a generic "play some music" falls through to the radio so
-    the person still hears something instead of being told nothing is loaded.
+    preview** and Sahaara says "a short clip", never "the song".
 
-    `lookup` is injectable so tests never touch the network.
+    Named songs: local → iTunes clip → honest failure. NEVER radio.
+    Generic "play some music" with empty folder: radio with honest wording.
     """
     files = _music_files()
 
     query = (song_name or "").strip().lower()
+    is_generic = False
     for filler in ("some music", "music", "a song", "song", "something", "anything"):
         if query == filler:
             query = ""
+            is_generic = True
+            break
 
     chosen = None
     if query:
@@ -592,8 +594,7 @@ def play_song(
         )
 
     if query:
-        # An injected lookup is allowed to raise (the real one never does); a
-        # failure must become "I couldn't find it", never a crash.
+        # Named song: local → iTunes clip → honest failure. NEVER radio.
         stream = None
         try:
             stream = (lookup or _itunes_lookup)(query)
@@ -624,25 +625,28 @@ def play_song(
             return ActionResult(
                 success=False,
                 action_type="play_song",
-                result_text=f"I couldn't find that song. I have {available}. Or I could play the radio.",
+                result_text=f"I couldn't find that song. I have {available}.",
                 detail={"available": [_title(p) for p in files]},
             )
         return ActionResult(
             success=False,
             action_type="play_song",
-            result_text="I couldn't find that song. I could play the radio instead.",
+            result_text="I couldn't find that song.",
             detail={"reason": "not_found"},
         )
 
-    # A generic "play some music" with an empty folder: the radio is the only
-    # thing that can actually start playing, so try it instead of refusing.
+    # Generic "play some music" with empty folder: radio with honest wording.
     radio = play_radio("", profile_id=profile_id)
     if radio.success:
         return ActionResult(
             success=True,
             action_type="play_radio",
-            result_text=radio.result_text,
-            detail=radio.detail,
+            result_text="I couldn't find a song. Would you like some music on the radio instead?",
+            detail={
+                "station_name": radio.detail.get("station_name", ""),
+                "stream_url": radio.detail.get("stream_url", ""),
+                "language": radio.detail.get("language", ""),
+            },
         )
     return ActionResult(
         success=False,
@@ -718,17 +722,21 @@ DEFAULT_RADIO_STATIONS = [
     # was written (2026-10-28). Radio URLs rot: play_radio probes the stream
     # before it claims anything, so a dead URL can never be announced as
     # "playing". Caregivers can replace these in the profile.
+    # All stations are music-first (no news/talk). Probed concurrently.
     {"name": "Hindi Gold Radio", "url": "https://azuracast.vibesounds.in:8010/radio.mp3", "language": "Hindi"},
     {"name": "Radio Mirchi Hindi", "url": "https://eu8.fastcast4u.com/proxy/clyedupq/stream", "language": "Hindi"},
-    {"name": "BBC World Service", "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service", "language": "English"},
+    {"name": "Radio City Hindi", "url": "https://streaming.radiocity.in/radiocity", "language": "Hindi"},
 ]
 
 
-def _stream_alive(url: str, timeout: float = 4.0) -> bool:
+import concurrent.futures
+
+def _stream_alive(url: str, timeout: float = 1.5) -> bool:
     """True when `url` really answers with audio.
 
     Sahaara must never say "playing X" if nothing will play. A dead link is
     common for public radio, so this is checked before the claim, not after.
+    Timeout reduced to 1.5s for concurrent probing.
     """
     try:
         request = Request(
@@ -745,6 +753,30 @@ def _stream_alive(url: str, timeout: float = 4.0) -> bool:
     if len(chunk) < 256:
         return False
     return any(word in content_type for word in ("audio", "mpeg", "octet-stream"))
+
+
+def _probe_stations_concurrently(stations: list[dict]) -> list[dict]:
+    """Probe all stations concurrently, return only the live ones.
+
+    Each station is probed with a 1.5s timeout. Total time ≈ max probe time,
+    not sum of probe times. This keeps the action well under the
+    REAL_DELAY_THRESHOLD (8s).
+    """
+    live_stations = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_station = {
+            executor.submit(_stream_alive, station["url"]): station
+            for station in stations
+        }
+        for future in concurrent.futures.as_completed(future_to_station):
+            station = future_to_station[future]
+            try:
+                if future.result():
+                    live_stations.append(station)
+            except Exception:
+                # Probe raised - log and skip
+                logger.debug("Radio probe raised: %s", type(Exception).__name__)
+    return live_stations
 
 
 
@@ -771,6 +803,8 @@ def play_radio(station_name: str = "", profile_id: Optional[str] = None) -> Acti
 
     Nothing is claimed until the stream answers: a dead station is reported as
     dead, and with no station named the first one that actually responds wins.
+    All stations are probed concurrently (1.5s timeout each) so the action
+    completes well under the REAL_DELAY_THRESHOLD.
     """
     stations = _stations(profile_id, seed=True)
     if not stations:
@@ -780,43 +814,37 @@ def play_radio(station_name: str = "", profile_id: Optional[str] = None) -> Acti
             result_text="I don't have any radio stations saved.",
         )
 
-    chosen = None
+    # Probe all stations concurrently
+    live_stations = _probe_stations_concurrently(stations)
+
     query = (station_name or "").strip().lower()
+    chosen = None
+
     if query and query not in ("radio", "the radio", "some radio", "music"):
         needle = re.sub(r"[^a-z0-9]", "", query)
-        for station in stations:
+        for station in live_stations:
             haystack = re.sub(r"[^a-z0-9]", "", station.get("name", "").lower())
             if needle and (needle in haystack or haystack in needle):
                 chosen = station
                 break
         if chosen is None:
-            names = ", ".join(s.get("name", "") for s in stations)
+            names = ", ".join(s.get("name", "") for s in live_stations) or "none live"
             return ActionResult(
                 success=False,
                 action_type="play_radio",
-                result_text=f"I don't have that station. I have {names}.",
-                detail={"stations": [s.get("name", "") for s in stations]},
-            )
-        if not _stream_alive(chosen["url"]):
-            return ActionResult(
-                success=False,
-                action_type="play_radio",
-                result_text=f"{chosen['name']} isn't answering right now.",
-                detail={"station_name": chosen["name"]},
+                result_text=f"I don't have that station live. Available: {names}.",
+                detail={"stations": [s.get("name", "") for s in live_stations]},
             )
     else:
-        # No station named: take the first one that actually answers.
-        for station in stations:
-            if _stream_alive(station["url"]):
-                chosen = station
-                break
-        if chosen is None:
+        # No station named: take the first live one.
+        if not live_stations:
             return ActionResult(
                 success=False,
                 action_type="play_radio",
                 result_text="The radio isn't answering right now.",
                 detail={"stations": [s.get("name", "") for s in stations]},
             )
+        chosen = live_stations[0]
 
     return ActionResult(
         success=True,

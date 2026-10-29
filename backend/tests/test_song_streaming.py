@@ -103,7 +103,8 @@ try:
     check("unknown song -> success=False", result.success is False, result.result_text)
     check("says it could not find it", "couldn't find" in result.result_text.lower(),
           result.result_text)
-    check("offers the radio", "radio" in result.result_text.lower(), result.result_text)
+    check("honest failure without radio offer", "radio" not in result.result_text.lower(),
+          result.result_text)
     check("no audio url when nothing was found", "audio_url" not in result.detail, result.detail)
 
     # ---- the lookup itself blowing up is still honest ----------------------

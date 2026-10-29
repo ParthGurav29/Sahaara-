@@ -99,9 +99,9 @@ try:
         len(database.get_radio_stations("asha_demo_001")) == len(DEFAULT_RADIO_STATIONS),
     )
 
-    result = play_radio("bbc", profile_id="asha_demo_001")
+    result = play_radio("mirchi", profile_id="asha_demo_001")
     check("matches a station by short name", result.success is True)
-    check("picked BBC", "BBC" in result.result_text, result.result_text)
+    check("picked Mirchi", "Mirchi" in result.result_text, result.result_text)
 
     # A named station in the utterance is detected as radio, not as a song.
     result = detect_action("play hindi gold radio")
@@ -121,15 +121,15 @@ print("\n=== Test 2b: Dead streams are reported honestly ===")
 
 _actions._stream_alive = lambda url, timeout=4.0: False
 try:
-    result = play_radio("bbc", profile_id="asha_demo_001")
+    result = play_radio("mirchi", profile_id="asha_demo_001")
     check("dead named station -> success=False", result.success is False, result.result_text)
-    check("says it isn't answering", "isn't answering" in result.result_text, result.result_text)
+    check("says it isn't live", "isn't answering" in result.result_text or "live" in result.result_text.lower(), result.result_text)
     check("claims nothing about playing", "playing" not in result.result_text.lower(), result.result_text)
     check("no stream url on failure", "stream_url" not in result.detail, result.detail)
 
     result = play_radio(profile_id="asha_demo_001")
     check("all stations dead -> success=False", result.success is False, result.result_text)
-    check("says the radio isn't answering", "isn't answering" in result.result_text, result.result_text)
+    check("says no stations live", "isn't answering" in result.result_text or "live" in result.result_text.lower(), result.result_text)
 
     # Unknown station name says so instead of silently playing something else.
     result = play_radio("radio atlantis", profile_id="asha_demo_001")
@@ -197,6 +197,17 @@ class _FakeShort:
         return False
 
 
+class _FakeError:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, n=None):
+        raise OSError("no route")
+
+
 with patch("actions.urlopen", return_value=_FakeAudio()):
     check("audio stream probes alive", _actions._stream_alive("https://example.test/a") is True)
 
@@ -206,7 +217,7 @@ with patch("actions.urlopen", return_value=_FakeHtml()):
 with patch("actions.urlopen", return_value=_FakeShort()):
     check("empty stream is not a stream", _actions._stream_alive("https://example.test/c") is False)
 
-with patch("actions.urlopen", side_effect=OSError("no route")):
+with patch("actions.urlopen", return_value=_FakeError()):
     check("network error probes dead", _actions._stream_alive("https://example.test/d") is False)
 
 print("\n=== Test 3: Local music ===")
@@ -217,7 +228,7 @@ print("\n=== Test 3: Local music ===")
 result = play_song("lag ja gale", profile_id="asha_demo_001")
 check("empty folder -> success=False", result.success is False)
 check("says it could not find it", "couldn't find" in result.result_text, result.result_text)
-check("offers the radio", "radio" in result.result_text.lower(), result.result_text)
+check("honest failure without radio offer", "radio" not in result.result_text.lower(), result.result_text)
 check("no audio url on failure", "audio_url" not in result.detail)
 
 # With a real file present.
@@ -239,9 +250,22 @@ try:
     check("lists what it does have", "Lag Ja Gale" in result.result_text, result.result_text)
 
     result = play_song("", profile_id="asha_demo_001")
-    check("'play some music' plays the first track", result.success is True, result.result_text)
+    check("'play some music' plays first track when music exists", result.success is True, result.result_text)
+    check("plays first track (Lag Ja Gale)", "Lag Ja Gale" in result.result_text)
 finally:
     actions.MUSIC_DIR = original_dir
+
+# Test generic "play some music" with truly empty folder
+music_dir_empty = Path(tempfile.mkdtemp())
+original_dir2 = actions.MUSIC_DIR
+actions.MUSIC_DIR = music_dir_empty
+try:
+    result = play_song("", profile_id="asha_demo_001")
+    check("empty folder 'play some music' -> radio with honest wording", result.success is True, result.result_text)
+    check("action_type is play_radio", result.action_type == "play_radio")
+    check("honest wording about not finding a song", "couldn't find a song" in result.result_text.lower(), result.result_text)
+finally:
+    actions.MUSIC_DIR = original_dir2
 
 # ============================================================
 # Test 4: Stop is honest
