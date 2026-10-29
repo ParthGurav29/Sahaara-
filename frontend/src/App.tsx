@@ -6,28 +6,22 @@ import { playMediaUrl, stopMediaUrl } from "./mediaPlayer";
 import { unlockAlarmAudio } from "./alarm";
 import LoginPage from "./LoginPage";
 import { VoiceStateProvider } from "./VoiceStateContext";
-import SahaaraAvatar from "./SahaaraAvatar";
+import OrbAvatar from "./OrbAvatar";
 import { useVoiceSession } from "./useVoiceSession";
 import EscalationLadder from "./EscalationLadder";
 import DailySummaryScreen from "./DailySummaryScreen";
 import ReviewInbox from "./ReviewInbox";
 import ProfileForm from "./ProfileForm";
-import PushButton from "./PushButton";
 import AvatarPreview from "./AvatarPreview";
 import TaskAlarm from "./TaskAlarm";
 import CompanionView from "./CompanionView";
+import ChooserView from "./ChooserView";
 import ErrorBoundary from "./ErrorBoundary";
 import { parseAlertId, withoutAlertParam } from "./deepLink";
-import { useRoute } from "./useRoute";
+import { useRoute, navigateTo } from "./useRoute";
 import "./App.css";
 
-// The avatar replaced the orb completely (owner decision, 2026-10-28). It is
-// the only voice visual and the only voice control: clicking it starts/stops
-// the session exactly like the orb did, its mouth follows real TTS amplitude,
-// and the escalation tier only ever calms it down.
-//
-// If the avatar's render ever throws, this plain control keeps the person able
-// to talk — it is deliberately not the old orb.
+/* Voice fallback for error boundary */
 function VoiceFallbackControl() {
   const { state, isActive, toggle } = useVoiceSession();
 
@@ -42,42 +36,47 @@ function VoiceFallbackControl() {
   );
 }
 
+/* Asha's avatar in caregiver Live tab */
 function AshaVisual() {
+  const { isActive, toggle } = useVoiceSession();
+
   return (
     <section className="asha-view">
-      <div className="asha-view-header">
-        <h2 className="view-title">Asha's View</h2>
-      </div>
-      <ErrorBoundary name="SahaaraAvatar" fallback={<VoiceFallbackControl />}>
-        <SahaaraAvatar />
+      <ErrorBoundary name="OrbAvatar" fallback={<VoiceFallbackControl />}>
+        <OrbAvatar size={240} onToggle={toggle} isActive={isActive} />
       </ErrorBoundary>
     </section>
   );
 }
 
+/* Companion crash fallback */
+function CompanionCrashFallback() {
+  return (
+    <div className="companion-shell companion-shell--error">
+      <p>Sahaara is resting for a moment.</p>
+      <button type="button" onClick={() => window.location.reload()}>
+        Try again
+      </button>
+    </div>
+  );
+}
+
 /**
- * The caregiver experience (and the hidden demo layout).
+ * The caregiver experience (dashboard + hidden demo layout).
  *
- * AuthProvider only wraps this branch. `/companion` never mounts it, so the
- * person's screen makes no `/auth/status` or `/auth/me` call at all.
+ * AuthProvider wraps this branch. `/companion` and `/choose` never mount it.
  */
-function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
-  const { user, isLoading, authEnabled, logout } = useAuth();
+function CaregiverApp({ demoSplit, showChooser }: { demoSplit: boolean; showChooser: boolean }) {
+  const { user, isLoading, authEnabled } = useAuth();
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"live" | "summary" | "suggestions" | "profile">("live");
-  // M5 Step 7: `/?alert=<id>` from a notification tap. Read once, then the
-  // query is stripped so a refresh does not reopen the same alert.
   const [focusAlertId, setFocusAlertId] = useState<string | null>(() =>
     parseAlertId(window.location.search),
   );
   const [showChat, setShowChat] = useState(false);
-
-  // Avatar A2: Dev preview access via `?avatar-preview=true`
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
-
-  // Review inbox count (for badge next to alert bell and on tab)
   const [suggestionsCount, setSuggestionsCount] = useState(0);
 
   const fetchSuggestionsCount = async () => {
@@ -92,15 +91,9 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
 
   useEffect(() => {
     if (!focusAlertId) return;
-    // The default view is already "live"; only the URL needs cleaning so a
-    // refresh does not reopen the same alert.
     window.history.replaceState({}, "", withoutAlertParam(window.location.href));
   }, [focusAlertId]);
 
-  // A timer has to ring even when nobody touches the screen at the moment it
-  // fires, so unlock the audio context on the first real gesture. Browsers
-  // refuse to start audio without one; doing it here means the chime is ready
-  // long before the timer is due.
   useEffect(() => {
     const unlock = () => unlockAlarmAudio();
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -111,8 +104,6 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
     };
   }, []);
 
-  // A notification tap on an already-open app arrives here when the service
-  // worker cannot reload the window (M5 Step 7).
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     const onMessage = (event: MessageEvent) => {
@@ -131,23 +122,19 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, []);
 
-  // Dev-only: check for avatar preview flag
   useEffect(() => {
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(window.location.search);
       if (params.get("avatar-preview") === "true") {
         setShowAvatarPreview(true);
-        // Clean the URL
         params.delete("avatar-preview");
         window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}`);
       }
     }
   }, []);
 
-  // When auth is enabled, check if we should show caregiver tabs
   const showCaregiverTabs = !authEnabled || (user?.role === "caregiver");
 
-  // Review inbox count — fetch on mount and every 30s while caregiver view is visible
   useEffect(() => {
     if (!showCaregiverTabs) return;
     fetchSuggestionsCount();
@@ -176,9 +163,6 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
 
       setResponse(data.response);
 
-      // A task action can ask for audio (radio, a local track) or for the
-      // current audio to stop. Honest either way: the URL only exists when the
-      // backend actually started something.
       if (data.stop_media) {
         stopMediaUrl();
       } else {
@@ -193,8 +177,6 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
     }
   }
 
-  // Dev-only: Avatar preview full-screen overlay. Checked BEFORE the auth
-  // gates so the preview can be opened without a running backend.
   if (showAvatarPreview) {
     return (
       <div className="app-container" style={{ minHeight: "100vh" }}>
@@ -217,58 +199,56 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
     return <LoginPage />;
   }
 
+  // Show chooser after login
+  if (showChooser) {
+    return <ChooserView />;
+  }
+
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Sahaara</h1>
-        <p className="app-subtitle">Consent-based AI companion for dementia care</p>
-        {(authEnabled && user) || showCaregiverTabs ? (
-          <div className="header-actions">
-            {demoSplit && <span className="user-badge">Demo split</span>}
-            {authEnabled && user && (
-              <>
-                <span className="user-badge">{user.username} ({user.role})</span>
-                <button onClick={logout} className="logout-button">Logout</button>
-              </>
-            )}
-            {showCaregiverTabs && <PushButton />}
-          </div>
-        ) : null}
-      </header>
-
-      <TaskAlarm />
-
-      {showCaregiverTabs && (
-        <nav className="app-tabs">
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <div className="wordmark">Sahaara</div>
+          <span className="muted">Asha's dashboard</span>
+        </div>
+        <nav className="app-tabs" role="tablist">
           <button
             className={`tab ${view === "live" ? "active" : ""}`}
+            role="tab"
             onClick={() => { setView("live"); setShowChat(false); }}
+            aria-selected={view === "live"}
           >
-            Live Session
+            Today
           </button>
           <button
             className={`tab ${view === "summary" ? "active" : ""}`}
+            role="tab"
             onClick={() => { setView("summary"); setShowChat(false); }}
+            aria-selected={view === "summary"}
           >
-            Daily Summary
-          </button>
-          <button
-            className={`tab ${view === "suggestions" ? "active" : ""}`}
-            onClick={() => { setView("suggestions"); setShowChat(false); }}
-          >
-            Review
+            Alerts
             {suggestionsCount > 0 && (
               <span className="tab-badge">{suggestionsCount}</span>
             )}
           </button>
           <button
-            className={`tab ${view === "profile" ? "active" : ""}`}
-            onClick={() => { setView("profile"); setShowChat(false); }}
+            className={`tab ${view === "suggestions" ? "active" : ""}`}
+            role="tab"
+            onClick={() => { setView("suggestions"); setShowChat(false); }}
+            aria-selected={view === "suggestions"}
           >
             Profile
+            {suggestionsCount > 0 && (
+              <span className="tab-badge">{suggestionsCount}</span>
+            )}
           </button>
         </nav>
-      )}
+        <button className="btn ghost sm" onClick={() => navigateTo("/choose")}>
+          Switch mode
+        </button>
+      </header>
+
+      <TaskAlarm />
 
       {view === "live" && (
         <VoiceStateProvider>
@@ -279,7 +259,6 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
             {/* Rohan's view - Escalation Ladder (caregiver only) */}
             {showCaregiverTabs && (
               <section className="caregiver-view">
-                <h2 className="view-title">Rohan's View</h2>
                 <ErrorBoundary name="EscalationLadder">
                   <EscalationLadder focusAlertId={focusAlertId} />
                 </ErrorBoundary>
@@ -313,8 +292,7 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
         </div>
       )}
 
-      {/* Collapsible chat fallback - caregiver/demo side only. It is not
-          rendered on /companion (Step 2 requirement). */}
+      {/* Collapsible chat fallback - caregiver/demo side only. Not on /companion. */}
       <button
         className="chat-toggle"
         onClick={() => setShowChat(!showChat)}
@@ -345,27 +323,21 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
   );
 }
 
-function CompanionCrashFallback() {
-  return (
-    <div className="companion-shell companion-shell--error">
-      <p>Sahaara is resting for a moment.</p>
-      <button type="button" onClick={() => window.location.reload()}>
-        Try again
-      </button>
-    </div>
-  );
-}
-
 /**
- * Route split (UI split Step 2).
+ * Root app with route split.
  *
- * `/companion` is decided before `AuthProvider` mounts, so the person's screen
- * never asks who the caregiver is. Everything else keeps the existing account
- * gate and dashboard.
+ * Routes:
+ * - /companion          -> CompanionView (no auth, full screen)
+ * - /choose             -> ChooserView (after login, pick destination)
+ * - /caregiver          -> CaregiverApp (dashboard)
+ * - /                   -> LoginPage (if auth enabled) or redirect to /caregiver
+ * - /?demo=split        -> CaregiverApp with demoSplit=true
  */
 function App() {
   const route = useRoute();
+  const { authEnabled, user } = useAuth();
 
+  // Show companion directly (no auth)
   if (route === "companion") {
     return (
       <ErrorBoundary name="CompanionView" fallback={<CompanionCrashFallback />}>
@@ -374,9 +346,21 @@ function App() {
     );
   }
 
+  // Show chooser (requires auth)
+  if (route === "choose") {
+    return (
+      <AuthProvider>
+        <ChooserView />
+      </AuthProvider>
+    );
+  }
+
+  // Caregiver dashboard (requires auth)
+  const showChooser = Boolean(authEnabled && user && !window.location.search.includes("demo=split") && window.location.pathname === "/");
+
   return (
     <AuthProvider>
-      <CaregiverApp demoSplit={route === "demo-split"} />
+      <CaregiverApp demoSplit={route === "demo-split"} showChooser={showChooser} />
     </AuthProvider>
   );
 }

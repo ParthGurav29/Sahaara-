@@ -1,0 +1,155 @@
+/* OrbAvatar — Animated orb with face, matching prototype */
+
+.orbbtn {
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  position: relative;
+  aspect-ratio: 1;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.orbbtn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.orbbtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.orbbtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Ripple ring (listening state) */
+.ring {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  border: 2px solid var(--lav);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.listening .ring {
+  animation: ripple 2s infinite;
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+/* Orb body with radial gradient */
+.orb {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #efeaf8 45%, #cfc6e6 100%);
+  box-shadow: 0 30px 70px -20px color-mix(in srgb, var(--lav) 60%, transparent);
+  animation: breathe 6s ease-in-out infinite;
+}
+
+:root[data-theme="dark"] .orb {
+  background: radial-gradient(circle at 35% 30%, #d9d3ee 0%, #a59bd0 50%, #6f6598 100%);
+}
+
+/* Faster breathing when thinking */
+.thinking .orb {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+/* Face container */
+.face {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Eyes */
+.eye {
+  position: absolute;
+  top: 44%;
+  width: 7%;
+  height: 9%;
+  background: #3a3340;
+  border-radius: 50%;
+  animation: blink 5s infinite;
+}
+
+.eye.l {
+  left: 33%;
+}
+
+.eye.r {
+  right: 33%;
+}
+
+@keyframes blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+
+/* Mouth */
+.mouth {
+  position: absolute;
+  left: 41%;
+  top: 62%;
+  width: 18%;
+  height: 8%;
+  border-bottom: 4px solid #3a3340;
+  border-radius: 0 0 50% 50%;
+  transition: all 0.3s;
+  transform-origin: center bottom;
+}
+
+/* Speaking state - mouth becomes circle and animates */
+.speaking .mouth {
+  height: 12%;
+  width: 14%;
+  left: 43%;
+  border: 4px solid #3a3340;
+  border-radius: 50%;
+  animation: talk 0.5s infinite alternate;
+}
+
+@keyframes talk {
+  to {
+    height: 6%;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .ring,
+  .eye,
+  .mouth {
+    animation: none !important;
+    transition: none !important;
+  }
+  .speaking .mouth {
+    animation: none !important;
+  }
+}

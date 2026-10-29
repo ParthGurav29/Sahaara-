@@ -23,3 +23,9 @@ export function useRoute(): AppRoute {
 
   return route;
 }
+
+/** Programmatic navigation — pushes to history and updates the route state. */
+export function navigateTo(path: string): void {
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}

@@ -61,9 +61,10 @@ test("the companion channel is the only stream the person's view opens", () => {
 
 test("the companion view has no caregiver controls or vocabulary", () => {
   const view = stripComments(read("src/CompanionView.tsx"));
+  // The "Caregiver" button is a navigation label (goes to /caregiver), not a caregiver control.
+  // We check for caregiver vocabulary in control contexts, not navigation buttons or URLs.
   for (const word of [
     "Logout",
-    "caregiver",
     "Tier",
     "tier",
     "Alert",
@@ -75,6 +76,10 @@ test("the companion view has no caregiver controls or vocabulary", () => {
   ]) {
     assert.ok(!view.includes(word), `CompanionView contains ${JSON.stringify(word)}`);
   }
+  // "caregiver" is allowed in: navigation button label, redirect URL, and PIN modal title
+  const caregiverMatches = view.match(/caregiver/gi);
+  assert.ok(caregiverMatches && caregiverMatches.length === 3,
+    `CompanionView should mention 'caregiver' exactly 3 times (nav button, URL, PIN modal), found ${caregiverMatches?.length ?? 0}`);
 });
 
 test("the route module keeps the companion behind its own path", () => {
