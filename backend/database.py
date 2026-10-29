@@ -212,6 +212,44 @@ def init_db():
     # M5 Step 5: Radio stations column on profiles table
     _ensure_column(conn, "profiles", "radio_stations", "TEXT NOT NULL DEFAULT '[]'")
     
+    # Emergency Call tables (Task 3)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS emergency_incidents (
+            id              TEXT PRIMARY KEY,
+            profile_id      TEXT NOT NULL,
+            trigger         TEXT NOT NULL,
+            trigger_phrase  TEXT,
+            tier            TEXT NOT NULL,
+            simulated       INTEGER NOT NULL DEFAULT 1,
+            provider        TEXT NOT NULL DEFAULT 'simulated',
+            status          TEXT NOT NULL,
+            reason          TEXT NOT NULL DEFAULT '',
+            attempts        INTEGER NOT NULL DEFAULT 0,
+            started_at      REAL NOT NULL,
+            ended_at        REAL
+        );
+
+        CREATE TABLE IF NOT EXISTS emergency_attempts (
+            id                TEXT PRIMARY KEY,
+            incident_id       TEXT NOT NULL,
+            contact_order     INTEGER NOT NULL,
+            contact_name      TEXT NOT NULL,
+            contact_rel       TEXT NOT NULL DEFAULT '',
+            phone_masked      TEXT NOT NULL,
+            attempt           INTEGER NOT NULL,
+            status            TEXT NOT NULL,
+            provider_call_id  TEXT,
+            simulated         INTEGER NOT NULL DEFAULT 1,
+            started_at        REAL NOT NULL,
+            answered_at       REAL,
+            acknowledged_at   REAL,
+            ended_at          REAL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_emergency_incidents_profile ON emergency_incidents(profile_id, started_at);
+        CREATE INDEX IF NOT EXISTS idx_emergency_attempts_incident ON emergency_attempts(incident_id);
+    """)
+    
     conn.commit()
     
     # Migrate existing JSON profile if DB is empty
@@ -901,3 +939,206 @@ def save_radio_stations(profile_id: str, stations: list[dict]) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Emergency Call tables (Task 3)
+# ---------------------------------------------------------------------------
+
+def create_emergency_incident(
+    incident_id: str,
+    profile_id: str,
+    trigger: str,
+    trigger_phrase: Optional[str],
+    tier: str,
+    simulated: bool,
+    provider: str,
+) -> None:
+    """Create a new emergency incident."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO emergency_incidents
+            (id, profile_id, trigger, trigger_phrase, tier, simulated, provider, status, attempts, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'triggered', 0, ?)""",
+            (incident_id, profile_id, trigger, trigger_phrase, tier, 1 if simulated else 0, provider, time.time()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_emergency_incident(incident_id: str) -> Optional[dict]:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM emergency_incidents WHERE id = ?", (incident_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def update_emergency_incident_status(incident_id: str, status: str, reason: str = "", ended_at: Optional[float] = None) -> None:
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE emergency_incidents SET status = ?, reason = ?, ended_at = ? WHERE id = ?",
+            (status, reason, ended_at, incident_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def increment_emergency_incident_attempts(incident_id: str) -> int:
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "UPDATE emergency_incidents SET attempts = attempts + 1 WHERE id = ? RETURNING attempts",
+            (incident_id,),
+        )
+        row = cursor.fetchone()
+        conn.commit()
+        return row["attempts"] if row else 0
+    finally:
+        conn.close()
+
+
+def create_emergency_attempt(
+    attempt_id: str,
+    incident_id: str,
+    contact_order: int,
+    contact_name: str,
+    contact_rel: str,
+    phone_masked: str,
+    attempt: int,
+    status: str,
+    simulated: bool,
+    provider_call_id: Optional[str] = None,
+) -> None:
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO emergency_attempts
+            (id, incident_id, contact_order, contact_name, contact_rel, phone_masked, attempt, status, provider_call_id, simulated, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                attempt_id,
+                incident_id,
+                contact_order,
+                contact_name,
+                contact_rel,
+                phone_masked,
+                attempt,
+                status,
+                provider_call_id,
+                1 if simulated else 0,
+                time.time(),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_emergency_attempt_status(
+    attempt_id: str,
+    status: str,
+    provider_call_id: Optional[str] = None,
+    answered_at: Optional[float] = None,
+    acknowledged_at: Optional[float] = None,
+    ended_at: Optional[float] = None,
+) -> None:
+    conn = get_connection()
+    try:
+        # Build dynamic update
+        updates = ["status = ?"]
+        params = [status]
+        if provider_call_id is not None:
+            updates.append("provider_call_id = ?")
+            params.append(provider_call_id)
+        if answered_at is not None:
+            updates.append("answered_at = ?")
+            params.append(answered_at)
+        if acknowledged_at is not None:
+            updates.append("acknowledged_at = ?")
+            params.append(acknowledged_at)
+        if ended_at is not None:
+            updates.append("ended_at = ?")
+            params.append(ended_at)
+        params.append(attempt_id)
+        
+        conn.execute(
+            f"UPDATE emergency_attempts SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_emergency_attempts(incident_id: str) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM emergency_attempts WHERE incident_id = ? ORDER BY attempt ASC",
+            (incident_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_recent_emergency_incidents(profile_id: str, limit: int = 20) -> list[dict]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM emergency_incidents WHERE profile_id = ? ORDER BY started_at DESC LIMIT ?",
+            (profile_id, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_open_emergency_incident(profile_id: str) -> Optional[dict]:
+    """Find an open incident for this profile (for cooldown/dedup)."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """SELECT * FROM emergency_incidents
+            WHERE profile_id = ? AND status IN ('triggered', 'dialing', 'ringing', 'answered', 'answered_unacknowledged')
+            ORDER BY started_at DESC LIMIT 1""",
+            (profile_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def get_recent_emergency_incident_in_cooldown(profile_id: str, cooldown_seconds: float) -> Optional[dict]:
+    """Find a recent incident within the cooldown window."""
+    conn = get_connection()
+    try:
+        cutoff = time.time() - cooldown_seconds
+        row = conn.execute(
+            """SELECT * FROM emergency_incidents
+            WHERE profile_id = ? AND started_at >= ?
+            ORDER BY started_at DESC LIMIT 1""",
+            (profile_id, cutoff),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def mask_phone_number(phone: Optional[str]) -> str:
+    """Mask phone number to last 4 digits only: +91 **** 3210"""
+    if not phone:
+        return ""
+    # Handle E.164 format (+91XXXXXXXXXX)
+    if phone.startswith("+") and len(phone) >= 12:
+        return f"+{phone[1:3]} **** {phone[-4:]}"
+    # Generic fallback
+    return f"**** {phone[-4:]}" if len(phone) >= 4 else "****"

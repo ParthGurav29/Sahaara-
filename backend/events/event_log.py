@@ -49,6 +49,12 @@ class EventType(str, Enum):
     ALERT_SENT = "alert_sent"
     ACTION = "action"
     REMINDER_FIRED = "reminder_fired"
+    # Emergency Call (Task 3)
+    EMERGENCY_CALL_STARTED = "emergency_call_started"
+    EMERGENCY_CALL_ATTEMPT = "emergency_call_attempt"
+    EMERGENCY_CALL_STATUS = "emergency_call_status"
+    EMERGENCY_CALL_ENDED = "emergency_call_ended"
+    EMERGENCY_CALL_SKIPPED = "emergency_call_skipped"
 
 
 class EscalationTier(str, Enum):
@@ -514,7 +520,121 @@ class EventLog:
         )
         self.append(event)
         return event
-    
+
+    # Emergency Call event loggers (Task 3)
+    def log_emergency_call_started(
+        self,
+        incident_id: str,
+        trigger: str,
+        tier: str,
+        simulated: bool,
+        provider: str,
+    ) -> Event:
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.EMERGENCY_CALL_STARTED,
+            profile_id=self.profile_id,
+            detail={
+                "incident_id": incident_id,
+                "trigger": trigger,
+                "tier": tier,
+                "simulated": simulated,
+                "provider": provider,
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_emergency_call_attempt(
+        self,
+        incident_id: str,
+        attempt_id: str,
+        contact_order: int,
+        contact_name: str,
+        phone_masked: str,
+        attempt: int,
+        simulated: bool,
+    ) -> Event:
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.EMERGENCY_CALL_ATTEMPT,
+            profile_id=self.profile_id,
+            detail={
+                "incident_id": incident_id,
+                "attempt_id": attempt_id,
+                "contact_order": contact_order,
+                "contact_name": contact_name,
+                "phone_masked": phone_masked,
+                "attempt": attempt,
+                "simulated": simulated,
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_emergency_call_status(
+        self,
+        incident_id: str,
+        attempt_id: str,
+        status: str,
+        simulated: bool,
+    ) -> Event:
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.EMERGENCY_CALL_STATUS,
+            profile_id=self.profile_id,
+            detail={
+                "incident_id": incident_id,
+                "attempt_id": attempt_id,
+                "status": status,
+                "simulated": simulated,
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_emergency_call_ended(
+        self,
+        incident_id: str,
+        status: str,
+        attempts: int,
+        simulated: bool,
+        reason: str,
+    ) -> Event:
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.EMERGENCY_CALL_ENDED,
+            profile_id=self.profile_id,
+            detail={
+                "incident_id": incident_id,
+                "status": status,
+                "attempts": attempts,
+                "simulated": simulated,
+                "reason": reason,
+            },
+        )
+        self.append(event)
+        return event
+
+    def log_emergency_call_skipped(
+        self,
+        incident_id: str,
+        reason: str,
+        contact_name: str,
+    ) -> Event:
+        event = Event(
+            timestamp=time.time(),
+            type=EventType.EMERGENCY_CALL_SKIPPED,
+            profile_id=self.profile_id,
+            detail={
+                "incident_id": incident_id,
+                "reason": reason,
+                "contact_name": contact_name,
+            },
+        )
+        self.append(event)
+        return event
+
     def log_session_start(self) -> Event:
         """Log session start."""
         event = Event(

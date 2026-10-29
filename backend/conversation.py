@@ -22,10 +22,12 @@ from safety.guardrails import SAFE_FALLBACK_RESPONSE, check_guardrails
 from safety.escalation import EscalationTier
 from safety.consent import ConsentState, ContinuationState
 from events.event_log import EventType, FallbackType
+from telephony.orchestrator import trigger_emergency_call
 from session_manager import SessionManager
 import time
 import re
 import threading
+import logging
 
 # ---- Single session manager for the app ----
 _session_manager = SessionManager()
@@ -272,6 +274,34 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
                 tier_from=prev_tier, tier_to=s.escalation_engine.current_tier,
                 reason=latest.detail.get("reason", "unknown"), context=latest.detail.get("context", {}),
             )
+
+    # ---- EMERGENCY CALL TRIGGER ----
+    # Physical urgent or danger statement triggers the call orchestrator.
+    # Runs as daemon thread — does not block the turn.
+    if intent and (intent.is_danger_statement or intent.is_physical_urgent):
+        trigger = "danger" if intent.is_danger_statement else "physical_urgent"
+        trigger_phrase = None
+        if intent.is_physical_urgent:
+            # Use the matched pattern, sanitised and capped at 15 words
+            matched = intent.matched_physical_keywords[0] if intent.matched_physical_keywords else "unknown"
+            words = matched.split()
+            if len(words) > 15:
+                matched = " ".join(words[:15]) + "..."
+            trigger_phrase = matched
+        
+        try:
+            trigger_emergency_call(
+                profile_id=s.profile.profile_id,
+                trigger=trigger,
+                trigger_phrase=trigger_phrase,
+                tier=s.escalation_engine.current_tier.value,
+                event_log=s.event_log,
+                profile=s.profile,
+            )
+        except Exception:
+            # Emergency call must never break the turn
+            import logging
+            logging.getLogger(__name__).exception("Emergency call trigger failed")
 
     # ---- TASK ACTIONS (deterministic, after escalation) ----
     # Skipped on danger / physical-distress turns: the safety reply must never
