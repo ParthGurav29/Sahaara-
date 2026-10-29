@@ -70,14 +70,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ username, password }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.detail || "Login failed");
+      throw new Error(data.detail || "Login failed");
     }
 
     // The response still carries a token for non-browser clients; the browser
     // deliberately ignores it and relies on the HttpOnly cookie.
-    const data = await res.json();
     setUser({
       user_id: data.user_id,
       username: data.username,

@@ -56,7 +56,9 @@ function App() {
   // Login page or dashboard (requires auth)
   return (
     <AuthProvider>
-      <AuthRouter />
+      <VoiceStateProvider>
+        <AuthRouter />
+      </VoiceStateProvider>
     </AuthProvider>
   );
 }

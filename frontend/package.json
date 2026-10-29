@@ -11,6 +11,7 @@
     "test:pwa": "node --test tests/pwaGate.test.ts tests/pushSupport.test.ts tests/pushStatus.test.ts tests/deepLink.test.ts tests/alarm.test.ts tests/mouthShape.test.ts tests/route.test.ts tests/companionChannel.test.ts tests/companionImports.test.js tests/swInstall.test.js tests/swPush.test.js"
   },
   "dependencies": {
+    "@playwright/test": "^1.64.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

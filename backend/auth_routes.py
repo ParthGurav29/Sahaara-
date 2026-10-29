@@ -201,6 +201,8 @@ async def login(request: LoginRequest, response: Response, req: Request):
     # Set HttpOnly cookie (SameSite=Lax for CSRF protection, works with 127.0.0.1).
     # `secure` is opt-in via SAHAARA_COOKIE_SECURE: turning it on unconditionally
     # would drop the cookie on plain-HTTP localhost and adb-reverse testing.
+    # `domain="localhost"` makes the cookie available to all localhost ports
+    # (frontend on :5173/:5174, backend on :8000) so the proxy flow works.
     response.set_cookie(
         key="auth_token",
         value=raw_token,
@@ -209,6 +211,7 @@ async def login(request: LoginRequest, response: Response, req: Request):
         samesite="lax",
         max_age=12 * 3600,  # 12 hours
         path="/",
+        domain="localhost",
     )
     
     return LoginResponse(
@@ -225,14 +228,14 @@ async def logout(request: Request, response: Response):
     """Logout - revoke token and clear cookie."""
     if not auth_enabled():
         # Even if auth disabled, clear cookie for cleanliness
-        response.delete_cookie(key="auth_token", path="/")
+        response.delete_cookie(key="auth_token", path="/", domain="localhost")
         return {"message": "Logged out"}
 
     token = session_token_from_request(request)
     if token:
         revoke_token(token)
     
-    response.delete_cookie(key="auth_token", path="/")
+    response.delete_cookie(key="auth_token", path="/", domain="localhost")
     return {"message": "Logged out successfully"}
 
 
