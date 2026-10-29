@@ -118,6 +118,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -164,7 +170,8 @@ def public_config():
 def escalation_status(user: dict = Depends(require_caregiver)):
     """Current escalation tier and status for dashboard."""
     import conversation
-    return conversation._get_session().escalation_engine.get_status()
+    s = conversation.get_session_for_profile(user["profile_id"])
+    return s.escalation_engine.get_status()
 
 
 @app.get("/escalation/events")
@@ -176,7 +183,7 @@ def escalation_events(
 ):
     """Get recent events from the event log."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     event_log = s.event_log
     from events.event_log import EventType
     
@@ -207,14 +214,15 @@ def escalation_events(
 def escalation_summary(user: dict = Depends(require_caregiver)):
     """Session summary for daily summary screen."""
     import conversation
-    return conversation._get_session().event_log.summary()
+    s = conversation.get_session_for_profile(user["profile_id"])
+    return s.event_log.summary()
 
 
 @app.get("/daily-summary")
 def daily_summary(user: dict = Depends(require_caregiver)):
     """Generate daily summary from event log for caregiver dashboard."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     summary = generate_daily_summary(s.event_log, s.profile)
     return summary.__dict__
 
@@ -223,7 +231,7 @@ def daily_summary(user: dict = Depends(require_caregiver)):
 def demo_reset(user: dict = Depends(require_caregiver)):
     """Reset all demo state for a clean re-run."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     event_log = s.event_log
     session_notes = s.session_notes
     escalation_engine = s.escalation_engine
@@ -271,7 +279,7 @@ def get_alerts(
     import conversation
     from push import push_attempts_by_alert
 
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     alert_store = s.alert_store
     # M5 Step 6: attach the push attempt recorded for each alert, so the
     # dashboard can show what the push service answered. `None` when nothing
@@ -292,7 +300,7 @@ def get_alerts(
 def acknowledge_alert(alert_id: str, body: dict = None, user: dict = Depends(require_caregiver)):
     """Acknowledge an alert with an optional note."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     alert_store = s.alert_store
     event_log = s.event_log
     
@@ -331,7 +339,7 @@ def test_alert(user: dict = Depends(require_caregiver)):
 def alert_context(alert_id: str, turns: int = 10, user: dict = Depends(require_caregiver)):
     """Get an alert with surrounding conversation turns for detail view."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     alert_store = s.alert_store
     event_log = s.event_log
     from events.event_log import EventType
@@ -387,7 +395,8 @@ def alert_context(alert_id: str, turns: int = 10, user: dict = Depends(require_c
 def get_suggestions(user: dict = Depends(require_caregiver)):
     """Get pending profile fact suggestions for caregiver review."""
     import conversation
-    suggestion_queue = conversation._get_session().suggestion_queue
+    s = conversation.get_session_for_profile(user["profile_id"])
+    suggestion_queue = s.suggestion_queue
     return {
         "suggestions": [s.to_dict() for s in suggestion_queue.get_all()],
         "total": len(suggestion_queue.get_all()),
@@ -398,7 +407,7 @@ def get_suggestions(user: dict = Depends(require_caregiver)):
 def approve_suggestion(suggestion_id: str, user: dict = Depends(require_caregiver)):
     """Approve a suggested fact and apply it to the profile."""
     import conversation
-    s = conversation._get_session()
+    s = conversation.get_session_for_profile(user["profile_id"])
     suggestion_queue = s.suggestion_queue
     profile = s.profile
     event_log = s.event_log
@@ -454,7 +463,8 @@ def approve_suggestion(suggestion_id: str, user: dict = Depends(require_caregive
 def reject_suggestion(suggestion_id: str, user: dict = Depends(require_caregiver)):
     """Reject a suggested fact."""
     import conversation
-    suggestion_queue = conversation._get_session().suggestion_queue
+    s = conversation.get_session_for_profile(user["profile_id"])
+    suggestion_queue = s.suggestion_queue
     
     suggestion = suggestion_queue.get_by_id(suggestion_id)
     if suggestion is None:
@@ -468,7 +478,8 @@ def reject_suggestion(suggestion_id: str, user: dict = Depends(require_caregiver
 def turn_context(turn_index: int = -1, user: dict = Depends(require_caregiver)):
     """Get the explainability context for a Sahaara turn."""
     import conversation
-    event_log = conversation._get_session().event_log
+    s = conversation.get_session_for_profile(user["profile_id"])
+    event_log = s.event_log
     from events.event_log import EventType
     
     turns = event_log.get_events(EventType.CONVERSATION_TURN)
@@ -533,7 +544,8 @@ def _build_explanation_text(context: dict) -> str:
 def pause_monitoring(user: dict = Depends(require_caregiver)):
     """Pause escalation monitoring."""
     import conversation
-    conversation._get_session().escalation_engine.config.demo_mode = False  # effectively pauses
+    s = conversation.get_session_for_profile(user["profile_id"])
+    s.escalation_engine.config.demo_mode = False  # effectively pauses
     return {"status": "ok", "monitoring": "paused"}
 
 
@@ -541,7 +553,8 @@ def pause_monitoring(user: dict = Depends(require_caregiver)):
 def resume_monitoring(user: dict = Depends(require_caregiver)):
     """Resume escalation monitoring."""
     import conversation
-    conversation._get_session().escalation_engine.config.demo_mode = True
+    s = conversation.get_session_for_profile(user["profile_id"])
+    s.escalation_engine.config.demo_mode = True
     return {"status": "ok", "monitoring": "active"}
 
 

@@ -29,6 +29,7 @@ interface Event {
 }
 
 interface Alert {
+  alert_id: string;
   timestamp: number;
   timestamp_iso: string;
   tier_from: EscalationTier;
@@ -37,6 +38,9 @@ interface Alert {
   profile_id: string;
   message: string;
   detail: Record<string, any>;
+  status?: string;
+  acknowledged_at?: number;
+  acknowledged_note?: string;
 }
 
 interface Suggestion {
@@ -363,6 +367,7 @@ export default function DashboardView() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsCount, setSuggestionsCount] = useState(0);
+  const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [whyExplanation, setWhyExplanation] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"today" | "alerts" | "profile">("today");
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -397,10 +402,26 @@ export default function DashboardView() {
   const fetchAlerts = useCallback(async () => {
     try {
       const res = await apiFetch("/alerts?limit=20");
+      console.log("Fetch alerts response:", res.status);
       const data = await res.json();
+      console.log("Fetch alerts data:", data);
       setAlerts(data.alerts || []);
     } catch (err) {
       console.error("Failed to fetch alerts:", err);
+    }
+  }, []);
+
+  const fetchDailySummary = useCallback(async () => {
+    try {
+      const res = await apiFetch("/daily-summary");
+      console.log("Daily summary response:", res.status);
+      const data = await res.json();
+      console.log("Daily summary data:", data);
+      // Backend returns { summary_text, ... } or just the summary object
+      const summary = data.summary_text || data.summary || data.text;
+      setDailySummary(summary || "No summary available");
+    } catch (err) {
+      console.error("Failed to fetch daily summary:", err);
     }
   }, []);
 
@@ -543,11 +564,20 @@ export default function DashboardView() {
     return () => clearInterval(interval);
   }, [fetchSuggestions]);
 
-  const handleAcknowledge = (alert: Alert) => {
-    setAlerts((prev) => prev.filter((a) => a !== alert));
-    setEvents((prev) => prev.map((e: Event) => (e.timestamp === alert.timestamp && e.type === "alert" ? { ...e, type: "alert_acknowledged" as const } : e)));
-    fetchAlerts();
-    fetchSuggestions();
+  useEffect(() => {
+    fetchDailySummary();
+  }, [fetchDailySummary]);
+
+  const handleAcknowledge = async (alert: Alert) => {
+    try {
+      console.log("Acknowledging alert:", alert.alert_id);
+      const res = await apiFetch(`/alerts/${alert.alert_id}/acknowledge`, { method: "POST" });
+      console.log("Acknowledge response:", res.status, await res.json());
+      fetchAlerts();
+      fetchSuggestions();
+    } catch (err) {
+      console.error("Failed to acknowledge alert:", err);
+    }
   };
 
   const handleApprove = (suggestion: Suggestion) => {
@@ -662,10 +692,8 @@ export default function DashboardView() {
             <div className="grid2">
               <div className="card">
                 <h3>Today's summary</h3>
-                <p className="muted" style={{ marginTop: "0.5rem" }}>
-                  Asha had {events.filter(e => e.type === "conversation_turn" && e.detail.speaker === "sahaara").length} conversations today.{" "}
-                  {events.some(e => e.type === "memory_box_played") ? "Music helped in the evening. " : ""}
-                  {alerts.length === 0 ? "Nothing needed your attention." : `${alerts.length} alert${alerts.length > 1 ? "s" : ""} raised.`}
+                <p className="muted" style={{ marginTop: "0.5rem", whiteSpace: "pre-wrap" }}>
+                  {dailySummary || "Loading..."}
                 </p>
                 <p className="note" style={{ marginTop: "0.9rem" }}>
                   Noise reduction by design, not a clinical measure.
@@ -694,9 +722,9 @@ export default function DashboardView() {
                 <p className="muted">No alerts</p>
               </div>
             ) : (
-              alerts.map((alert, idx) => (
+              alerts.map((alert) => (
                 <AlertCard
-                  key={idx}
+                  key={alert.alert_id}
                   alert={alert}
                   onAcknowledge={() => handleAcknowledge(alert)}
                 />

@@ -111,8 +111,11 @@
   display: grid;
   grid-template-columns: 64px 1fr;
   gap: 0.6rem;
-  padding: 0.65rem 0;
+  padding: 0.65rem 0.75rem;
   border-top: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .tl time {
@@ -130,8 +133,11 @@
   grid-template-columns: 64px 1fr auto;
   gap: 0.9rem;
   align-items: start;
-  padding: 0.65rem 0;
+  padding: 0.65rem 0.75rem;
   border-top: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .event-time {

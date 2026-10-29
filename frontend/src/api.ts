@@ -10,11 +10,16 @@ export function apiUrl(path: string): string {
 }
 
 /** fetch wrapper: one API base, cookies included. */
-export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(apiUrl(path), {
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(apiUrl(path), {
     credentials: "include",
     ...init,
   });
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    throw new Error(`API ${res.status}: ${errorText || res.statusText}`);
+  }
+  return res;
 }
 
 /**
