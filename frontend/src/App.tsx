@@ -335,13 +335,14 @@ function CaregiverApp({ demoSplit, showChooser }: { demoSplit: boolean; showChoo
  */
 function App() {
   const route = useRoute();
-  const { authEnabled, user } = useAuth();
 
   // Show companion directly (no auth)
   if (route === "companion") {
     return (
       <ErrorBoundary name="CompanionView" fallback={<CompanionCrashFallback />}>
-        <CompanionView />
+        <VoiceStateProvider>
+          <CompanionView />
+        </VoiceStateProvider>
       </ErrorBoundary>
     );
   }
@@ -356,13 +357,17 @@ function App() {
   }
 
   // Caregiver dashboard (requires auth)
-  const showChooser = Boolean(authEnabled && user && !window.location.search.includes("demo=split") && window.location.pathname === "/");
-
   return (
     <AuthProvider>
-      <CaregiverApp demoSplit={route === "demo-split"} showChooser={showChooser} />
+      <CaregiverAppWithAuth demoSplit={route === "demo-split"} />
     </AuthProvider>
   );
+}
+
+function CaregiverAppWithAuth({ demoSplit }: { demoSplit: boolean }) {
+  const { authEnabled, user } = useAuth();
+  const showChooser = Boolean(authEnabled && user && !window.location.search.includes("demo=split") && window.location.pathname === "/");
+  return <CaregiverApp demoSplit={demoSplit} showChooser={showChooser} />;
 }
 
 export default App;
