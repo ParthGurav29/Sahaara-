@@ -273,10 +273,8 @@ function CaregiverApp({ demoSplit }: { demoSplit: boolean }) {
       {view === "live" && (
         <VoiceStateProvider>
           <div className={`app-main${demoSplit ? "" : " app-main--caregiver"}`}>
-            {/* The person's avatar lives in the companion view. In the hidden
-                demo split it sits beside the caregiver panel; in the normal
-                caregiver route it is deliberately absent. */}
-            {demoSplit && <AshaVisual />}
+            {/* Avatar shown in both demo-split and normal caregiver Live tab */}
+            {(demoSplit || showCaregiverTabs) && <AshaVisual />}
 
             {/* Rohan's view - Escalation Ladder (caregiver only) */}
             {showCaregiverTabs && (
