@@ -9,12 +9,24 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${suffix}`;
 }
 
-/** fetch wrapper: one API base, cookies included. */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(apiUrl(path), {
+/**
+ * Fetch without throwing on a non-2xx answer.
+ *
+ * Use this where a 4xx is a normal answer rather than a failure — most
+ * importantly `GET /auth/me`, where **401 means "nobody is signed in yet"**.
+ * With `apiFetch` that 401 throws, and a caller that only catches generically
+ * cannot tell "not logged in" apart from "the server is broken".
+ */
+export async function apiFetchRaw(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(apiUrl(path), {
     credentials: "include",
     ...init,
   });
+}
+
+/** fetch wrapper: one API base, cookies included. Throws on a non-2xx answer. */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await apiFetchRaw(path, init);
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${errorText || res.statusText}`);

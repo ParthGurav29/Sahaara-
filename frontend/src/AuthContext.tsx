@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { apiFetch } from "./api";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
+import { apiFetch, apiFetchRaw } from "./api";
 
 interface User {
   user_id: number;
@@ -12,8 +19,11 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   authEnabled: boolean;
+  /** True when the auth bootstrap could not reach the server (fail closed). */
+  authError: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  retryAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,14 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authEnabled, setAuthEnabled] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  async function checkAuthStatus() {
+  const checkAuthStatus = useCallback(async () => {
     try {
-      const statusRes = await apiFetch("/auth/status");
+      const statusRes = await apiFetchRaw("/auth/status");
+      if (!statusRes.ok) {
+        throw new Error(`GET /auth/status -> ${statusRes.status}`);
+      }
       const statusData = await statusRes.json();
       const enabled = Boolean(statusData.enabled);
       setAuthEnabled(enabled);
@@ -42,11 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Restore the cookie session. The token itself never reaches JavaScript:
       // it stays in the HttpOnly cookie, and HTTP, SSE and the voice WebSocket
       // all authenticate from that cookie.
-      const meRes = await apiFetch("/auth/me");
-      if (!meRes.ok) {
-        console.warn("[AuthContext] /auth/me failed:", meRes.status);
+      //
+      // A 401 here is the NORMAL "not signed in" answer, not an error: this
+      // runs before every login. Only a real transport/server failure marks
+      // the provider as errored, and it never falls back to "auth is off".
+      const meRes = await apiFetchRaw("/auth/me");
+      if (meRes.status === 401) {
         setUser(null);
         return;
+      }
+      if (!meRes.ok) {
+        throw new Error(`GET /auth/me -> ${meRes.status}`);
       }
 
       const me = await meRes.json();
@@ -57,13 +73,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile_id: me.profile_id,
       });
     } catch (err) {
-      console.error("[AuthContext] checkAuthStatus failed:", err);
-      setAuthEnabled(false);
+      console.error("[AuthContext] auth bootstrap failed:", err);
+      // Fail closed: an unreachable /auth/status must never be read as
+      // "authentication is switched off" and render the caregiver dashboard.
+      setAuthError(true);
       setUser(null);
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void checkAuthStatus();
+  }, [checkAuthStatus]);
+
+  /** Re-run the bootstrap from the retry screen. */
+  const retryAuth = useCallback(async () => {
+    setIsLoading(true);
+    setAuthError(false);
+    await checkAuthStatus();
+  }, [checkAuthStatus]);
+
 
   async function login(username: string, password: string) {
     const res = await apiFetch("/auth/login", {
@@ -109,7 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, authEnabled, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, authEnabled, authError, login, logout, retryAuth }}
+    >
       {children}
     </AuthContext.Provider>
   );

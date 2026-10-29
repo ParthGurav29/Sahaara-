@@ -6,7 +6,7 @@ import "./LoginView.css";
 export default function LoginView() {
   const { login, authEnabled } = useAuth();
   const [username, setUsername] = useState("caregiver");
-  const [password, setPassword] = useState("demo-demo");
+  const [password, setPassword] = useState("demo123");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -45,10 +45,10 @@ export default function LoginView() {
         <p className="tag">A gentle companion for dementia care</p>
         <form onSubmit={handleSubmit}>
           <label className="field">
-            <span>Email</span>
+            <span>Username</span>
             <input
               id="email"
-              type="email"
+              type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"

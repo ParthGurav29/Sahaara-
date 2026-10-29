@@ -77,13 +77,27 @@ function App() {
 }
 
 function AuthRouter() {
-  const { user, isLoading, authEnabled } = useAuth();
+  const { user, isLoading, authEnabled, authError, retryAuth } = useAuth();
 
   if (isLoading) {
     return (
       <div className="app-container loading">
         <div className="loading-spinner" />
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // The auth check could not reach the server. Fail closed: show an honest
+  // retry screen instead of guessing "auth is off" and rendering the
+  // caregiver dashboard with nothing behind it.
+  if (authError) {
+    return (
+      <div className="app-container loading">
+        <p>We couldn't reach Sahaara. Please check that the server is running.</p>
+        <button className="btn" type="button" onClick={() => void retryAuth()}>
+          Try again
+        </button>
       </div>
     );
   }

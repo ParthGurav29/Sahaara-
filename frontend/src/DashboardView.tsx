@@ -367,6 +367,7 @@ export default function DashboardView() {
   const { setTier } = useVoiceActions();
   const { logout } = useAuth();
   const [status, setStatus] = useState<EscalationStatus | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -388,18 +389,27 @@ export default function DashboardView() {
   }, []);
 
   const fetchData = useCallback(async () => {
+    // The tier is what the whole screen is built from, so a failure here is a
+    // real "cannot render" state — never an endless spinner. Log it, show an
+    // honest retry, and let everything else degrade quietly.
     try {
-      const [statusRes, eventsRes] = await Promise.all([
-        apiFetch("/escalation/status"),
-        apiFetch("/escalation/events?limit=20"),
-      ]);
+      const statusRes = await apiFetch("/escalation/status");
       const statusData = await statusRes.json();
-      const eventsData = await eventsRes.json();
       setStatus(statusData);
       if (statusData?.tier) setTier(statusData.tier as EscalationTier);
-      setEvents(eventsData.events.reverse());
+      setLoadError(false);
     } catch (err) {
-      console.error("Failed to fetch escalation data:", err);
+      console.error("Failed to fetch escalation status:", err);
+      setLoadError(true);
+      return;
+    }
+
+    try {
+      const eventsRes = await apiFetch("/escalation/events?limit=20");
+      const eventsData = await eventsRes.json();
+      setEvents(Array.isArray(eventsData.events) ? [...eventsData.events].reverse() : []);
+    } catch (err) {
+      console.error("Failed to fetch escalation events:", err);
     }
   }, [setTier]);
 
@@ -624,6 +634,27 @@ export default function DashboardView() {
   };
 
   if (!status) {
+    if (loadError) {
+      return (
+        <div className="dashboard-loading">
+          <p>Couldn't load the dashboard.</p>
+          <p className="muted">The server didn't answer. Nothing is lost — try again.</p>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => {
+              setLoadError(false);
+              void fetchData();
+              void fetchAlerts();
+              void fetchSuggestions();
+              void fetchProfile();
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="dashboard-loading">
         <div className="loading-spinner" />
