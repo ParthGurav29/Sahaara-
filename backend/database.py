@@ -236,6 +236,13 @@ def _migrate_profile(conn: sqlite3.Connection):
     profile_id = data.get("profile_id", "asha_demo_001")
     now = time.time()
     
+    # Ensure family members have the new emergency call fields (migration for existing profiles)
+    for member in data.get("family", []):
+        member.setdefault("phone", None)
+        member.setdefault("notify_order", 99)
+        member.setdefault("may_offer_notify", False)
+        member.setdefault("may_call", False)
+    
     conn.execute(
         "INSERT INTO profiles (profile_id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         (profile_id, data.get("name", {}).get("preferred_address", "Asha"), json.dumps(data), now, now)

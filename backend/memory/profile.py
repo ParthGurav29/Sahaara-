@@ -132,6 +132,67 @@ def load_profile(path: Path = DEFAULT_PROFILE_PATH) -> Profile:
     return Profile.load(path)
 
 
+def resolve_contacts(profile: Profile) -> list[dict[str, Any]]:
+    """Return family members sorted by (notify_order, relationship priority, arrival order),
+    filtered to may_call=true AND phone present.
+    
+    Members skipped for either reason appear in the incident as 'skipped' with a reason
+    — the dashboard must be able to say "No phone number saved for Rohan — no call was placed."
+    """
+    members = profile.get_family()
+    
+    # Relationship priority: primary caregivers first
+    def relationship_priority(rel: str) -> int:
+        rel_lower = rel.lower()
+        if "caregiver" in rel_lower or "son" in rel_lower or "daughter" in rel_lower:
+            return 1
+        if "spouse" in rel_lower or "husband" in rel_lower or "wife" in rel_lower or "partner" in rel_lower:
+            return 2
+        return 3
+    
+    # Filter and sort
+    callable_members = []
+    skipped = []
+    
+    for i, member in enumerate(members):
+        may_call = member.get("may_call", False)
+        phone = member.get("phone")
+        
+        if not may_call:
+            skipped.append({
+                **member,
+                "skip_reason": "may_call_false",
+            })
+        elif not phone:
+            skipped.append({
+                **member,
+                "skip_reason": "no_phone",
+            })
+        else:
+            callable_members.append({
+                **member,
+                "original_index": i,
+            })
+    
+    # Sort: notify_order first, then relationship priority, then arrival order
+    callable_members.sort(key=lambda m: (
+        m.get("notify_order", 99),
+        relationship_priority(m.get("relationship", "")),
+        m.get("original_index", 99),
+    ))
+    
+    # Add skipped members at the end for dashboard visibility
+    for member in skipped:
+        callable_members.append(member)
+    
+    return callable_members
+
+
+def get_callable_contacts(profile: Profile) -> list[dict[str, Any]]:
+    """Return only contacts that can actually be called (may_call=true AND phone present)."""
+    return [m for m in resolve_contacts(profile) if m.get("may_call") and m.get("phone")]
+
+
 if __name__ == "__main__":
     # Quick manual check: python -m memory.profile
     p = load_profile()

@@ -10,19 +10,31 @@
       "name": "Priya",
       "relationship": "daughter",
       "notes": "Lives in another city, calls when she can. Asha asks about her often, especially in the evenings.",
-      "memory_box_clip": "priya_hello.mp3"
+      "memory_box_clip": "priya_hello.mp3",
+      "phone": null,
+      "notify_order": 1,
+      "may_offer_notify": false,
+      "may_call": false
     },
     {
       "name": "Rohan",
       "relationship": "son",
       "notes": "Local, visits on weekends. Primary caregiver account holder for this demo.",
-      "memory_box_clip": null
+      "memory_box_clip": null,
+      "phone": null,
+      "notify_order": 2,
+      "may_offer_notify": false,
+      "may_call": false
     },
     {
       "name": "Vikram",
       "relationship": "late husband",
       "notes": "Passed away several years ago. Asha sometimes asks for him, especially when tired or anxious. Sensitive topic — see 'avoid' notes.",
-      "memory_box_clip": null
+      "memory_box_clip": null,
+      "phone": null,
+      "notify_order": 99,
+      "may_offer_notify": false,
+      "may_call": false
     }
   ],
   "life_story": {
