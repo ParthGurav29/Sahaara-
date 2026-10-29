@@ -3239,5 +3239,22 @@
     "memory_box_plays": 0,
     "repeat_count": 0,
     "consent_asks": 0
+  },
+  {
+    "session_id": "session_1793212108",
+    "date": "2026-10-28T23:58:28.266827",
+    "summary_text": "mangesh had a calm session. she talked about her son, music, the window. escalation reached yellow.",
+    "key_themes": [
+      "her son",
+      "music",
+      "the window"
+    ],
+    "emotion_summary": "neutral",
+    "turn_count": 34,
+    "highest_tier": "yellow",
+    "tier_label": "elevated (yellow)",
+    "memory_box_plays": 0,
+    "repeat_count": 1,
+    "consent_asks": 0
   }
 ]
