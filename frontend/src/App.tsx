@@ -1,8 +1,9 @@
-import { AuthProvider } from "./AuthContext";
+import { AuthProvider, useAuth } from "./AuthContext";
 import { VoiceStateProvider } from "./VoiceStateContext";
 import DashboardView from "./DashboardView";
 import CompanionView from "./CompanionView";
 import ChooserView from "./ChooserView";
+import LoginView from "./LoginView";
 import ErrorBoundary from "./ErrorBoundary";
 import { useRoute } from "./useRoute";
 import "./App.css";
@@ -52,12 +53,38 @@ function App() {
     );
   }
 
-  // Caregiver dashboard (requires auth)
+  // Login page or dashboard (requires auth)
   return (
     <AuthProvider>
-      <DashboardView />
+      <AuthRouter />
     </AuthProvider>
   );
+}
+
+function AuthRouter() {
+  const { user, isLoading, authEnabled } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="app-container loading">
+        <div className="loading-spinner" />
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // If auth is disabled, go straight to dashboard
+  if (!authEnabled) {
+    return <DashboardView />;
+  }
+
+  // If no user logged in, show login page
+  if (!user) {
+    return <LoginView />;
+  }
+
+  // User is logged in - show dashboard
+  return <DashboardView />;
 }
 
 export default App;
