@@ -232,6 +232,10 @@ function AlertCard({ alert, onAcknowledge }: { alert: Alert; onAcknowledge: () =
     orange: "var(--orange)",
     red: "var(--red)",
   };
+  const handleClick = () => {
+    console.log("AlertCard Acknowledge clicked for:", alert.alert_id);
+    onAcknowledge();
+  };
   return (
     <div className="card alert">
       <span className="dot" style={{ background: tierColors[alert.tier_to] } as React.CSSProperties} />
@@ -240,7 +244,7 @@ function AlertCard({ alert, onAcknowledge }: { alert: Alert; onAcknowledge: () =
         <p className="muted">{alert.detail?.reason || ""}</p>
         <small className="muted">{formatDate(alert.timestamp_iso)} · {formatTime(alert.timestamp_iso)}</small>
       </div>
-      <button className="btn sm ghost" onClick={onAcknowledge}>Acknowledge</button>
+      <button className="btn sm ghost" onClick={handleClick}>Acknowledge</button>
     </div>
   );
 }
@@ -701,15 +705,17 @@ export default function DashboardView() {
               </div>
               <div className="card">
                 <h3>Conversations</h3>
-                <ul className="tl">
-                  {recentEvents.length === 0 ? (
-                    <li style={{ padding: "1rem", color: "var(--muted)" }}>No events yet</li>
-                  ) : (
-                    recentEvents.map((event, idx) => (
-                      <EventItem key={idx} event={event} />
-                    ))
-                  )}
-                </ul>
+                <div className="conversation-scroll">
+                  <ul className="tl">
+                    {recentEvents.length === 0 ? (
+                      <li style={{ padding: "1rem", color: "var(--muted)" }}>No events yet</li>
+                    ) : (
+                      recentEvents.map((event, idx) => (
+                        <EventItem key={idx} event={event} />
+                      ))
+                    )}
+                  </ul>
+                </div>
               </div>
             </div>
           </div>

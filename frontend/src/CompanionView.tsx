@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useVoiceSession } from "./useVoiceSession";
+import { useVoiceMouth } from "./VoiceStateContext";
 import { useCompanionChannel } from "./useCompanionChannel";
-import SahaaraAvatar from "./SahaaraAvatar";
+import { SahaaraAvatar } from "./SahaaraAvatar";
 import CompanionAlarm from "./CompanionAlarm";
 import "./CompanionView.css";
 
@@ -23,7 +24,10 @@ interface ReminderState {
 export default function CompanionView() {
   const now = useNow();
   const channel = useCompanionChannel();
-  const { state, errorKind } = useVoiceSession();
+  const { state, isActive, toggle, initiativePrompt, dismissInitiative, errorKind, audioRef } = useVoiceSession();
+  const mouth = useVoiceMouth();
+  // Companion view doesn't have access to escalation levels; use default "green"
+  const defaultAvatarLevel = "green" as const;
 
   const time = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const weekday = now.toLocaleDateString([], { weekday: "long" });
@@ -125,7 +129,18 @@ export default function CompanionView() {
       <div className="cwrap">
         {/* Stage - left side */}
         <div className="stage" id="stage">
-          <SahaaraAvatar size={380} />
+          <SahaaraAvatar
+            size={380}
+            state={state}
+            isActive={isActive}
+            toggle={toggle}
+            initiativePrompt={initiativePrompt}
+            dismissInitiative={dismissInitiative}
+            errorKind={errorKind}
+            audioRef={audioRef}
+            mouth={mouth}
+            tier={defaultAvatarLevel}
+          />
           <div className="state" id="state">{stateLabel}</div>
           {captionsEnabled && channel.caption && (
             <p className="caption show" id="caption" aria-live="polite">

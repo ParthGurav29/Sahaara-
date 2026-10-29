@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   // set VITE_DEV_API_TARGET for a remote/LAN backend, or leave it for the
   // usual local uvicorn on :8000.
   const env = loadEnv(mode, '.', '')
-  const apiTarget = env.VITE_DEV_API_TARGET?.trim() || 'http://127.0.0.1:8000'
+  const apiTarget = env.VITE_DEV_API_TARGET?.trim() || 'http://localhost:8000'
 
   const apiProxy = {
     '/api': {

@@ -13,7 +13,7 @@
  *    mouth only ever follows the app's own TTS playback (A9).
  *  - `prefers-reduced-motion` is respected; animation pauses on a hidden tab.
  */
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useVoiceMouth, useVoiceState } from "./VoiceStateContext";
 import { useVoiceSession, type VoiceSessionState } from "./useVoiceSession";
 import OrbCharacter from "./OrbCharacter";
@@ -62,6 +62,10 @@ const STATE_LABEL: Record<AvatarState, string> = {
 // A refused microphone is the most likely failure on a phone, and saying
 // "connection lost" would send someone after the wrong problem.
 const MIC_LABEL = "Microphone unavailable — tap to retry";
+
+// Radio stream auto-reconnect constants
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 3000;
 
 // Mouth geometry is owned by OrbCharacter; this shell publishes the numbers the
 // voice session measured (open/wide) as CSS custom properties.
@@ -145,19 +149,97 @@ export function AvatarVisual({
   );
 }
 
+interface SahaaraAvatarProps {
+  size?: number;
+  // Voice session props (passed from parent that owns the session)
+  state: VoiceSessionState;
+  isActive: boolean;
+  toggle: () => void;
+  initiativePrompt: string | null;
+  dismissInitiative: () => void;
+  errorKind: "connection" | "microphone" | null;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+  mouth: { open: number; wide: number };
+  tier: AvatarTier;
+}
+
 /**
  * The interactive control that sits where the orb used to be. Clicking the
  * avatar starts a voice session; clicking again stops it. Its mouth opens with
  * the real TTS amplitude and it calms down (slower fade, dimmer glow, smaller
  * mouth) as the escalation tier rises.
  */
-export default function SahaaraAvatar({ size = 168 }: { size?: number } = {}) {
-  const { state, isActive, toggle, initiativePrompt, dismissInitiative, errorKind, audioRef } =
-    useVoiceSession();
-  const mouth = useVoiceMouth();
-  const { tier } = useVoiceState();
-
+export function SahaaraAvatar({
+  size = 168,
+  state,
+  isActive,
+  toggle,
+  initiativePrompt,
+  dismissInitiative,
+  errorKind,
+  audioRef,
+  mouth,
+  tier,
+}: SahaaraAvatarProps) {
   const label = state === "error" && errorKind === "microphone" ? MIC_LABEL : STATE_LABEL[state];
+
+  // Radio stream auto-reconnect logic
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+
+  const handleAudioError = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const audio = e.currentTarget;
+    console.error("[VoiceSession] Radio stream error:", audio.error);
+    if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS && audio.src) {
+      reconnectAttemptsRef.current++;
+      console.log(`[VoiceSession] Radio stream error, reconnecting (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        if (audio.src) {
+          audio.load();
+          audio.play().catch(err => console.error("[VoiceSession] Reconnect play failed:", err));
+        }
+      }, RECONNECT_DELAY_MS);
+    } else {
+      console.error("[VoiceSession] Max reconnect attempts reached, stopping radio");
+      reconnectAttemptsRef.current = 0;
+    }
+  }, []);
+
+  const handleAudioStalled = useCallback((_: React.SyntheticEvent<HTMLAudioElement>) => {
+    console.log("[VoiceSession] Radio stream stalled, waiting...");
+    // Don't immediately reconnect on stalled - browser may recover
+  }, []);
+
+  const handleAudioWaiting = useCallback((_: React.SyntheticEvent<HTMLAudioElement>) => {
+    console.log("[VoiceSession] Radio stream waiting for data...");
+  }, []);
+
+  const handleAudioEnded = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const audio = e.currentTarget;
+    console.log("[VoiceSession] Radio stream ended");
+    // Radio streams shouldn't end - if they do, try to reconnect
+    if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS && audio.src) {
+      reconnectAttemptsRef.current++;
+      console.log(`[VoiceSession] Radio stream ended unexpectedly, reconnecting (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        if (audio.src) {
+          audio.load();
+          audio.play().catch(err => console.error("[VoiceSession] Reconnect play failed:", err));
+        }
+      }, RECONNECT_DELAY_MS);
+    }
+  }, []);
+
+  const handleAudioCanPlay = useCallback((_: React.SyntheticEvent<HTMLAudioElement>) => {
+    // Reset reconnect attempts on successful playback
+    reconnectAttemptsRef.current = 0;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
 
   return (
     <div
@@ -188,8 +270,17 @@ export default function SahaaraAvatar({ size = 168 }: { size?: number } = {}) {
         {label}
       </p>
 
-      {/* Hidden audio element for radio streaming */}
-      <audio ref={audioRef} />
+      {/* Hidden audio element for radio streaming with error handling and auto-reconnect */}
+      <audio
+        ref={audioRef}
+        onError={handleAudioError}
+        onStalled={handleAudioStalled}
+        onWaiting={handleAudioWaiting}
+        onEnded={handleAudioEnded}
+        onCanPlay={handleAudioCanPlay}
+        // Preload metadata to detect errors faster
+        preload="metadata"
+      />
 
       {initiativePrompt && (
         <div className="voice-initiative-prompt" role="status" aria-live="polite">
@@ -204,5 +295,28 @@ export default function SahaaraAvatar({ size = 168 }: { size?: number } = {}) {
         </div>
       )}
     </div>
+  );
+}
+
+// Default export for backward compatibility - uses internal useVoiceSession
+export default function SahaaraAvatarDefault({ size = 168 }: { size?: number } = {}) {
+  const { state, isActive, toggle, initiativePrompt, dismissInitiative, errorKind, audioRef } =
+    useVoiceSession();
+  const mouth = useVoiceMouth();
+  const { tier } = useVoiceState();
+
+  return (
+    <SahaaraAvatar
+      size={size}
+      state={state}
+      isActive={isActive}
+      toggle={toggle}
+      initiativePrompt={initiativePrompt}
+      dismissInitiative={dismissInitiative}
+      errorKind={errorKind}
+      audioRef={audioRef}
+      mouth={mouth}
+      tier={tier}
+    />
   );
 }

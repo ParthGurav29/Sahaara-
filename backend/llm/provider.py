@@ -7,8 +7,9 @@ vendor SDK — that's what makes "swap Gemini for Nemotron" a one-line
 change instead of a rewrite.
 
 Current providers:
-  - llm/gemini_client.py   — temporary, in use now
-  - llm/nemotron_client.py — intended production model, pending Nebius setup
+  - llm/gemini_client.py   — fallback/dev option
+  - llm/nemotron_client.py — intended production model (Nebius Token Factory)
+  - llm/fallback_provider.py — auto-fallback chain: Nemotron -> Gemini
 
 Both return the same CompletionResult shape and raise ProviderError (or
 a subclass) on failure, so main.py's error handling doesn't need to
@@ -64,15 +65,30 @@ def get_provider(name: Optional[str] = None) -> LLMProvider:
     other module (main.py included) should call this instead of
     importing GeminiClient or NemotronClient directly.
 
-    Provider is chosen by, in order: the `name` argument, the
-    LLM_PROVIDER env var, then defaults to "nemotron" — Nebius Token
-    Factory is the actual production provider for Sahaara (see
-    docs/architecture.md). Gemini exists only as a fallback/dev option
-    in llm/gemini_client.py if you ever need to test against something
-    else while Nebius is unreachable.
+    Provider selection (in order):
+    1. Explicit `name` argument
+    2. LLM_PROVIDER env var
+    3. LLM_PROVIDER_PRIMARY + LLM_PROVIDER_SECONDARY (auto-fallback chain)
+    4. Default: "nemotron" with "gemini" fallback
+
+    If both primary and secondary are set, a FallbackProvider is returned
+    that tries primary first, then secondary on any failure.
     """
     import os
 
+    # Check if fallback chain is explicitly configured
+    primary = os.environ.get("LLM_PROVIDER_PRIMARY")
+    secondary = os.environ.get("LLM_PROVIDER_SECONDARY")
+
+    if primary or secondary:
+        # Auto-fallback chain configured
+        from llm.fallback_provider import FallbackProvider
+        return FallbackProvider(
+            primary_name=primary or "nemotron",
+            secondary_name=secondary or "gemini",
+        )
+
+    # Legacy single-provider mode
     resolved = (name or os.environ.get("LLM_PROVIDER") or "nemotron").lower()
 
     if resolved == "gemini":

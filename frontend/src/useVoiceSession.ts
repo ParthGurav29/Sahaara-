@@ -27,7 +27,7 @@ import { useVoiceActions, type VoiceStateName } from "./VoiceStateContext";
 
 export type VoiceSessionState = VoiceStateName;
 
-const WS_URL = wsUrl("/ws/voice");
+const WS_URL = wsUrl("/voice");
 
 // Must match voice/asr.py's Deepgram config (linear16, 16000Hz, mono).
 const MIC_SAMPLE_RATE = 16000;
@@ -175,6 +175,9 @@ export function useVoiceSession(): VoiceSession {
       micCtxRef.current?.close().catch(() => {});
       wsRef.current?.close();
 
+      // Stop radio stream if playing
+      stopRadio();
+
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -211,6 +214,7 @@ export function useVoiceSession(): VoiceSession {
 
   const startRadio = useCallback(
     (url: string) => {
+      console.log("[VoiceSession] startRadio called:", url);
       const audio = audioRef.current;
       if (!audio) return;
 
@@ -253,6 +257,7 @@ export function useVoiceSession(): VoiceSession {
 
   const playPcmChunk = useCallback(
     (bytes: ArrayBuffer) => {
+      console.log("[VoiceSession] playPcmChunk called, bytes:", bytes.byteLength);
       if (!playbackCtxRef.current) {
         playbackCtxRef.current = new AudioContext();
         nextPlaybackTimeRef.current = playbackCtxRef.current.currentTime;
@@ -380,9 +385,24 @@ export function useVoiceSession(): VoiceSession {
     }
 
     // The session cookie authenticates the upgrade; no token in the URL.
+    console.log("[VoiceSession] Connecting to WebSocket:", WS_URL);
     const ws = new WebSocket(WS_URL);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("[VoiceSession] WebSocket connected successfully");
+    };
+
+    ws.onerror = (err) => {
+      console.error("[VoiceSession] WebSocket error:", err);
+      stop("error");
+    };
+
+    ws.onclose = (e) => {
+      console.log("[VoiceSession] WebSocket closed:", e.code, e.reason);
+      if (activeRef.current) stop("error");
+    };
 
     ws.onmessage = (event) => {
       // A stopped session must never be flipped back to "speaking" by a frame
@@ -406,6 +426,7 @@ export function useVoiceSession(): VoiceSession {
               setInitiativePrompt(msg.text);
             }
           } else if (msg.type === "play_stream") {
+            console.log("[VoiceSession] Received play_stream:", msg.url);
             const url = msg.url;
             if (url) startRadio(url);
           } else if (msg.type === "stop_media") {
@@ -416,6 +437,7 @@ export function useVoiceSession(): VoiceSession {
         }
         return;
       }
+      console.log("[VoiceSession] Received audio chunk, size:", event.data.byteLength);
       playPcmChunk(event.data as ArrayBuffer);
     };
 

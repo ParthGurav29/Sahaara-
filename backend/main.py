@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, status, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -271,7 +271,7 @@ def demo_reset(user: dict = Depends(require_caregiver)):
 
 @app.get("/alerts")
 def get_alerts(
-    status: str = None,
+    status: str = "new",
     limit: int = 50,
     user: dict = Depends(require_caregiver),
 ):
@@ -596,15 +596,15 @@ def get_current_profile(user: dict = Depends(require_caregiver)):
 
 
 @app.get("/media/{filename}")
-def get_media_file(filename: str):
-    """Serve a local music file for in-browser playback.
+def get_media_file(request: Request, filename: str):
+    """Serve a local music file for in-browser playback with range request support.
 
     Unguarded on purpose: this is the person's side of the app, the same trust
     level as `/chat` and `/ws/voice` (Asha never logs in). The filename is
     checked against the music directory listing — no path separators, no
     traversal, no arbitrary files.
     """
-    from fastapi.responses import FileResponse
+    from fastapi.responses import Response
     from actions import _music_files
 
     if Path(filename).name != filename or "/" in filename or "\\" in filename:
@@ -612,9 +612,54 @@ def get_media_file(filename: str):
 
     for path in _music_files():
         if path.name == filename:
-            return FileResponse(
-                path,
-                media_type="audio/wav" if path.suffix.lower() == ".wav" else "audio/mpeg",
+            file_size = path.stat().st_size
+            media_type = "audio/wav" if path.suffix.lower() == ".wav" else "audio/mpeg"
+
+            # Support range requests for audio seeking
+            range_header = request.headers.get("Range")
+            start = 0
+            end = file_size - 1
+            status_code = 200
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(file_size),
+                "Content-Type": media_type,
+            }
+
+            if range_header:
+                # Parse Range header (e.g., "bytes=0-1023")
+                range_match = range_header.replace("bytes=", "").split("-")
+                if len(range_match) == 2:
+                    try:
+                        start = int(range_match[0]) if range_match[0] else 0
+                        end = int(range_match[1]) if range_match[1] else file_size - 1
+                    except ValueError:
+                        pass
+                    # Clamp to valid range
+                    start = max(0, min(start, file_size - 1))
+                    end = max(start, min(end, file_size - 1))
+                    if start <= end:
+                        status_code = 206  # Partial Content
+                        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+                        headers["Content-Length"] = str(end - start + 1)
+
+            def iter_file():
+                with open(path, "rb") as f:
+                    f.seek(start)
+                    remaining = end - start + 1
+                    chunk_size = 8192
+                    while remaining > 0:
+                        chunk = f.read(min(chunk_size, remaining))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
+
+            return Response(
+                content=iter_file(),
+                status_code=status_code,
+                headers=headers,
+                media_type=media_type,
             )
 
     raise HTTPException(status_code=404, detail="track not found")

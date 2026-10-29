@@ -70,7 +70,13 @@ class NemotronClient:
                 "No Nebius API key found. Set NEBIUS_API_KEY in your .env, "
                 "or pass api_key= explicitly. See .env.example."
             )
-        self._client = OpenAI(api_key=resolved_key, base_url=base_url)
+        # Add connection timeout to prevent hanging on unreachable API
+        self._client = OpenAI(
+            api_key=resolved_key, 
+            base_url=base_url,
+            timeout=10.0,  # 10 second connection timeout
+            max_retries=0  # No retries - fail fast for voice pipeline
+        )
 
     def complete(
         self,

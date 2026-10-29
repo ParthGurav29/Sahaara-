@@ -54,7 +54,10 @@ export function wsUrl(path: string): string {
   const explicit = (import.meta as any).env?.VITE_VOICE_WS_URL as string | undefined;
   if (explicit?.trim()) return explicit.trim();
 
-  return streamWsUrl(path);
+  // In development, always go through the /api proxy so the WebSocket
+  // is proxied to the backend (Vite proxy handles ws: true).
+  // The proxy rewrites /api/ws/voice -> /ws/voice on the backend.
+  return apiUrl("/ws" + path);
 }
 
 /**

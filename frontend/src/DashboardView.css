@@ -127,6 +127,32 @@
   font-weight: 600;
 }
 
+/* Scrollable conversation list */
+.conversation-scroll {
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
+}
+
+.conversation-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-scroll::-webkit-scrollbar-track {
+  background: var(--surface2);
+  border-radius: 3px;
+}
+
+.conversation-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+.conversation-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
 /* Event items */
 .event-item-compact {
   display: grid;
@@ -167,6 +193,7 @@
   gap: 0.9rem;
   align-items: start;
   margin-bottom: 0.7rem;
+  min-height: 60px; /* Ensure enough height for button */
 }
 
 .dot {
@@ -191,6 +218,12 @@
   color: var(--sage);
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+/* Ensure alert button is always visible and clickable */
+.alert > .btn {
+  align-self: start;
+  white-space: nowrap;
 }
 
 /* Review */
@@ -276,6 +309,7 @@
   color: var(--accent-ink);
   font-weight: 600;
   transition: transform 0.15s, opacity 0.15s;
+  cursor: pointer;
 }
 
 .btn:hover {
@@ -290,12 +324,20 @@
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--line);
+  cursor: pointer;
 }
 
 .btn.sm {
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
   border-radius: 9px;
+}
+
+/* Ensure alert button is clickable */
+.alert .btn {
+  cursor: pointer;
+  z-index: 1;
+  position: relative;
 }
 
 /* Badge */
