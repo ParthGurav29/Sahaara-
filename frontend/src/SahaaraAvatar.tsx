@@ -280,6 +280,8 @@ export function SahaaraAvatar({
         onCanPlay={handleAudioCanPlay}
         // Preload metadata to detect errors faster
         preload="metadata"
+        // Explicitly disable looping
+        loop={false}
       />
 
       {initiativePrompt && (

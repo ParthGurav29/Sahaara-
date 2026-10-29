@@ -770,7 +770,7 @@ export default function DashboardView() {
                 {section.note && <p className="note">{section.note}</p>}
                 {section.id === "family" && profile?.family && (
                   <>
-                    {profile.family.map((member, idx) => (
+                    {profile?.family?.map((member, idx) => (
                       <div className="fr" key={idx}>
                         <div style={{ display: "flex", gap: "0.5rem", flex: 1 }}>
                           <input
@@ -815,7 +815,7 @@ export default function DashboardView() {
                 )}
                 {section.id === "avoid" && profile?.avoid && (
                   <>
-                    {profile.avoid.topics?.map((topic: any, idx: number) => (
+                    {profile?.avoid?.topics?.map((topic: any, idx: number) => (
                       <div className="rrow" key={idx} style={{ flexDirection: "column", gap: "0.5rem", alignItems: "flex-start" }}>
                         <div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
                           <input
@@ -856,7 +856,7 @@ export default function DashboardView() {
                       <label className="field">
                         <span>If she asks for someone who has died</span>
                         <input
-                          value={profile.avoid.when_asking_for_deceased || ""}
+                          value={profile?.avoid?.when_asking_for_deceased || ""}
                           onChange={(e) => updateProfile("avoid", "when_asking_for_deceased", e.target.value)}
                           placeholder="What to say when she asks for someone who has died"
                         />

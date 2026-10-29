@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // all authenticate from that cookie.
       const meRes = await apiFetch("/auth/me");
       if (!meRes.ok) {
+        console.warn("[AuthContext] /auth/me failed:", meRes.status);
         setUser(null);
         return;
       }
@@ -55,7 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: me.role,
         profile_id: me.profile_id,
       });
-    } catch {
+    } catch (err) {
+      console.error("[AuthContext] checkAuthStatus failed:", err);
       setAuthEnabled(false);
       setUser(null);
     } finally {
@@ -74,6 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!res.ok) {
       throw new Error(data.detail || "Login failed");
+    }
+
+    // Store token in localStorage as fallback for WebSocket connections
+    // (HttpOnly cookie is primary, but WebSocket proxy may not forward cookies)
+    if (data.token) {
+      localStorage.setItem("sahaara_token", data.token);
     }
 
     // The response still carries a token for non-browser clients; the browser
@@ -95,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout errors
     } finally {
+      localStorage.removeItem("sahaara_token");
       setUser(null);
     }
   }

@@ -953,6 +953,7 @@ def _weathercode_to_condition(code: Optional[int]) -> str:
 
 _MEDIA_NOUNS = r"(?:music|radio|audio|playback|song|songs|the song|the music|the radio|it)"
 _STOP_RE = re.compile(
+    r"\b(?:stop|turn off|switch off|pause|kill|end)\b|"
     rf"\b(?:stop|turn off|switch off|pause|kill|end)\s+{_MEDIA_NOUNS}\b|"
     r"\b(?:stop|pause)\s+(?:playing|the playback)\b",
     re.I,

@@ -21,6 +21,16 @@ function CompanionCrashFallback() {
   );
 }
 
+/* Auth crash fallback */
+function AuthCrashFallback() {
+  return (
+    <div className="error-boundary-fallback">
+      <p>Authentication error. Please refresh the page.</p>
+      <button onClick={() => window.location.reload()}>Retry</button>
+    </div>
+  );
+}
+
 /**
  * Root app with route split.
  *
@@ -58,7 +68,9 @@ function App() {
   return (
     <AuthProvider>
       <VoiceStateProvider>
-        <AuthRouter />
+        <ErrorBoundary name="AuthRouter" fallback={<AuthCrashFallback />}>
+          <AuthRouter />
+        </ErrorBoundary>
       </VoiceStateProvider>
     </AuthProvider>
   );

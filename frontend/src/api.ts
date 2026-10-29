@@ -57,7 +57,16 @@ export function wsUrl(path: string): string {
   // In development, always go through the /api proxy so the WebSocket
   // is proxied to the backend (Vite proxy handles ws: true).
   // The proxy rewrites /api/ws/voice -> /ws/voice on the backend.
-  return apiUrl("/ws" + path);
+  let url = apiUrl("/ws" + path);
+  
+  // Add token from localStorage as fallback for WebSocket connections
+  // (Vite proxy may not forward HttpOnly cookies for WebSocket upgrade)
+  const token = localStorage.getItem("sahaara_token");
+  if (token) {
+    const sep = url.includes("?") ? "&" : "?";
+    url += `${sep}token=${encodeURIComponent(token)}`;
+  }
+  return url;
 }
 
 /**
