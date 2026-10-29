@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-29, `main`; **UI redesign Phase 0+1 done** — design system `a26815b`, companion screen with new orb avatar. `/companion` is a no-login full-screen avatar view with new animated orb, `/caregiver` is login-only with avatar in Live tab, `/choose` is post-login destination selector, the hidden `/?demo=split` keeps the old side-by-side, the companion WebSocket is whitelist-only, and the caregiver tabs are now Live / Daily Summary / **Review** / Profile with a live count badge. **UI redesign Phase 2 (dashboard) next**; Avatar A1-A9 complete — the porcelain-sphere mascot replaced VoiceOrb, runs fixed tasks, and **its mouth now lip-syncs to the TTS playback**; **timers ring in the browser and named songs stream**; M5 Steps 5-8 committed + device-verified, M3 complete awaiting review, M1 W2b done W2c held)
+## 0. Current Status (as of 2026-10-29, `main`; **UI redesign Phase 0+1 done** — design system `a26815b`, companion screen with new orb avatar `a26815b`, VoiceStateProvider fix `70b6041`. `/companion` is a no-login full-screen avatar view with new animated orb, `/caregiver` is login-only with avatar in Live tab, `/choose` is post-login destination selector, the hidden `/?demo=split` keeps the old side-by-side, the companion WebSocket is whitelist-only, and the caregiver tabs are now Live / Daily Summary / **Review** / Profile with a live count badge. **UI redesign Phase 2 (dashboard) next**; Avatar A1-A9 complete — the porcelain-sphere mascot replaced VoiceOrb, runs fixed tasks, and **its mouth now lip-syncs to the TTS playback**; **timers ring in the browser and named songs stream**; M5 Steps 5-8 committed + device-verified, M3 complete awaiting review, M1 W2b done W2c held)
 
 > **UI split Step 2 — IMPLEMENTED 2026-10-29 (commit recorded below), STOPPED FOR OWNER REVIEW.** The page is now two experiences instead of one side-by-side screen:
 > - **`/companion`** — no login, full screen, avatar + real clock/date + a live caption of the last reply Sahaara actually gave. It mounts **no `AuthProvider`**, opens **no `/auth/*`, `/escalation/*`, `/alerts`, `/daily-summary`, `/suggestions`, `/profile` or caregiver-stream request**, and has no caregiver tabs, bell, tier ladder or alert text. Headless network proof: **zero `/api/*` requests on load** (the only WebSocket it opens is `/api/stream/ws/companion`; Vite's own HMR socket also carries a `?token=` HMR token — not an app session).
@@ -1534,6 +1534,8 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - `backend/tests/test_companion_stream.py` — 73/73 pass
 - `guardrail_baseline.py --verify` — no drift
 - Build clean (`vite build`)
+
+**Bug fix (2026-10-29, commit `70b6041`):** Companion route was missing `VoiceStateProvider`, causing `useVoiceSession` hook to throw "must be used within VoiceStateProvider". Fixed by wrapping `<CompanionView />` in `<VoiceStateProvider>` in `App.tsx`. Verified: `/companion` now renders orb avatar with live clock, caption, and PIN lock.
 
 **Not claimed:** companion activity strip (now playing/reminder/routine tiles) is Phase 2; caregiver dashboard redesign is Phase 2; login screen redesign is Phase 3; no phone test of new companion screen yet.
 
