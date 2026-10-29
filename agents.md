@@ -11,7 +11,7 @@
 
 ---
 
-## 0. Current Status (as of 2026-10-29, `main`; **UI redesign Phase 0-2 done** — design system `a26815b`, companion screen `a26815b`, VoiceStateProvider fix `70b6041`, caregiver dashboard `ac02c3f`. `/companion` is a no-login full-screen avatar view with new animated orb, `/caregiver` is login-only with new dashboard (Today/Alerts/Profile tabs), `/choose` is post-login destination selector, the hidden `/?demo=split` keeps the old side-by-side, the companion WebSocket is whitelist-only, and the caregiver tabs are now Today / Alerts / Profile with live badges. **UI redesign Phase 3 (login screen) next**; Avatar A1-A9 complete — the porcelain-sphere mascot replaced VoiceOrb, runs fixed tasks, and **its mouth now lip-syncs to the TTS playback**; **timers ring in the browser and named songs stream**; M5 Steps 5-8 committed + device-verified, M3 complete awaiting review, M1 W2b done W2c held)
+## 0. Current Status (as of 2026-10-29, `main`; **UI redesign Phase 0-3 done** — design system `a26815b`, companion screen `a26815b`, VoiceStateProvider fix `70b6041`, caregiver dashboard `ac02c3f`, login screen `59ce260`. `/companion` is a no-login full-screen avatar view with new animated orb, `/caregiver` is login-only with new dashboard (Today/Alerts/Profile tabs), `/choose` is post-login destination selector, `/` shows login page (redirects to `/choose` after login), the hidden `/?demo=split` keeps the old side-by-side, the companion WebSocket is whitelist-only, and the caregiver tabs are now Today / Alerts / Profile with live badges. **UI redesign complete**; Avatar A1-A9 complete — the porcelain-sphere mascot replaced VoiceOrb, runs fixed tasks, and **its mouth now lip-syncs to the TTS playback**; **timers ring in the browser and named songs stream**; M5 Steps 5-8 committed + device-verified, M3 complete awaiting review, M1 W2b done W2c held)
 
 > **UI split Step 2 — IMPLEMENTED 2026-10-29 (commit recorded below), STOPPED FOR OWNER REVIEW.** The page is now two experiences instead of one side-by-side screen:
 > - **`/companion`** — no login, full screen, avatar + real clock/date + a live caption of the last reply Sahaara actually gave. It mounts **no `AuthProvider`**, opens **no `/auth/*`, `/escalation/*`, `/alerts`, `/daily-summary`, `/suggestions`, `/profile` or caregiver-stream request**, and has no caregiver tabs, bell, tier ladder or alert text. Headless network proof: **zero `/api/*` requests on load** (the only WebSocket it opens is `/api/stream/ws/companion`; Vite's own HMR socket also carries a `?token=` HMR token — not an app session).
@@ -167,8 +167,9 @@
 7. ✅ **UI split Steps 1-3 done** (`cf572ff`, `5187842`, `14e16e3`). Daily Summary is caregiver-only; "Suggested Facts" is now the **Review** inbox with a count badge next to the alert bell, the owner's explainer line, and the *"Nothing to review right now."* empty state; approve/reject and the "nothing auto-added" rule are unchanged.
 8. ✅ **UI redesign Phase 0+1 done** (`a26815b`). Design system + companion screen with new animated orb avatar. `/companion` full screen with orb, clock, caption, PIN lock; `/choose` post-login selector; routing updated.
 9. ✅ **UI redesign Phase 2 done** (`ac02c3f`). Caregiver dashboard with Today/Alerts/Profile tabs, stats cards, escalation ladder, timeline, review inbox, 8 profile sections with visibility toggles. All API integrations preserved.
-10. 🔨 **UI redesign Phase 3: Login screen** — centered card with wordmark, tagline, email/password fields, redirect to chooser.
-11. ⏸ **UI split Step 4 blocked on an owner decision.** The brief says a song request must not route to radio; §1.11 says a generic "play some music" with an empty folder should start the radio. Recommended: keep §1.11 for generic requests and fix that path's **speed and honesty** (concurrent stream probes, no "Playing X" without a successful probe), while named songs stay local → iTunes clip → honest failure. Also to fix: `_handle_action` logs turns with **no `context_trace`** (why the panel is generic), the trace has no action/delivery fields, and `_build_explanation_text` fabricates "from home / was a teacher" when fields are missing. Then Step 5 (structured Profile form), Step 6 (companion strip), Step 7 (Memory Box, held).
+10. ✅ **UI redesign Phase 3 done** (`59ce260`). Login screen with centered card, wordmark, tagline, email/password fields, redirect to `/choose`.
+11. 🎉 **UI redesign complete** — all prototype screens implemented.
+12. ⏸ **UI split Step 4 blocked on an owner decision.** The brief says a song request must not route to radio; §1.11 says a generic "play some music" with an empty folder should start the radio. Recommended: keep §1.11 for generic requests and fix that path's **speed and honesty** (concurrent stream probes, no "Playing X" without a successful probe), while named songs stay local → iTunes clip → honest failure. Also to fix: `_handle_action` logs turns with **no `context_trace`** (why the panel is generic), the trace has no action/delivery fields, and `_build_explanation_text` fabricates "from home / was a teacher" when fields are missing. Then Step 5 (structured Profile form), Step 6 (companion strip), Step 7 (Memory Box, held).
 
 ---
 
@@ -1584,7 +1585,52 @@ Step 1 is **committed** (`0258194`, 12 files) but the owner never saw this and n
 - `guardrail_baseline.py --verify` — no drift
 - Build clean (`vite build`)
 
-**Not claimed:** login screen redesign (Phase 3); companion activity strip (Phase 6); phone test of new dashboard; `SuggestedFacts.tsx`/`ReviewInbox.tsx`/`ProfileForm.tsx`/`DailySummaryScreen.tsx`/`EscalationLadder.tsx` still exist in codebase but unused in new dashboard (cleanup in Phase 5)
+**Not claimed:** companion activity strip (Phase 6); phone test of new dashboard; `SuggestedFacts.tsx`/`ReviewInbox.tsx`/`ProfileForm.tsx`/`DailySummaryScreen.tsx`/`EscalationLadder.tsx` still exist in codebase but unused in new dashboard (cleanup in Phase 5)
+
+### 2026-10-29 — UI redesign Phase 3: Login screen with prototype design (commit `59ce260`)
+**Why:** owner provided a design prototype (`Sahaara UI prototype.html`) and requested implementation matching it exactly for the login screen, completing the UI redesign.
+
+**LoginView component (new):**
+- **`frontend/src/LoginView.tsx` + `.css` (new):** centered login card matching prototype
+  - Radial gradient background (`radial-gradient(900px 500px at 50% -10%, var(--glow), transparent 70%)`)
+  - Wordmark "Sahaara" (Newsreader serif, lavender)
+  - Tagline: "A gentle companion for dementia care"
+  - Email + password fields with proper `<label>` + `<span>` structure
+  - Prefilled demo credentials (`caregiver` / `demo-demo`)
+  - Full-width accent button "Sign in"
+  - Loading state ("Signing in…")
+  - Error message display
+  - When auth disabled: shows "Authentication is disabled" with Continue button
+
+**Auth routing (App.tsx):**
+- New `AuthRouter` component handles all auth states:
+  - Loading → spinner
+  - Auth disabled → DashboardView directly
+  - No user + auth enabled → LoginView
+  - Logged in → DashboardView
+- `/` route now shows login (when auth enabled) instead of redirecting to `/caregiver`
+- On successful login → `navigateTo("/choose")` (post-login destination selector)
+
+**Design system integration:**
+- Uses all design tokens from `design-system.css` (lav/sage/amber/orange/red palette, Newsreader serif, DM Sans)
+- Card styling, buttons, fields, error messages — all from design system
+- Responsive (max-width 420px), dark mode support, reduced-motion support
+- Focus-visible outlines, proper autocomplete attributes
+
+**Files:**
+- `frontend/src/LoginView.tsx` (new, ~60 lines)
+- `frontend/src/LoginView.css` (new, ~80 lines)
+- `frontend/src/App.tsx`: added `LoginView` import, `AuthRouter` component, updated routing logic
+
+**Verification:**
+- `tsc -b` clean
+- `npm run lint` — 0 new warnings (baseline 9)
+- `npm run test:pwa` — 85/85 pass
+- `backend/tests/unit_e2e.py` — 189/189 pass
+- `guardrail_baseline.py --verify` — no drift
+- Build clean (`vite build`)
+
+**Not claimed:** phone test of login screen; companion activity strip (Phase 6); cleanup of unused legacy components (`SuggestedFacts.tsx`, `ReviewInbox.tsx`, `ProfileForm.tsx`, `DailySummaryScreen.tsx`, `EscalationLadder.tsx`)
 
 ### 2026-10-29 — UI split Step 3: Caregiver reorganisation — Review inbox with badge (commit `14e16e3`) + docs catch-up
 **Why:** the caregiver view still carried the M2-era "Suggested Facts" tab, which reads like a machine-generated suggestion list rather than a queue a family member reviews and approves. Daily Summary also needed to be confirmed caregiver-only, and the badge needed to be visible without opening the tab.
