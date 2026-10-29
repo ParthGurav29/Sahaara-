@@ -285,9 +285,16 @@ def _migrate_profile(conn: sqlite3.Connection):
         member.setdefault("may_offer_notify", False)
         member.setdefault("may_call", False)
     
-    conn.execute(
+    # name can be a string (current format) or a dict with preferred_address (old format)
+        name_val = data.get("name")
+        if isinstance(name_val, dict):
+            name_str = name_val.get("preferred_address", "Asha")
+        else:
+            name_str = str(name_val) if name_val else "Asha"
+
+        conn.execute(
         "INSERT INTO profiles (profile_id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        (profile_id, data.get("name", {}).get("preferred_address", "Asha"), json.dumps(data), now, now)
+        (profile_id, name_str, json.dumps(data), now, now)
     )
     conn.commit()
 

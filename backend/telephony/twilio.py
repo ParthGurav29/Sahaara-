@@ -56,8 +56,18 @@ class TwilioCallProvider:
         except ImportError:
             raise TelephonyProviderError("twilio package not installed")
 
-        # Use API key/secret for REST calls (not auth token)
-        self._client = Client(self.api_key, self.api_secret, self.account_sid)
+        # Try API Key auth first; fall back to Account SID + Auth Token
+        # "actor doesn't have any assertions" = API Key lacks perms or wrong account
+        try:
+            self._client = Client(self.api_key, self.api_secret, self.account_sid)
+            # Test the client with a lightweight fetch
+            self._client.api.accounts(self.account_sid).fetch()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "API Key auth failed (%s), falling back to Account SID + Auth Token", e
+            )
+            self._client = Client(self.account_sid, self.auth_token)
         self._validator = RequestValidator(self.auth_token)
 
     def place_call(

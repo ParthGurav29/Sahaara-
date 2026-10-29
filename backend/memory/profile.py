@@ -54,23 +54,38 @@ class Profile:
 
     @property
     def preferred_address(self) -> str:
-        return self._data["name"].get("preferred_address", self._data["name"]["full_name"])
+        name = self._data["name"]
+        if isinstance(name, dict):
+            return name.get("preferred_address", name.get("full_name", "Asha"))
+        return str(name) if name else "Asha"
 
     @property
     def full_name(self) -> str:
-        return self._data["name"]["full_name"]
+        name = self._data["name"]
+        if isinstance(name, dict):
+            return name.get("full_name", name.get("preferred_address", "Asha"))
+        return str(name) if name else "Asha"
 
     @property
     def hometown(self) -> Optional[str]:
-        return self._data["life_story"].get("hometown")
+        ls = self._data.get("life_story")
+        if isinstance(ls, dict):
+            return ls.get("hometown")
+        return None
 
     @property
     def work(self) -> Optional[str]:
-        return self._data["life_story"].get("work")
+        ls = self._data.get("life_story")
+        if isinstance(ls, dict):
+            return ls.get("work")
+        return None
 
     @property
     def key_events(self) -> list[str]:
-        return self._data["life_story"].get("key_events", [])
+        ls = self._data.get("life_story")
+        if isinstance(ls, dict):
+            return ls.get("key_events", [])
+        return []
 
     # ---- Family --------------------------------------------------------
 

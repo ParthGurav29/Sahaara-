@@ -1,10 +1,6 @@
 {
+  "name": "Asha Kulkarni",
   "profile_id": "asha_demo_001",
-  "name": {
-    "full_name": "Asha Kulkarni",
-    "preferred_address": "Asha",
-    "notes": "Responds warmly to her name said softly; does not like being called 'Grandma' by anyone outside family."
-  },
   "family": [
     {
       "name": "Priya",
@@ -12,7 +8,7 @@
       "notes": "Lives in another city, calls when she can. Asha asks about her often, especially in the evenings.",
       "memory_box_clip": "priya_hello.mp3",
       "phone": null,
-      "notify_order": 1,
+      "notify_order": 2,
       "may_offer_notify": false,
       "may_call": false
     },
@@ -21,10 +17,10 @@
       "relationship": "son",
       "notes": "Local, visits on weekends. Primary caregiver account holder for this demo.",
       "memory_box_clip": null,
-      "phone": null,
-      "notify_order": 2,
-      "may_offer_notify": false,
-      "may_call": false
+      "phone": "+917249784967",
+      "notify_order": 1,
+      "may_offer_notify": true,
+      "may_call": true
     },
     {
       "name": "Vikram",
@@ -37,41 +33,33 @@
       "may_call": false
     }
   ],
-  "life_story": {
-    "hometown": "Pune, Maharashtra",
-    "work": "Retired schoolteacher, taught primary school for over 30 years",
-    "key_events": [
-      "Married Vikram in her early twenties",
-      "Raised two children, Priya and Rohan",
-      "Loved teaching and often talks about former students",
-      "Moved in with Rohan's family after Vikram passed away"
-    ]
-  },
+  "life_story": "Born in Pune, 1952. Retired school teacher. Married Vikram in 1975. Two children: Priya (1977) and Rohan (1980). Vikram passed away in 2018. Asha lives independently in Pune, enjoys classical music and gardening.",
   "likes": {
-    "music": ["Old Hindi film songs", "Lata Mangeshkar"],
-    "food": ["Masala chai in the afternoon", "Simple home-style Maharashtrian food"],
-    "topics": ["Stories about her students", "Her garden", "Family memories from when the children were young"],
-    "routines": ["Sitting by the window in the morning", "A short walk if someone is with her"]
+    "music": ["Lata Mangeshkar", "Kishore Kumar", "M.S. Subbulakshmi", "Hindustani classical"],
+    "food": ["khichdi", "varan bhaat", "shrikhand", "puran poli"],
+    "topics": ["grandchildren", "teaching days", "Pune history", "marathi literature"],
+    "routines": ["morning walk", "evening tea", "prayer time"]
   },
   "avoid": {
-    "topics": [
-      "Direct statements about Vikram's death — she is aware but revisiting the fact directly can cause distress; redirect gently instead of restating it"
-    ],
-    "notes": "This list is caregiver-set and editable. It is not AI-guessed. If a topic here starts to feel like it's preventing Asha from processing something she needs to, that's a real tension — see docs/guardrails.md open question."
+    "topics": ["Vikram's death", "health decline", "moving to a home"],
+    "redirects": {
+      "Vikram": "He's not here right now, but I'm right here with you.",
+      "health": "Let's talk about something pleasant instead."
+    }
   },
   "daily_routine": {
     "wake_time": "07:00",
-    "meals": {
-      "breakfast": "08:00",
-      "lunch": "13:00",
-      "dinner": "19:30"
-    },
-    "medication_times": ["08:30", "20:00"],
-    "notes": "Medication reminders only — Sahaara never advises on dosing, see docs/guardrails.md."
+    "breakfast": "08:00",
+    "lunch": "13:00",
+    "medication_times": ["08:00", "20:00"],
+    "tea_time": "16:00",
+    "dinner": "19:00",
+    "sleep_time": "21:00",
+    "restless_window": "20:00-22:00"
   },
   "meta": {
-    "source": "Built loosely from a teammate's shared experience — general patterns, not private family details",
-    "last_updated_by": "caregiver",
+    "created_at": "2024-10-01T00:00:00Z",
+    "updated_at": "2024-10-29T00:00:00Z",
     "editable": true
   }
 }
