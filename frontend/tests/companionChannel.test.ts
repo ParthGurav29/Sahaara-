@@ -9,13 +9,14 @@ import {
 
 const envelope = (type: string, data: unknown) => JSON.stringify({ type, data });
 
-test("the allowlist is exactly the five companion kinds", () => {
+test("the allowlist is exactly the six companion kinds", () => {
   assert.deepEqual([...COMPANION_KINDS].sort(), [
     "caption",
     "clock",
     "next_routine",
     "now_playing",
     "reminder_countdown",
+    "reminder_fired",
   ]);
 });
 

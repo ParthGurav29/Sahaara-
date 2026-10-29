@@ -32,6 +32,15 @@ export interface CompanionChannelState {
   reminder: CompanionReminder | null;
   routine: CompanionRoutine | null;
   nowPlaying: CompanionNowPlaying | null;
+  reminderFired: CompanionReminderFired | null;
+}
+
+export interface CompanionReminderFired {
+  id: string | number;
+  label: string;
+  spoken: string;
+  kind: string;
+  at: number;
 }
 
 export const EMPTY_COMPANION_STATE: CompanionChannelState = {
@@ -40,6 +49,7 @@ export const EMPTY_COMPANION_STATE: CompanionChannelState = {
   reminder: null,
   routine: null,
   nowPlaying: null,
+  reminderFired: null,
 };
 
 function numberOrNull(value: unknown): number | null {
@@ -99,6 +109,17 @@ export function applyCompanionMessage(
         nowPlaying: {
           title: String(message.data.title),
           kind: message.data.kind === "radio" ? "radio" : "song",
+        },
+      };
+    case "reminder_fired":
+      return {
+        ...state,
+        reminderFired: {
+          id: message.data.id as string | number,
+          label: String(message.data.label),
+          spoken: String(message.data.spoken),
+          kind: String(message.data.kind),
+          at: Number(message.data.at),
         },
       };
     default:

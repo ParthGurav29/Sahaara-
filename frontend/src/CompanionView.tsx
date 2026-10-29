@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useVoiceSession } from "./useVoiceSession";
 import { useCompanionChannel } from "./useCompanionChannel";
-import OrbAvatar from "./OrbAvatar";
+import SahaaraAvatar from "./SahaaraAvatar";
+import CompanionAlarm from "./CompanionAlarm";
 import "./CompanionView.css";
 
 function useNow(intervalMs = 30_000): Date {
@@ -22,7 +23,7 @@ interface ReminderState {
 export default function CompanionView() {
   const now = useNow();
   const channel = useCompanionChannel();
-  const { state, isActive, toggle, errorKind } = useVoiceSession();
+  const { state, errorKind } = useVoiceSession();
 
   const time = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const weekday = now.toLocaleDateString([], { weekday: "long" });
@@ -124,7 +125,7 @@ export default function CompanionView() {
       <div className="cwrap">
         {/* Stage - left side */}
         <div className="stage" id="stage">
-          <OrbAvatar size={380} onToggle={toggle} isActive={isActive} disabled={state === "error"} />
+          <SahaaraAvatar size={380} />
           <div className="state" id="state">{stateLabel}</div>
           {captionsEnabled && channel.caption && (
             <p className="caption show" id="caption" aria-live="polite">
@@ -211,6 +212,7 @@ export default function CompanionView() {
           </form>
         </div>
       </div>
+      <CompanionAlarm />
     </div>
   );
 }

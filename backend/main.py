@@ -686,20 +686,21 @@ async def _pump_voice_pipeline(websocket: WebSocket, audio_in, state=None) -> No
 async def voice_ws(websocket: WebSocket, token: str = Query(default=None)):
     # The browser authenticates with the same HttpOnly session cookie as every
     # other request; `?token=` stays supported for non-browser clients.
+    # When auth is enabled but no token is provided, fall back to the default
+    # profile (like /chat does) so the no-login companion view can use voice.
+    user_data = None
     if auth_enabled():
         from auth_routes import session_token_from_websocket
 
         session_token = session_token_from_websocket(websocket)
-        if not session_token:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
-            return
-        from auth import validate_token_and_get_user
-        user_data = validate_token_and_get_user(session_token)
-        if not user_data:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
-            return
-    else:
-        user_data = None
+        if session_token:
+            from auth import validate_token_and_get_user
+            user_data = validate_token_and_get_user(session_token)
+            if not user_data:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token")
+                return
+        # No token provided — continue with default profile (companion view)
+    # If auth is disabled, user_data stays None (default profile)
     
     await websocket.accept()
 

@@ -12,7 +12,8 @@ export type CompanionKind =
   | "clock"
   | "now_playing"
   | "reminder_countdown"
-  | "next_routine";
+  | "next_routine"
+  | "reminder_fired";
 
 export interface CompanionMessage {
   type: CompanionKind;
@@ -25,6 +26,7 @@ export const COMPANION_KINDS: readonly CompanionKind[] = [
   "now_playing",
   "reminder_countdown",
   "next_routine",
+  "reminder_fired",
 ];
 
 const ALLOWED_KEYS: Record<CompanionKind, ReadonlySet<string>> = {
@@ -40,6 +42,7 @@ const ALLOWED_KEYS: Record<CompanionKind, ReadonlySet<string>> = {
     "at",
   ]),
   next_routine: new Set(["label", "time", "day"]),
+  reminder_fired: new Set(["id", "label", "spoken", "kind", "at"]),
 };
 
 export const FORBIDDEN_COMPANION_KEY =
@@ -109,6 +112,13 @@ export function parseCompanionMessage(raw: unknown): CompanionMessage | null {
       if (!isNonEmptyString(clean.label)) return null;
       if (!isNonEmptyString(clean.time)) return null;
       if (clean.day !== "today" && clean.day !== "tomorrow") return null;
+      break;
+    case "reminder_fired":
+      if (!isFiniteNumber(clean.id)) return null;
+      if (!isNonEmptyString(clean.label)) return null;
+      if (!isNonEmptyString(clean.spoken)) return null;
+      if (!isNonEmptyString(clean.kind)) return null;
+      if (!isFiniteNumber(clean.at)) return null;
       break;
   }
 

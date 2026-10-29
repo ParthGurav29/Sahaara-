@@ -5,6 +5,7 @@ import CompanionView from "./CompanionView";
 import ChooserView from "./ChooserView";
 import LoginView from "./LoginView";
 import ErrorBoundary from "./ErrorBoundary";
+import TaskAlarm from "./TaskAlarm";
 import { useRoute } from "./useRoute";
 import "./App.css";
 
@@ -86,7 +87,12 @@ function AuthRouter() {
   }
 
   // User is logged in - show dashboard
-  return <DashboardView />;
+  return (
+    <>
+      <DashboardView />
+      <TaskAlarm />
+    </>
+  );
 }
 
 export default App;

@@ -49,6 +49,7 @@ COMPANION_KINDS = {
     "now_playing",
     "reminder_countdown",
     "next_routine",
+    "reminder_fired",
 }
 
 ALLOWED_KEYS: dict[str, set[str]] = {
@@ -64,6 +65,13 @@ ALLOWED_KEYS: dict[str, set[str]] = {
         "at",
     },
     "next_routine": {"label", "time", "day"},
+    "reminder_fired": {
+        "id",
+        "label",
+        "spoken",
+        "kind",
+        "at",
+    },
 }
 
 # Keys that may never appear even if a future edit adds one to ALLOWED_KEYS.
@@ -311,8 +319,17 @@ def map_event(
         return None
 
     if event.type == EventType.REMINDER_FIRED:
-        data = pending() if pending else _pending_reminder(event.profile_id)
-        return build_message("reminder_countdown", data)
+        detail = event.detail if isinstance(event.detail, dict) else {}
+        return build_message(
+            "reminder_fired",
+            {
+                "id": detail.get("reminder_id") or detail.get("id"),
+                "label": detail.get("label") or "Timer",
+                "spoken": detail.get("spoken") or "Your timer is done.",
+                "kind": detail.get("kind") or "timer",
+                "at": event.timestamp,
+            },
+        )
 
     return None
 

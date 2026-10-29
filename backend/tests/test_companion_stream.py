@@ -175,9 +175,11 @@ for event_type, detail in HOSTILE_DETAILS.items():
             check(f"{event_type.value}: non-media action is refused", mapped is None)
         else:
             check(
-                f"{event_type.value}: reminder maps to a countdown, not an alert",
+                f"{event_type.value}: reminder maps to reminder_fired",
                 mapped is not None
-                and mapped["type"] == "reminder_countdown"
+                and mapped["type"] == "reminder_fired"
+                and "label" in mapped["data"]
+                and "spoken" in mapped["data"]
                 and not any(
                     k in keys_of(mapped)
                     for k in ("tier", "alert_id", "consent", "danger", "symptom")
