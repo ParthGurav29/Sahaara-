@@ -152,6 +152,19 @@ def _is_set(name: str) -> bool:
     return bool(os.environ.get(name, "").strip())
 
 
+def _validate_vonage_private_key(key: str) -> tuple[bool, str]:
+    """Try to parse the private key with cryptography. Returns (ok, detail)."""
+    if not key or not key.strip():
+        return False, "is unset"
+    try:
+        from cryptography.hazmat.primitives import serialization
+        # Handle both actual PEM with newlines and escaped newlines in .env
+        pem = key.strip().replace(chr(92) + "n", chr(10))
+        serialization.load_pem_private_key(pem.encode(), password=None)
+        return True, "is set and parses"
+    except Exception as e:
+        return False, f"is set but unparseable ({type(e).__name__})"
+
 def configured_provider_name() -> str:
     """The provider requested in the environment right now (not at import)."""
     return os.environ.get("SAHAARA_EMERGENCY_PROVIDER", "simulated").strip().lower() or "simulated"
@@ -180,6 +193,9 @@ def evaluate_gates(
     api_key_set = _is_set(GATE_VONAGE_API_KEY)
     api_secret_set = _is_set(GATE_VONAGE_API_SECRET)
 
+    key = os.environ.get(GATE_VONAGE_PRIVATE_KEY, "")
+    key_ok, key_detail = _validate_vonage_private_key(key)
+
     gates = [
         GateResult(
             GATE_CALLS_ENABLED,
@@ -203,8 +219,8 @@ def evaluate_gates(
         ),
         GateResult(
             GATE_VONAGE_PRIVATE_KEY,
-            _is_set(GATE_VONAGE_PRIVATE_KEY),
-            "is set" if _is_set(GATE_VONAGE_PRIVATE_KEY) else "is unset",
+            key_ok,
+            key_detail,
             secret=True,
         ),
         GateResult(
