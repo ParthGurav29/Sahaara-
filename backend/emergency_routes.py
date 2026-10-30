@@ -92,6 +92,50 @@ def cancel_emergency_incident_route(
     return {"status": "ok", "incident_id": incident_id, "orchestrator_stopped": stopped}
 
 
+@router.get("/emergency/status")
+def emergency_call_status(user: dict = Depends(require_caregiver)):
+    """
+    Every gate between this profile and a real phone call, right now.
+
+    Caregiver-only. Credential gates report only "is set" / "is unset" — no key,
+    secret or full phone number is ever returned. The same facts are logged in
+    one line at startup, so a difference between the log and this response means
+    the environment changed while the server was running.
+    """
+    import os
+
+    from database import get_profile, mask_phone_number
+    from memory.profile import Profile as ProfileClass, get_callable_contacts
+    from telephony.provider import emergency_status
+
+    profile_data = get_profile(user["profile_id"])
+    contacts = (
+        get_callable_contacts(ProfileClass(profile_data)) if profile_data else []
+    )
+    first = contacts[0] if contacts else None
+
+    status = emergency_status(first)
+    base_url = os.environ.get("SAHAARA_EMERGENCY_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    status["contacts"] = [
+        {
+            "name": contact.get("name"),
+            "relationship": contact.get("relationship"),
+            "notify_order": contact.get("notify_order"),
+            "phone_masked": mask_phone_number(contact.get("phone") or ""),
+            "may_call": bool(contact.get("may_call")),
+        }
+        for contact in contacts
+    ]
+    status["webhooks"] = {
+        "event_path": "/emergency/vonage/event",
+        "ack_path": "/emergency/vonage/ack",
+        "public_base_url_set": bool(base_url),
+        "signature_required": True,
+        "invalid_signature_status": 401,
+    }
+    return status
+
+
 # ---- Provider webhooks (unauthenticated: Vonage cannot send a cookie) ----
 #
 # Both routes are written to be safe when abused:
@@ -105,16 +149,13 @@ def _verify_provider_signature(request: Request) -> bool:
     """
     True when the request is a genuine provider callback.
 
-    With the real provider this is a hard requirement. With the simulated
-    provider there is no signature to check and no real call to protect.
+    Always required and always checked against our Vonage application — even
+    when the simulated provider is the one selected. A callback that cannot be
+    verified must never move an attempt.
     """
-    from telephony.provider import get_call_provider
+    from telephony.provider import verify_webhook_signature
 
-    provider = get_call_provider()
-    validator = getattr(provider, "validate_webhook_signature", None)
-    if validator is None:
-        return True
-    return bool(validator(request.headers.get("Authorization", "")))
+    return verify_webhook_signature(request.headers.get("Authorization", ""))
 
 
 async def _webhook_payload(request: Request) -> dict:
@@ -153,7 +194,7 @@ async def vonage_ack_webhook(request: Request):
     from telephony.provider import get_call_provider
 
     if not _verify_provider_signature(request):
-        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     payload = await _webhook_payload(request)
     attempt_id = request.query_params.get("attempt_id") or payload.get("attempt_id")
@@ -186,13 +227,18 @@ async def vonage_ack_webhook(request: Request):
 
 
 @router.post("/emergency/vonage/event")
+@router.post("/vonage/events")
 async def vonage_event_webhook(request: Request):
-    """Call status events (ringing / answered / completed / ...)."""
+    """Call status events (ringing / answered / completed / ...).
+
+    `/vonage/events` is the same handler: some Vonage setups are configured
+    with that path, and a callback that verifies must not 404.
+    """
     from telephony.orchestrator import record_provider_status
     from telephony.provider import get_call_provider
 
     if not _verify_provider_signature(request):
-        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     payload = await _webhook_payload(request)
     attempt_id = request.query_params.get("attempt_id") or payload.get("attempt_id")

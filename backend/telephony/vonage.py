@@ -319,8 +319,9 @@ class VonageCallProvider(CallProvider):
 
         Vonage sends `Authorization: Bearer <JWT>` signed with the application's
         private key. We verify with the matching public key and require the
-        `application_id` claim to be ours, so a token minted for a different
-        Vonage application cannot drive our incidents.
+        `application_id` claim to be exactly ours, so a token minted for a
+        different Vonage application — or one with no application claim at all —
+        cannot drive our incidents.
         """
         if not authorization_header or not authorization_header.lower().startswith("bearer "):
             return False
@@ -340,7 +341,7 @@ class VonageCallProvider(CallProvider):
             logger.warning("Vonage webhook signature rejected (%s)", type(exc).__name__)
             return False
 
-        return claims.get("application_id") in (None, self.application_id)
+        return claims.get("application_id") == self.application_id
 
     @staticmethod
     def parse_dtmf_webhook(payload: dict) -> Optional[str]:
@@ -374,3 +375,47 @@ class VonageCallProvider(CallProvider):
                 return "answered"
             return mapped
         return None
+
+
+def verify_vonage_webhook_signature(authorization_header: str) -> bool:
+    """
+    Verify a callback using ONLY our application id and private key.
+
+    Deliberately independent of which provider the factory would select right
+    now: a callback is genuine or it is not. Missing/blank signatures, a
+    missing application id or key, a token signed by another key, and a token
+    minted for another application all return False. Never raises.
+
+    This is what protects the webhook routes from fabricating an
+    acknowledgement: with no signature there is nothing to trust, and the
+    simulated provider no longer opens a hole ("no provider, no check").
+    """
+    application_id = os.environ.get("VONAGE_APPLICATION_ID", "").strip()
+    private_key = os.environ.get("VONAGE_PRIVATE_KEY", "").strip()
+    if not application_id or not private_key:
+        return False
+
+    header = (authorization_header or "").strip()
+    if not header.lower().startswith("bearer "):
+        return False
+    token = header.split(" ", 1)[1].strip()
+    if not token:
+        return False
+
+    try:
+        import jwt
+
+        public_key = VonageCallProvider._derive_public_key(
+            VonageCallProvider._normalise_pem(private_key)
+        )
+        claims = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Vonage webhook signature rejected (%s)", type(exc).__name__)
+        return False
+
+    return claims.get("application_id") == application_id

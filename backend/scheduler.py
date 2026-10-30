@@ -401,11 +401,8 @@ class Scheduler:
         records that it did, with the reason. Nothing here ever suppresses the
         dashboard alert or the Red tier; only the phone campaign is affected.
         """
-        from database import get_profile
         from events.event_log import Event, EventType
-        from memory.profile import Profile as ProfileClass, get_callable_contacts
         from telephony.orchestrator import trigger_emergency_call
-        from telephony.provider import can_place_real_call
 
         current_tier = session.escalation_engine.current_tier.value
         now = time.time()
@@ -425,19 +422,6 @@ class Scheduler:
             if elapsed < dwell:
                 return
 
-            fresh_profile_data = get_profile(self.profile_id)
-            fresh_profile = (
-                ProfileClass(fresh_profile_data) if fresh_profile_data else session.profile
-            )
-            contacts = get_callable_contacts(fresh_profile)
-
-            real_call_allowed = False
-            gate_reason = "no_callable_contact"
-            if contacts:
-                real_call_allowed, gate_reason = can_place_real_call(
-                    self.profile_id, contacts[0]
-                )
-
             phrase = (
                 "Sustained physical unwellness"
                 if session.escalation_engine.current_tier.value == "orange"
@@ -450,8 +434,6 @@ class Scheduler:
                 tier="orange",
                 event_log=session.event_log,
                 profile=session.profile,
-                real_call_allowed=real_call_allowed,
-                gate_reason=gate_reason,
                 alert_builder=getattr(session, "alert_builder", None),
             )
             # Only latch once a campaign actually started: a skipped trigger

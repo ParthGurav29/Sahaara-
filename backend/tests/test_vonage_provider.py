@@ -376,11 +376,13 @@ def test_factory_gate_and_fallback():
 
     os.environ["EMERGENCY_CALLS_ENABLED"] = "false"
     os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "vonage"
+    os.environ["SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED"] = "true"
     provider = get_call_provider()
     check("disabled -> simulated", provider.simulated is True, provider.name)
 
     os.environ["EMERGENCY_CALLS_ENABLED"] = "true"
     os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "vonage"
+    os.environ["SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED"] = "true"
     provider = get_call_provider()
     check("enabled + vonage + config -> vonage", provider.name == "vonage", provider.name)
 
@@ -408,6 +410,8 @@ def test_gate_matrix():
             "ALLOWED_TEST_NUMBERS",
         ):
             os.environ.pop(key, None)
+        # Base Vonage config so provider-level gates pass
+        os.environ.update(BASE_ENV)
         os.environ.update(env)
 
     gates()
@@ -416,7 +420,7 @@ def test_gate_matrix():
 
     gates(EMERGENCY_CALLS_ENABLED="true")
     allowed, reason = can_place_real_call("asha_demo_001", contact_ok)
-    check("provider still simulated -> refused", allowed is False and "provider" in reason)
+    check("provider still simulated -> refused", allowed is False and "provider" in reason.lower())
 
     gates(EMERGENCY_CALLS_ENABLED="true", SAHAARA_EMERGENCY_PROVIDER="vonage")
     allowed, reason = can_place_real_call("asha_demo_001", contact_ok)

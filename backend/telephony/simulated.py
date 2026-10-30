@@ -27,12 +27,11 @@ class SimulatedCallProvider:
     name = "simulated"
     simulated = True
 
-    def __init__(self, disabled: bool = False, gate_reason: str = "simulated"):
-        # `disabled` is kept so existing call sites keep working. It no longer
-        # changes the outcome: a disabled provider also places no call, and the
-        # gate reason already says which gate refused.
-        self.disabled = bool(disabled)
-        self.gate_reason = gate_reason or "simulated"
+    def __init__(self, gate_reason: str = ""):
+        # The gate that refused the real call, decided by the factory at call
+        # time. Empty only when something constructed this provider without
+        # asking the factory, which no product path does.
+        self.gate_reason = gate_reason or "no gate recorded"
 
     def place_call(
         self,
@@ -43,7 +42,7 @@ class SimulatedCallProvider:
         attempt_id: str,
         gate_reason: Optional[str] = None,
     ) -> CallHandle:
-        reason = gate_reason or self.gate_reason or "simulated"
+        reason = gate_reason or self.gate_reason or "no gate recorded"
         return CallHandle(
             provider_call_id=f"sim_{attempt_id}",
             status="simulated_not_placed",

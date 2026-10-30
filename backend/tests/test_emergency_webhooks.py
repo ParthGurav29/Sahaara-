@@ -10,7 +10,7 @@ the two HTTP routes the provider calls back into:
 
 The important properties are negative ones:
 
-  * an unsigned or wrongly-signed webhook is refused with 403 and changes
+  * an unsigned or wrongly-signed webhook is refused with 401 and changes
     nothing;
   * a webhook can only move an attempt towards a state the provider reported —
     it can never invent an acknowledgement;
@@ -164,7 +164,7 @@ def main():
             f"/emergency/vonage/ack?attempt_id={attempt_id}",
             data={"dtmf": '{"digits":"1","timed_out":false}'},
         )
-        check("ack without a signature -> 403", unsigned.status_code == 403, unsigned.status_code)
+        check("ack without a signature -> 401", unsigned.status_code == 401, unsigned.status_code)
         check(
             "the attempt was not acknowledged",
             database.get_emergency_attempt(attempt_id)["status"] == "dialing",
@@ -176,8 +176,8 @@ def main():
             data={"status": "answered"},
         )
         check(
-            "event without a signature -> 403",
-            unsigned_event.status_code == 403,
+            "event without a signature -> 401",
+            unsigned_event.status_code == 401,
             unsigned_event.status_code,
         )
         check(
@@ -195,7 +195,7 @@ def main():
             data={"dtmf": '{"digits":"1","timed_out":false}'},
             headers={"Authorization": f"Bearer {foreign}"},
         )
-        check("foreign application_id -> 403", refused.status_code == 403, refused.status_code)
+        check("foreign application_id -> 401", refused.status_code == 401, refused.status_code)
         check(
             "still not acknowledged",
             database.get_emergency_attempt(attempt_id)["status"] == "dialing",
@@ -365,21 +365,64 @@ def main():
         )
 
         # ------------------------------------------------------------------
-        print("\n[10] With the simulated provider there is no signature to check")
+        print("\n[10] A webhook is still signed when the provider is simulated")
         # ------------------------------------------------------------------
+        # Selecting the simulated provider must NOT open a hole: an unsigned
+        # callback would otherwise be able to acknowledge an attempt nobody
+        # answered, which is the same fabricated confirmation Fix 1 removed
+        # from the provider. The signature is verified against the Vonage
+        # application (still configured above), independent of the factory.
         provider_module.get_call_provider = original_factory
         os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
 
         incident_c, attempt_c = _fresh_incident_with_attempt("c")
-        sim_ack = client.post(
+        sim_unsigned = client.post(
             f"/emergency/vonage/ack?attempt_id={attempt_c}",
             data={"dtmf": '{"digits":"1","timed_out":false}'},
         )
-        check("simulated ack needs no signature", sim_ack.status_code == 200, sim_ack.status_code)
         check(
-            "the simulated attempt is acknowledged",
+            "simulated provider does not accept an unsigned ack",
+            sim_unsigned.status_code == 401,
+            sim_unsigned.status_code,
+        )
+        check(
+            "the unsigned attempt stays dialing",
+            database.get_emergency_attempt(attempt_c)["status"] == "dialing",
+            database.get_emergency_attempt(attempt_c)["status"],
+        )
+        sim_ack = client.post(
+            f"/emergency/vonage/ack?attempt_id={attempt_c}",
+            data={"dtmf": '{"digits":"1","timed_out":false}'},
+            headers={"Authorization": f"Bearer {good}"},
+        )
+        check("a signed ack is accepted", sim_ack.status_code == 200, sim_ack.status_code)
+        check(
+            "the signed attempt is acknowledged",
             database.get_emergency_attempt(attempt_c)["status"] == "acknowledged",
             database.get_emergency_attempt(attempt_c)["status"],
+        )
+
+        # ------------------------------------------------------------------
+        print("\n[11] The /vonage/events alias enforces the same signature")
+        # ------------------------------------------------------------------
+        unsigned_alias = client.post(
+            "/vonage/events?attempt_id=does-not-exist",
+            data={"status": "answered"},
+        )
+        check(
+            "the alias refuses an unsigned callback with 401",
+            unsigned_alias.status_code == 401,
+            unsigned_alias.status_code,
+        )
+        unsigned_alias_ack = client.post(
+            "/vonage/events?attempt_id=does-not-exist",
+            data={"status": "answered"},
+            headers={"Authorization": "Bearer not-a-jwt"},
+        )
+        check(
+            "the alias refuses a garbage signature with 401",
+            unsigned_alias_ack.status_code == 401,
+            unsigned_alias_ack.status_code,
         )
     finally:
         provider_module.get_call_provider = original_factory

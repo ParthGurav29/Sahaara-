@@ -348,15 +348,22 @@ def test_ladder_calls_rohan_then_priya_then_exhausts():
     import telephony.orchestrator as orch_mod
 
     fake = _no_answer_provider()
-    original = provider_mod.get_call_provider
+    original_provider_factory = provider_mod.get_call_provider
+    original_orch_factory = orch_mod.get_call_provider
+    original_provider_select = provider_mod.select_provider
+    original_orch_select = orch_mod.select_provider
     provider_mod.get_call_provider = lambda: fake
+    provider_mod.select_provider = lambda: (fake, None)
     orch_mod.get_call_provider = lambda: fake
+    orch_mod.select_provider = lambda: (fake, None)
     try:
         conversation.process_turn("I can't breathe")
         ended = _wait_for_ended(s.event_log, timeout=15.0)
     finally:
-        provider_mod.get_call_provider = original
-        orch_mod.get_call_provider = original
+        provider_mod.get_call_provider = original_provider_factory
+        provider_mod.select_provider = original_provider_select
+        orch_mod.get_call_provider = original_orch_factory
+        orch_mod.select_provider = original_orch_select
         _drain_orchestrators()
 
     from database import get_emergency_attempts
@@ -402,9 +409,14 @@ def test_exhausted_raises_no_caregiver_reached_alert():
     import telephony.orchestrator as orch_mod
 
     fake = _no_answer_provider()
-    original = provider_mod.get_call_provider
+    original_provider_factory = provider_mod.get_call_provider
+    original_orch_factory = orch_mod.get_call_provider
+    original_provider_select = provider_mod.select_provider
+    original_orch_select = orch_mod.select_provider
     provider_mod.get_call_provider = lambda: fake
+    provider_mod.select_provider = lambda: (fake, None)
     orch_mod.get_call_provider = lambda: fake
+    orch_mod.select_provider = lambda: (fake, None)
     try:
         conversation.process_turn("I can't breathe")
         _wait_for_ended(s.event_log, timeout=15.0)
@@ -415,8 +427,10 @@ def test_exhausted_raises_no_caregiver_reached_alert():
         ):
             time.sleep(0.05)
     finally:
-        provider_mod.get_call_provider = original
-        orch_mod.get_call_provider = original
+        provider_mod.get_call_provider = original_provider_factory
+        provider_mod.select_provider = original_provider_select
+        orch_mod.get_call_provider = original_orch_factory
+        orch_mod.select_provider = original_orch_select
         _drain_orchestrators()
 
     alerts = [a for a in s.alert_builder.alert_store.get_all() if a.reason == "no_caregiver_reached"]

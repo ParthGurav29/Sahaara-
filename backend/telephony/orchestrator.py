@@ -36,7 +36,14 @@ from database import (
     mask_phone_number,
     get_connection,
 )
-from telephony.provider import get_call_provider, CallHandle
+from telephony.provider import (
+    GATE_CONTACT_PHONE,
+    CallHandle,
+    CallProvider,
+    can_place_real_call,
+    get_call_provider,
+    select_provider,
+)
 from memory.profile import get_callable_contacts, Profile
 from events.event_log import EventLog, EventType, Event
 from safety.escalation import EscalationTier
@@ -200,7 +207,7 @@ class IncidentContext:
     contacts: List[dict]      # from get_callable_contacts()
     event_log: EventLog
     real_call_allowed: bool = False
-    gate_reason: str = "simulated"
+    gate_reason: str = ""
     alert_builder: object = None
 
 
@@ -210,9 +217,13 @@ class EmergencyOrchestrator:
     Each incident runs in its own daemon thread.
     """
 
-    def __init__(self, context: IncidentContext):
+    def __init__(self, context: IncidentContext, provider: Optional[CallProvider] = None):
         self.ctx = context
-        self.provider = get_call_provider()
+        # One selection per incident: the trigger path already chose a provider
+        # (and recorded why), so re-asking the factory could pair a `real` gate
+        # result with a `simulated` provider if the environment changed between
+        # the two reads.
+        self.provider = provider if provider is not None else get_call_provider()
         self._stop_event = threading.Event()
         self._current_attempt: Optional[str] = None
         self._handle: Optional[CallHandle] = None
@@ -443,7 +454,7 @@ class EmergencyOrchestrator:
         # event. The gate that refused the call travels on the attempt and on
         # the incident record so the dashboard can name it.
         if handle.status == AttemptStatus.SIMULATED_NOT_PLACED.value:
-            gate = (handle.raw or {}).get("gate_reason") or self.ctx.gate_reason or "simulated"
+            gate = (handle.raw or {}).get("gate_reason") or self.ctx.gate_reason or "no gate recorded"
             update_emergency_attempt_status(
                 attempt_id,
                 AttemptStatus.SIMULATED_NOT_PLACED.value,
@@ -711,13 +722,16 @@ def trigger_emergency_call(
     tier: str,
     event_log: EventLog,
     profile: Profile,
-    real_call_allowed: bool = False,
-    gate_reason: str = "simulated",
     alert_builder: object = None,
 ) -> str:
     """
     Entry point from conversation.py / scheduler.py when a call trigger fires.
     Returns the incident_id (the existing one when a ladder is already running).
+
+    The provider and the gate are resolved HERE, from the environment as it is
+    at this instant — callers do not pass them. That is the whole point of Fix 2:
+    a flag corrected in `.env` takes effect on the next trigger with no restart,
+    and the record can never disagree with the provider that actually ran.
     """
     # Idempotency: one incident = one active ladder per profile.
     existing = get_active_incident_id(profile_id)
@@ -767,7 +781,22 @@ def trigger_emergency_call(
     else:
         fresh_profile = profile
     contacts = get_callable_contacts(fresh_profile)
-    provider = get_call_provider()
+
+    # One provider selection per incident, made NOW (flags are read at call
+    # time, never at import). The same selection and the same gate sentence are
+    # stored on the incident, so the dashboard repeats exactly what stopped the
+    # call instead of guessing.
+    provider, provider_gate = select_provider()
+    if provider_gate is not None:
+        real_call_allowed = False
+        effective_gate = provider_gate
+    elif contacts:
+        real_call_allowed, effective_gate = can_place_real_call(profile_id, contacts[0])
+    else:
+        real_call_allowed = False
+        effective_gate = (
+            f"{GATE_CONTACT_PHONE} no caregiver has a dialable number"
+        )
 
     # Create incident record
     create_emergency_incident(
@@ -778,6 +807,7 @@ def trigger_emergency_call(
         tier=tier,
         simulated=provider.simulated,
         provider=provider.name,
+        gate_reason="" if real_call_allowed else effective_gate,
     )
 
     # Log STARTED event
@@ -794,7 +824,7 @@ def trigger_emergency_call(
                 "simulated": provider.simulated,
                 "provider": provider.name,
                 "real_call_allowed": real_call_allowed,
-                "gate_reason": gate_reason,
+                "gate_reason": "" if real_call_allowed else effective_gate,
             },
         )
     )
@@ -811,10 +841,10 @@ def trigger_emergency_call(
         contacts=contacts,
         event_log=event_log,
         real_call_allowed=real_call_allowed,
-        gate_reason=gate_reason,
+        gate_reason="" if real_call_allowed else effective_gate,
         alert_builder=alert_builder,
     )
-    orchestrator = EmergencyOrchestrator(ctx)
+    orchestrator = EmergencyOrchestrator(ctx, provider=provider)
 
     with _lock:
         _active_orchestrators[incident_id] = orchestrator

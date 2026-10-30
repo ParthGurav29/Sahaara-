@@ -644,7 +644,7 @@ def _trigger_emergency_call(s, *, trigger: str, trigger_phrase: str | None) -> s
     try:
         from database import get_profile
         from memory.profile import Profile as ProfileClass, get_callable_contacts
-        from telephony.provider import can_place_real_call, get_call_provider
+        from telephony.provider import GATE_CONTACT_PHONE, can_place_real_call
 
         fresh_profile_data = get_profile(s.profile.profile_id)
         fresh_profile = (
@@ -653,11 +653,11 @@ def _trigger_emergency_call(s, *, trigger: str, trigger_phrase: str | None) -> s
         contacts = get_callable_contacts(fresh_profile)
 
         real_call_allowed = False
-        gate_reason = "no_callable_contact"
+        gate_reason = f"{GATE_CONTACT_PHONE} no caregiver has a dialable number"
         if contacts:
-            # Instantiate the provider so a missing SDK / bad key degrades to
-            # the simulated provider instead of half-dialling.
-            get_call_provider()
+            # The factory is asked for a provider inside the orchestrator, and
+            # it reads the environment at that moment. Here we only need the
+            # gate that decides what Sahaara may say.
             real_call_allowed, gate_reason = can_place_real_call(
                 s.profile.profile_id, contacts[0]
             )
@@ -669,8 +669,6 @@ def _trigger_emergency_call(s, *, trigger: str, trigger_phrase: str | None) -> s
             tier=s.escalation_engine.current_tier.value,
             event_log=s.event_log,
             profile=s.profile,
-            real_call_allowed=real_call_allowed,
-            gate_reason=gate_reason,
             alert_builder=s.alert_builder,
         )
 

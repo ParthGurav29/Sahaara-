@@ -228,6 +228,7 @@ def init_db():
             provider        TEXT NOT NULL DEFAULT 'simulated',
             status          TEXT NOT NULL,
             reason          TEXT NOT NULL DEFAULT '',
+            gate_reason     TEXT NOT NULL DEFAULT '',
             attempts        INTEGER NOT NULL DEFAULT 0,
             started_at      REAL NOT NULL,
             ended_at        REAL
@@ -253,6 +254,11 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_emergency_incidents_profile ON emergency_incidents(profile_id, started_at);
         CREATE INDEX IF NOT EXISTS idx_emergency_attempts_incident ON emergency_attempts(incident_id);
     """)
+
+    # Emergency calls (Fix 2): the exact gate that refused a real call, stored
+    # on the incident itself. Without it the dashboard could only say
+    # "simulated" and a caregiver could not tell a typo from a missing key.
+    _ensure_column(conn, "emergency_incidents", "gate_reason", "TEXT NOT NULL DEFAULT ''")
     
     conn.commit()
     
@@ -969,15 +975,30 @@ def create_emergency_incident(
     tier: str,
     simulated: bool,
     provider: str,
+    gate_reason: str = "",
 ) -> None:
-    """Create a new emergency incident."""
+    """Create a new emergency incident.
+
+    `gate_reason` names the exact gate that refused a real call (empty when a
+    real provider was selected). It is the record the dashboard banner reads.
+    """
     conn = get_connection()
     try:
         conn.execute(
             """INSERT INTO emergency_incidents
-            (id, profile_id, trigger, trigger_phrase, tier, simulated, provider, status, attempts, started_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'triggered', 0, ?)""",
-            (incident_id, profile_id, trigger, trigger_phrase, tier, 1 if simulated else 0, provider, time.time()),
+            (id, profile_id, trigger, trigger_phrase, tier, simulated, provider, status, gate_reason, attempts, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'triggered', ?, 0, ?)""",
+            (
+                incident_id,
+                profile_id,
+                trigger,
+                trigger_phrase,
+                tier,
+                1 if simulated else 0,
+                provider,
+                gate_reason or "",
+                time.time(),
+            ),
         )
         conn.commit()
     finally:

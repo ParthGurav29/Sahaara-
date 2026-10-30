@@ -77,6 +77,19 @@ async def startup_event():
     # Background task to push scheduler initiatives into SSE
     asyncio.create_task(_broadcast_scheduler_initiatives())
 
+    # One line stating every emergency-call gate, using the same evaluator as
+    # GET /emergency/status. It never dials and never prints a secret: a
+    # missing key reads "is unset", never its value. Logged at startup so a
+    # misconfigured deployment is visible in the log before anyone relies on it.
+    try:
+        from memory.profile import get_callable_contacts
+        from telephony.provider import status_line
+
+        gate_contacts = get_callable_contacts(s.profile)
+        logger.warning("%s", status_line(gate_contacts[0] if gate_contacts else None))
+    except Exception:
+        logger.exception("Could not evaluate emergency-call gates at startup")
+
 
 async def _broadcast_scheduler_initiatives():
     """Push scheduler initiative messages into SSE broadcast.

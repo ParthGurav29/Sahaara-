@@ -24,11 +24,18 @@ def _fresh_db():
         Path(str(_TEST_DB) + _suffix).unlink(missing_ok=True)
     os.environ["SAHAARA_DB_PATH"] = str(_TEST_DB)
     os.environ["SAHAARA_PUSH_ENABLED"] = "false"
-    # The trigger path runs with the simulated provider by default. It places
-    # NOTHING and ends `simulated` with the gate reason; the ladder tests inject
-    # `FakeRealCallProvider` instead of relying on a fake progression.
+    # Tests that need a real ladder (dialing/ringing/answered/acknowledged)
+    # must pass all provider-level gates and inject FakeRealCallProvider.
+    # The base config has these gates passing; individual tests that want the
+    # simulated provider will override SAHAARA_EMERGENCY_PROVIDER back to
+    # "simulated" and will NOT inject the fake provider.
     os.environ["EMERGENCY_CALLS_ENABLED"] = "true"
-    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "vonage"
+    os.environ["SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED"] = "true"
+    os.environ["VONAGE_APPLICATION_ID"] = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    os.environ["VONAGE_PRIVATE_KEY"] = "dummy"
+    os.environ["VONAGE_FROM_NUMBER"] = "+15550001111"
+    os.environ["SAHAARA_EMERGENCY_PUBLIC_BASE_URL"] = "https://example.test"
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.5"
     os.environ["SAHAARA_EMERGENCY_COOLDOWN_SECONDS"] = "1"
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
@@ -135,10 +142,25 @@ class FakeRealCallProvider:
             return True
 
 
-def _use_fake_real_provider(orch_module):
-    """Inject the real-shaped double for tests that exercise the ladder."""
+def _use_fake_real_provider():
+    """Inject the real-shaped double for tests that exercise the ladder.
+
+    Patches `telephony.provider.select_provider` AND
+    `telephony.orchestrator.select_provider` so the factory returns the
+    fake provider instead of trying to construct a real Vonage provider.
+    """
+    import telephony.provider as provider_module
+    import telephony.orchestrator as orch_module
+
     provider = FakeRealCallProvider()
-    orch_module.get_call_provider = lambda: provider
+    if not hasattr(provider_module, "_original_select_provider"):
+        provider_module._original_select_provider = provider_module.select_provider
+    provider_module.select_provider = lambda: (provider, None)
+    # The orchestrator module imports select_provider at load time, so we
+    # must patch its reference too.
+    if not hasattr(orch_module, "_original_select_provider"):
+        orch_module._original_select_provider = orch_module.select_provider
+    orch_module.select_provider = lambda: (provider, None)
     return provider
 
 
@@ -164,6 +186,7 @@ def _drain_orchestrators(timeout: float = 10.0) -> None:
     file and hold a write lock while the next test initialises it.
     """
     import telephony.orchestrator as orch_mod
+    import telephony.provider as provider_mod
 
     deadline = time.time() + timeout
     for incident_id, orch in list(orch_mod._active_orchestrators.items()):
@@ -173,6 +196,14 @@ def _drain_orchestrators(timeout: float = 10.0) -> None:
             thread.join(timeout=max(0.1, deadline - time.time()))
     with orch_mod._lock:
         orch_mod._active_orchestrators.clear()
+
+    # Restore the real factory in case a test patched it
+    if hasattr(provider_mod, "_original_select_provider"):
+        provider_mod.select_provider = provider_mod._original_select_provider
+        delattr(provider_mod, "_original_select_provider")
+    if hasattr(orch_mod, "_original_select_provider"):
+        orch_mod.select_provider = orch_mod._original_select_provider
+        delattr(orch_mod, "_original_select_provider")
 
 
 def _reset_session(db_path: Path):
@@ -231,6 +262,7 @@ from events.event_log import EventType
 def test_physical_urgent_triggers_incident():
     """Urgent physical symptom triggers an incident with dialing."""
     print("\n[1] Physical urgent triggers incident")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -257,6 +289,7 @@ def test_physical_urgent_triggers_incident():
 def test_danger_statement_triggers_incident():
     """Danger statement triggers an incident."""
     print("\n[2] Danger statement triggers incident")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -275,6 +308,7 @@ def test_danger_statement_triggers_incident():
 def test_physical_general_no_call():
     """Physical general (Orange) does NOT trigger a call - only alert."""
     print("\n[3] Physical general does not trigger call")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -288,6 +322,7 @@ def test_physical_general_no_call():
 def test_no_callable_contact():
     """If no contact has may_call=True + phone, incident ends failed but alert still raised."""
     print("\n[4] No callable contact")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     # Explicitly clear phones/may_call for all family members
@@ -322,6 +357,7 @@ def test_no_callable_contact():
 def test_cooldown_prevents_second_campaign():
     """Cooldown prevents a second phone campaign but Red/alert still raised."""
     print("\n[5] Cooldown prevents second campaign")
+    _use_fake_real_provider()
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -361,7 +397,7 @@ def test_acknowledged_ends_incident():
     db = _fresh_db()
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "30"
     s, conversation, orch_module = _reset_session(db)
-    _use_fake_real_provider(orch_module)
+    _use_fake_real_provider()
     _give_phones_and_may_call()
 
     conversation.process_turn("I can't breathe")
@@ -393,7 +429,7 @@ def test_max_attempts_exhausted():
     print("\n[7] Max attempts exhausted")
     db = _fresh_db()
     s, conversation, orch_module = _reset_session(db)
-    _use_fake_real_provider(orch_module)
+    _use_fake_real_provider()
     _give_phones_and_may_call()
 
     # No acknowledgement ever arrives, so each call times out and the ladder
@@ -438,6 +474,7 @@ def test_cancel_stops_retries():
 def test_trigger_phrase_sanitised():
     """Trigger phrase in incident is sanitised and capped at 15 words."""
     print("\n[9] Trigger phrase sanitised")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -456,6 +493,7 @@ def test_trigger_phrase_sanitised():
 def test_simulated_provider_always_simulated():
     """The simulated provider places nothing and never claims an answer."""
     print("\n[10] Simulated provider is honest")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     from telephony.provider import get_call_provider
     provider = get_call_provider()
     check("Provider is simulated", provider.simulated is True)
@@ -480,6 +518,7 @@ def test_simulated_provider_always_simulated():
 def test_simulated_incident_records_no_answer():
     """A simulated incident says `simulated` and stores the gate, never `answered`."""
     print("\n[13] Simulated incident records the gate, not a fake answer")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     import database
 
     db = _fresh_db()
@@ -520,6 +559,7 @@ def test_simulated_incident_records_no_answer():
 def test_no_call_claims_in_reply():
     """Emergency reply never claims a call was placed (Task 2 test already covers this)."""
     print("\n[11] No call claims in reply")
+    os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
     db = _fresh_db()
     s, conversation, _ = _reset_session(db)
     _give_phones_and_may_call()
@@ -545,7 +585,7 @@ def test_late_press_one_stops_the_ladder():
 
     db = _fresh_db()
     s, conversation, orch_module = _reset_session(db)
-    _use_fake_real_provider(orch_module)
+    _use_fake_real_provider()
     _give_phones_and_may_call()
 
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.3"
