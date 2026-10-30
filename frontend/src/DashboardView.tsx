@@ -1151,33 +1151,33 @@ export default function DashboardView() {
                 {section.id === "family" && profile?.family && (
                   <>
                     {profile?.family?.map((member, idx) => (
-                      <div className="fr" key={idx}>
-                        <div style={{ display: "flex", gap: "0.5rem", flex: 1 }}>
+                      <div className="fr family" key={idx}>
+                        <div className="family-fields">
                           <input
+                            className="ff-name"
                             value={member.name || ""}
                             onChange={(e) => updateArrayProfile("family", idx, "name", e.target.value)}
                             placeholder="Name"
-                            style={{ flex: 1 }}
                           />
                           <input
+                            className="ff-rel"
                             value={member.relationship || ""}
                             onChange={(e) => updateArrayProfile("family", idx, "relationship", e.target.value)}
                             placeholder="Relationship"
-                            style={{ width: "110px" }}
                           />
                           <select
+                            className="ff-status"
                             value={member.living_status || "living"}
                             onChange={(e) => updateArrayProfile("family", idx, "living_status", e.target.value)}
-                            style={{ width: "100px" }}
                           >
                             <option value="living">Living</option>
                             <option value="late">Late</option>
                           </select>
                           <input
+                            className="ff-phone"
                             value={member.phone || ""}
                             onChange={(e) => updateArrayProfile("family", idx, "phone", e.target.value)}
                             placeholder="Phone"
-                            style={{ flex: 1 }}
                           />
                           <button
                             className="vis"
@@ -1187,7 +1187,7 @@ export default function DashboardView() {
                             {visibility[`family.${idx}.phone`] ? "Shared with Sahaara" : "Caregiver only"}
                           </button>
                         </div>
-                        <button className="btn sm ghost" onClick={() => setProfile((p) => p ? { ...p, family: p.family.filter((_, i) => i !== idx) } : p)}>✕</button>
+                        <button className="btn sm ghost family-remove" onClick={() => setProfile((p) => p ? { ...p, family: p.family.filter((_, i) => i !== idx) } : p)}>✕</button>
                       </div>
                     ))}
                     <button className="btn ghost sm" onClick={() => setProfile((p) => p ? { ...p, family: [...p.family, { name: "", relationship: "", living_status: "living", phone: "", may_offer_notify: true, notify_order: null, notes: "", memory_box_clip: null }] } : p)}>+ Add family member</button>
@@ -1197,23 +1197,23 @@ export default function DashboardView() {
                   <>
                     {profile?.avoid?.topics?.map((topic: any, idx: number) => (
                       <div className="rrow" key={idx} style={{ flexDirection: "column", gap: "0.5rem", alignItems: "flex-start" }}>
-                        <div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+                        <div className="topic-fields">
                           <input
+                            className="tf-topic"
                             value={topic.topic || ""}
                             onChange={(e) => updateArrayProfile("avoid.topics", idx, "topic", e.target.value)}
                             placeholder="Topic (e.g. Vikram's death)"
-                            style={{ flex: 2 }}
                           />
                           <select
+                            className="tf-setting"
                             value={topic.setting || "avoid"}
                             onChange={(e) => updateArrayProfile("avoid.topics", idx, "setting", e.target.value)}
-                            style={{ width: "150px" }}
                           >
                             <option value="avoid">Avoid</option>
                             <option value="redirect">Redirect</option>
                             <option value="allow_with_care">Allow with care</option>
                           </select>
-                          <button className="btn sm ghost" onClick={() => setProfile((p) => p ? { ...p, avoid: { ...p.avoid, topics: p.avoid.topics.filter((_: any, i: number) => i !== idx) } } : p)}>✕</button>
+                          <button className="btn sm ghost tf-remove" onClick={() => setProfile((p) => p ? { ...p, avoid: { ...p.avoid, topics: p.avoid.topics.filter((_: any, i: number) => i !== idx) } } : p)}>✕</button>
                         </div>
                         {topic.setting === "redirect" && (
                           <input

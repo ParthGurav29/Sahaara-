@@ -2,6 +2,7 @@
 
 .dashboard-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -13,7 +14,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: calc(1rem + var(--safe-top)) 1.5rem 1rem;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
   flex-wrap: wrap;
@@ -297,6 +298,39 @@
 .fr .field {
   margin: 0;
 }
+
+/* Family member row: name / relationship / status / phone + visibility toggle.
+   Wraps instead of overflowing on narrow screens. */
+.family-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.family-fields > input,
+.family-fields > select,
+.family-fields > .vis {
+  min-width: 0;
+}
+
+.ff-name { flex: 1 1 150px; }
+.ff-rel { flex: 1 1 110px; }
+.ff-status { flex: 1 1 100px; }
+.ff-phone { flex: 1 1 140px; }
+
+/* Avoid-topic row: topic input + setting select + remove, wrapping on mobile. */
+.topic-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.tf-topic { flex: 1 1 160px; min-width: 0; }
+.tf-setting { flex: 1 1 140px; min-width: 0; }
+.tf-remove { flex: 0 0 auto; }
 
 /* Visibility toggle */
 .vis {
@@ -661,4 +695,29 @@ button.profile-add-btn {
 .attempt-row small {
   display: block;
   line-height: 1.45;
+}
+
+/* ── Mobile layout (Item 3) ─────────────────────────────────────────────── */
+/* Single-column form rows and full-width family fields so the profile tab never
+   overflows horizontally on a phone. */
+@media (max-width: 640px) {
+  .fr {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .family-fields > input,
+  .family-fields > select,
+  .family-fields > .vis {
+    flex: 1 1 100%;
+  }
+
+  .topic-fields > .tf-topic,
+  .topic-fields > .tf-setting {
+    flex: 1 1 100%;
+  }
+
+  .family-remove {
+    justify-self: end;
+  }
 }

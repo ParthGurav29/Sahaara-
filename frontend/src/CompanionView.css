@@ -8,6 +8,7 @@
 
 .cwrap {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr minmax(300px, 380px);
   gap: 2rem;
@@ -100,5 +101,20 @@
   }
   .clock {
     font-size: 2.8rem;
+  }
+}
+
+/* Short landscape: the two columns already sit side by side, but a 380px
+   avatar fills the height, so cap it so the caption and activity strip stay
+   visible without scrolling. */
+@media (max-height: 540px) and (orientation: landscape) {
+  .companion-screen .sahaara-avatar-wrap {
+    max-width: 200px;
+  }
+  .companion-screen .state {
+    font-size: 1.2rem;
+  }
+  .companion-screen .caption {
+    font-size: 1.15rem;
   }
 }

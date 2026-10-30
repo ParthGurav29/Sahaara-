@@ -2,8 +2,9 @@
 
 .chooser-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  place-items: center;
+  place-items: safe center;
   padding: 1.5rem;
   background: radial-gradient(900px 500px at 50% -10%, var(--glow), transparent 70%);
 }

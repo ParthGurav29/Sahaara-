@@ -97,6 +97,7 @@ body {
   color: var(--ink);
   font: 16px/1.5 var(--sans);
   min-height: 100vh;
+  min-height: 100dvh;
   text-wrap: pretty;
 }
 
@@ -169,6 +170,7 @@ button {
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
   border-radius: 9px;
+  min-height: 44px;
 }
 
 /* Cards */
@@ -277,6 +279,10 @@ button {
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
   color: var(--muted);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chip[aria-pressed="true"] {
@@ -304,6 +310,7 @@ button {
   display: flex;
   gap: 0.45rem;
   align-items: center;
+  min-height: 44px;
 }
 
 .tab[aria-selected="true"] {
@@ -444,7 +451,7 @@ button {
   display: none;
   place-items: center;
   z-index: 9;
-  padding: 1rem;
+  padding: calc(1rem + var(--safe-top)) 1rem calc(1rem + var(--safe-bottom));
 }
 
 .modal.on {
