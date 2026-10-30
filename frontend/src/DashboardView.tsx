@@ -6,6 +6,7 @@ import { describeCallStatus } from "./callStatus";
 import { useVoiceActions } from "./VoiceStateContext";
 import { useAuth } from "./AuthContext";
 import { navigateTo } from "./useRoute";
+import PushButton from "./PushButton";
 import "./DashboardView.css";
 
 type EscalationTier = "green" | "yellow" | "orange" | "red";
@@ -1050,6 +1051,7 @@ export default function DashboardView() {
           <span className={`connection-indicator ${socketConnected ? "connected" : "reconnecting"}`}>
             {socketConnected ? "Live" : "Reconnecting…"}
           </span>
+          <PushButton />
           <button className="btn ghost sm" onClick={() => navigateTo("/choose")}>
             Switch mode
           </button>
