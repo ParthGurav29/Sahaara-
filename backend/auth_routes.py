@@ -208,7 +208,7 @@ async def login(request: LoginRequest, response: Response, req: Request):
         value=raw_token,
         httponly=True,
         secure=cookie_secure(),
-        samesite="lax",
+        samesite="none",
         max_age=12 * 3600,  # 12 hours
         path="/",
     )

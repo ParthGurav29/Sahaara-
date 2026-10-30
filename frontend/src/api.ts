@@ -57,9 +57,15 @@ export function openEventSource(path: string): EventSource {
  * is what makes live updates work over Cloudflare Quick Tunnel (SSE bodies
  * are buffered there but WebSocket frames pass through).
  */
+
+
+
 export function openWebSocket(path: string): WebSocket {
-  return new WebSocket(apiUrl(path));
+  const url = new URL(apiUrl(path), window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return new WebSocket(url.toString());
 }
+
 
 /** WebSocket URL derived from the current page (https -> wss). */
 export function wsUrl(path: string): string {
@@ -70,7 +76,9 @@ export function wsUrl(path: string): string {
   // is proxied to the backend (Vite proxy handles ws: true).
   // The proxy rewrites /api/ws/voice -> /ws/voice on the backend.
   // The HttpOnly cookie is sent automatically with the WebSocket upgrade.
-  return apiUrl("/ws" + path);
+  const url = new URL(apiUrl("/ws" + path), window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 /**
