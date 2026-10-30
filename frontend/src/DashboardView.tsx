@@ -54,6 +54,7 @@ interface EmergencyIncident {
   provider: string;
   status: string;
   reason: string;
+  gate_reason?: string;
   attempts: number;
   started_at: number;
   ended_at: number | null;
@@ -439,7 +440,7 @@ function EmergencyIncidentCard({ incident, onCancel }: { incident: EmergencyInci
 
       {incident.simulated && (
         <div className="simulated-banner" style={{ marginTop: "0.75rem", padding: "0.5rem", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "4px", fontSize: "0.8rem", color: "var(--muted)" }}>
-          ⚠ SIMULATED — no real call was placed
+          ⚠ SIMULATED — {incident.gate_reason ? incident.gate_reason : "no real call was placed"}
         </div>
       )}
     </div>
