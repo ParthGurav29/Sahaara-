@@ -74,8 +74,6 @@ class VonageCallProvider(CallProvider):
 
     name = "vonage"
     simulated = False
-    # Acknowledgements arrive as a DTMF webhook, not by polling.
-    auto_ack = False
 
     def __init__(self) -> None:
         self.application_id = os.environ.get("VONAGE_APPLICATION_ID", "").strip()

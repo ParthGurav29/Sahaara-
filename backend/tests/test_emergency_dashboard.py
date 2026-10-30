@@ -10,9 +10,9 @@ behaviour the dashboard depends on being honest about:
   * only masked numbers ever leave the server
   * `simulated` is a real boolean, not a SQLite 0/1
   * cancel is idempotent and cannot overwrite a finished incident
-  * with calling switched off the incident ends `failed/disabled` instead of
-    sitting at "dialing" forever (the bug that made the dashboard show a call
-    that never happened)
+  * with calling switched off the incident ends `simulated` with the gate that
+    refused it — and its attempt says `simulated_not_placed`, never "dialing"
+    forever and never a fabricated "answered"
 
 Run directly: python tests/test_emergency_dashboard.py
 """
@@ -36,10 +36,9 @@ os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
 os.environ["SAHAARA_EMERGENCY_COOLDOWN_SECONDS"] = "0"
 os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
 os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.1"
-os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
+
 os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "0.05"
-os.environ["SAHAARA_EMERGENCY_SIM_DIAL_SECONDS"] = "0.02"
-os.environ["SAHAARA_EMERGENCY_SIM_RING_SECONDS"] = "0.02"
+
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -199,7 +198,7 @@ check("acknowledged incident stays acknowledged", row["status"] == "acknowledged
 # ---------------------------------------------------------------------------
 # 9. Calling switched off ends the incident honestly
 # ---------------------------------------------------------------------------
-print("\n[9] Disabled calling ends failed/disabled")
+print("\n[9] Calling switched off ends simulated, not answered")
 _wipe()
 import telephony.orchestrator as orch_mod
 from events.event_log import EventLog, EventType
@@ -229,34 +228,41 @@ incident_id = orch_mod.trigger_emergency_call(
 deadline = time.time() + 10
 while time.time() < deadline:
     row = database.get_emergency_incident(incident_id)
-    if row and row["status"] in ("failed", "exhausted"):
+    if row and row["status"] == "simulated":
         break
     time.sleep(0.05)
 
 row = database.get_emergency_incident(incident_id)
-check("incident ended", row["status"] == "failed", row["status"])
-check("reason is disabled", row["reason"] == "disabled", row["reason"])
+check("incident ended simulated, not failed", row["status"] == "simulated", row["status"])
+# The gate that refused the real call is stored on the incident. Until the
+# factory names it explicitly this is the generic marker.
+check("reason names a gate", bool(row["reason"]), row["reason"])
 attempts = database.get_emergency_attempts(incident_id)
 check("one attempt recorded", len(attempts) == 1, str(len(attempts)))
-check("attempt not left at dialing", attempts[0]["status"] == "failed", attempts[0]["status"])
+check("attempt is simulated_not_placed",
+      attempts[0]["status"] == "simulated_not_placed", attempts[0]["status"])
+check("no answered_at timestamp", attempts[0]["answered_at"] is None)
 
 ended = log.get_events(EventType.EMERGENCY_CALL_ENDED)
 check("ENDED event logged", len(ended) == 1)
-check("ENDED reason is disabled", ended[0].detail.get("reason") == "disabled")
+check("ENDED status is simulated", ended[0].detail.get("status") == "simulated")
+check("ENDED reason matches the incident", ended[0].detail.get("reason") == row["reason"])
 
 # ---------------------------------------------------------------------------
 # 10. Dashboard vocabulary contract
 # ---------------------------------------------------------------------------
 print("\n[10] Status vocabulary the dashboard renders")
+from telephony.orchestrator import AttemptStatus
+
 known = {
     "dialing", "ringing", "answered", "acknowledged", "no_answer",
-    "failed", "canceled", "cancelled", "queued",
+    "failed", "canceled", "cancelled", "queued", "simulated_not_placed",
 }
-observed = set()
-for attempt_id in ("a", "b"):
-    _attempt(f"emg_vocab_{attempt_id}", "emg_vocab", status=attempt_id)
-observed.add("ringing")
-check("dashboard handles every orchestrator attempt status", known.issuperset(observed))
+check(
+    "dashboard handles every orchestrator attempt status",
+    {s.value for s in AttemptStatus}.issubset(known),
+    sorted({s.value for s in AttemptStatus} - known),
+)
 
 os.environ["EMERGENCY_CALLS_ENABLED"] = "true"
 

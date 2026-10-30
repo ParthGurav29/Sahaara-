@@ -77,12 +77,9 @@ def _fresh_db():
     os.environ["SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED"] = "false"
     os.environ["ALLOWED_TEST_NUMBERS"] = ""
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.4"
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
     os.environ["SAHAARA_EMERGENCY_COOLDOWN_SECONDS"] = "0"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "0.05"
     os.environ["SAHAARA_EMERGENCY_MAX_SECONDS"] = "30"
-    os.environ["SAHAARA_EMERGENCY_SIM_DIAL_SECONDS"] = "0.03"
-    os.environ["SAHAARA_EMERGENCY_SIM_RING_SECONDS"] = "0.03"
     return db_path
 
 
@@ -319,10 +316,9 @@ def test_disabled_campaign_word_is_honest():
 
 
 def test_simulated_campaign_exhausts_honestly():
-    print("\n[9] A simulated ladder that nobody answers ends honestly")
+    print("\n[9] A simulated campaign records one not-placed attempt, never a ladder")
     s, conversation = _reset_session(_fresh_db())
     _set_contacts()
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
 
     result = conversation.process_turn("I can't breathe")
     reply = result.get("response", "")
@@ -371,6 +367,26 @@ def test_simulated_campaign_exhausts_honestly():
             incident["simulated"] == 1,
             incident["simulated"],
         )
+        check(
+            "incident ended simulated, not answered/failed",
+            incident["status"] == "simulated",
+            incident["status"],
+        )
+        check(
+            "exactly one attempt — no retry without a real call",
+            len(attempts) == 1,
+            len(attempts),
+        )
+        check(
+            "the attempt says the call was not placed",
+            attempts[0]["status"] == "simulated_not_placed",
+            attempts[0]["status"],
+        )
+        answered = [
+            e for e in s.event_log.get_events(EventType.EMERGENCY_CALL_STATUS)
+            if e.detail.get("status") in ("answered", "ringing", "dialing")
+        ]
+        check("no answered/ringing/dialing event was invented", answered == [])
     _drain()
 
 

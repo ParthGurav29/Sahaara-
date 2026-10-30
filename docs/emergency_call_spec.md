@@ -247,10 +247,10 @@ keep Red — it simply does not start a second phone campaign. At most 4 calls,
 then quiet until the window expires. **The cooldown never suppresses the alert
 or the tier** (decision 4).
 
-**Demo override:** setting `SAHAARA_EMERGENCY_ACK_SECONDS=15` (and optionally
-`SAHAARA_EMERGENCY_DEMO_ACK=1` to make the simulated provider auto-press 1)
-gives a demo that finishes in under a minute. Demo values are opt-in and must be
-visible in the dashboard when active.
+**Demo override:** setting `SAHAARA_EMERGENCY_ACK_SECONDS=15` gives a demo that
+finishes in under a minute when the real provider is active. There is no
+simulated happy path to demo: a simulated campaign records exactly one
+`simulated_not_placed` attempt and stops.
 
 ---
 
@@ -270,14 +270,18 @@ class CallProvider(Protocol):
 
 ### 8.1 `SimulatedCallProvider` (default)
 
-- No network. Deterministic script: `dialing` 1 s → `ringing` 3 s →
-  `answered` → `acknowledged` (if `SAHAARA_EMERGENCY_DEMO_ACK=1`) else
-  `no_answer` after the ack window.
+- No network, no telephone, no script. `place_call` returns one terminal
+  status — **`simulated_not_placed`** — carrying the exact gate that refused
+  the real call. The orchestrator records one attempt with that status, logs
+  `emergency_call_skipped`, and ends the incident **`simulated`**.
+- It never emits `dialing`, `ringing`, `answered`, `acknowledged` or
+  `no_answer`, and `acknowledge()` always returns `False`. A phone that never
+  rang must never appear to have been answered.
 - Every incident and attempt row carries `simulated: true`.
-- Dashboard banner: **`SIMULATED — no real call was placed`**, always visible
-  while any incident on screen is simulated.
-- Spoken line (decision 1): *"This is a demo. In a real situation I would be
-  calling Rohan now."* — **never** "I'm calling", never "I've called".
+- Dashboard banner: **`SIMULATED — <the gate that refused the call>`**, always
+  visible while any incident on screen is simulated.
+- Spoken line: the same honest blocked line as any other refused call — it
+  never says "I'm calling", never "I've called", never "demo".
 
 ### 8.2 `VonageCallProvider` (opt-in, triple-gated)
 
@@ -525,7 +529,6 @@ ALLOWED_TEST_NUMBERS=
 SAHAARA_EMERGENCY_ACK_SECONDS=45
 SAHAARA_EMERGENCY_RING_SECONDS=25
 SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS=20
-SAHAARA_EMERGENCY_DEMO_ACK=0
 SAHAARA_EMERGENCY_COOLDOWN_SECONDS=300
 SAHAARA_EMERGENCY_MAX_ATTEMPTS=4
 SAHAARA_EMERGENCY_PUBLIC_BASE_URL=

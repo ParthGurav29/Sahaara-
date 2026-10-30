@@ -19,10 +19,11 @@ export type CallTone = "neutral" | "muted" | "warn" | "urgent";
 
 export interface CallStatus {
   // Per-attempt: queued | dialing | ringing | answered | answered_unacknowledged
-  //               | acknowledged | no_answer | failed | canceled
+  //               | acknowledged | no_answer | failed | canceled | simulated_not_placed
   status?: string;
-  // Incident-level: cooldown | no_callable_contact | disabled | no_caregiver_reached
-  //                 | all_contacts_exhausted | max_attempts_reached | caregiver_cancelled | etc.
+  // Incident-level: simulated | cooldown | no_callable_contact | disabled
+  //                 | no_caregiver_reached | all_contacts_exhausted
+  //                 | max_attempts_reached | caregiver_cancelled | etc.
   reason?: string;
   simulated?: boolean;      // true for SimulatedCallProvider
   contact_name?: string;    // caregiver name
@@ -42,10 +43,20 @@ export function describeCallStatus(
 ): CallDescription | null {
   if (!call) return null;
 
+  const rawStatus = (call.status || "").toLowerCase();
+  const rawIncident = (call.incident_status || "").toLowerCase();
+
+  // Nothing was dialled. This is the only status a simulated provider may
+  // produce; the specific gate that refused the call lives on the incident
+  // banner, so the row itself stays a plain, true sentence.
+  if (rawStatus === "simulated_not_placed" || rawIncident === "simulated") {
+    return { label: "No call was placed", tone: "muted" };
+  }
+
   // When the caller does not know who the attempt was for, the label must not
   // invent a name — the timeline only carries the status, not the contact.
   const described = describeNonSimulated(
-    (call.status || "").toLowerCase(),
+    rawStatus,
     (call.reason || "").toLowerCase(),
     call.contact_name || "",
     call.phone_masked || "",

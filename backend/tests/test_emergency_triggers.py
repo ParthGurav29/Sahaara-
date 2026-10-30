@@ -53,13 +53,10 @@ def _fresh_db():
     os.environ["SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED"] = "false"
     os.environ["ALLOWED_TEST_NUMBERS"] = ""
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.4"
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
     os.environ["SAHAARA_EMERGENCY_COOLDOWN_SECONDS"] = "1"
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "4"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "0.05"
     os.environ["SAHAARA_EMERGENCY_MAX_SECONDS"] = "30"
-    os.environ["SAHAARA_EMERGENCY_SIM_DIAL_SECONDS"] = "0.03"
-    os.environ["SAHAARA_EMERGENCY_SIM_RING_SECONDS"] = "0.03"
     return db_path
 
 
@@ -319,7 +316,6 @@ def _no_answer_provider():
     class NoAnswerProvider:
         name = "fake-no-answer"
         simulated = True
-        auto_ack = False
 
         def place_call(self, *, to_e164, message, incident_id, attempt_id, gate_reason="simulated"):
             from telephony.provider import CallHandle
@@ -347,7 +343,6 @@ def test_ladder_calls_rohan_then_priya_then_exhausts():
     print("\n[7] Ladder: Rohan, then Priya, then exhausted")
     s, conversation = _reset_session(_fresh_db())
     _set_contacts()
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
 
     import telephony.provider as provider_mod
     import telephony.orchestrator as orch_mod
@@ -402,7 +397,6 @@ def test_exhausted_raises_no_caregiver_reached_alert():
     print("\n[8] Exhausted raises the Red 'No caregiver reached' alert")
     s, conversation = _reset_session(_fresh_db())
     _set_contacts()
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
 
     import telephony.provider as provider_mod
     import telephony.orchestrator as orch_mod
@@ -449,7 +443,6 @@ def test_orange_dwell_fires_on_background_tick():
     # Shrink the dwell so the test does not wait two minutes
     os.environ["SAHAARA_ORANGE_CALL_DWELL_SECONDS"] = "0.3"
     scheduler_module.ORANGE_CALL_DWELL_SECONDS = 0.3
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
 
     walker = scheduler_module.get_scheduler_for_profile("asha_demo_001")
 

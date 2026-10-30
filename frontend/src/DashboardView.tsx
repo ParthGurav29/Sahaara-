@@ -168,6 +168,7 @@ const CALL_END_REASONS: Record<string, string> = {
   acknowledged: "acknowledged on the call",
   exhausted: "no contact acknowledged a call",
   failed: "the call could not be placed",
+  simulated: "no call was placed",
   triggered: "still running",
   all_contacts_exhausted: "no contact acknowledged a call",
   max_attempts_reached: "every allowed attempt was used",

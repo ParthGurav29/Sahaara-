@@ -27,5 +27,10 @@ dist/
 
 # Logs
 *.log
+
+# Vonage / emergency call credentials — never commit a private key
+*.key
+private_key_base64.txt
+backend/private_*.key
 # Transient voice A/B listening-test artifacts (regenerate via tests/voice_ab.py)
 backend/voice/assets/ab_test/

@@ -24,21 +24,16 @@ def _fresh_db():
         Path(str(_TEST_DB) + _suffix).unlink(missing_ok=True)
     os.environ["SAHAARA_DB_PATH"] = str(_TEST_DB)
     os.environ["SAHAARA_PUSH_ENABLED"] = "false"
-    # The campaign only runs when calling is switched on; with it off the
-    # provider is the disabled variant and every incident ends `failed/disabled`.
+    # The trigger path runs with the simulated provider by default. It places
+    # NOTHING and ends `simulated` with the gate reason; the ladder tests inject
+    # `FakeRealCallProvider` instead of relying on a fake progression.
     os.environ["EMERGENCY_CALLS_ENABLED"] = "true"
     os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "simulated"
-    # Fast demo mode for tests
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.5"
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
     os.environ["SAHAARA_EMERGENCY_COOLDOWN_SECONDS"] = "1"
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
     os.environ["SAHAARA_EMERGENCY_RETRIES"] = "1"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "0.1"
-    # Simulation-only pacing so a whole campaign finishes in ~1 s per attempt
-    # instead of the 4 s a demo shows on screen.
-    os.environ["SAHAARA_EMERGENCY_SIM_DIAL_SECONDS"] = "0.05"
-    os.environ["SAHAARA_EMERGENCY_SIM_RING_SECONDS"] = "0.05"
     return _TEST_DB
 
 
@@ -72,6 +67,79 @@ def _wait_for_attempt_status(attempt_id: str, statuses: tuple, timeout: float = 
 class FakeProvider:
     def complete_from_prompt_bundle(self, bundle, max_tokens=None):
         return SimpleNamespace(text="I'm right here with you.", model="fake")
+
+
+class FakeRealCallProvider:
+    """A REAL-shaped call provider, for ladder tests only.
+
+    The shipped `SimulatedCallProvider` is forbidden by design from reporting
+    dialing/ringing/answered — it exists to say "no call was placed". So the
+    retry / ack / exhaustion tests inject this double, which behaves like a
+    carrier that rings, answers, and can acknowledge when told to.
+    """
+
+    name = "vonage"
+    simulated = False
+
+    def __init__(self):
+        import threading
+
+        self._lock = threading.Lock()
+        self.handles: dict[str, dict] = {}
+
+    def place_call(self, *, to_e164, message, incident_id, attempt_id, gate_reason=None):
+        from telephony.provider import CallHandle
+
+        with self._lock:
+            self.handles[attempt_id] = {
+                "started": time.time(),
+                "acked": False,
+                "cancelled": False,
+            }
+        return CallHandle(
+            provider_call_id=f"fake-{attempt_id}",
+            status="queued",
+            raw={"attempt_id": attempt_id},
+        )
+
+    def fetch_status(self, handle):
+        attempt_id = (handle.raw or {}).get("attempt_id", "")
+        with self._lock:
+            state = self.handles.get(attempt_id)
+            if not state:
+                return "unknown"
+            if state["cancelled"]:
+                return "canceled"
+            if state["acked"]:
+                return "acknowledged"
+            elapsed = time.time() - state["started"]
+            if elapsed < 0.05:
+                return "dialing"
+            if elapsed < 0.10:
+                return "ringing"
+            return "answered"
+
+    def cancel(self, handle):
+        attempt_id = (handle.raw or {}).get("attempt_id", "")
+        with self._lock:
+            state = self.handles.get(attempt_id)
+            if state:
+                state["cancelled"] = True
+
+    def acknowledge(self, attempt_id):
+        with self._lock:
+            state = self.handles.get(attempt_id)
+            if not state:
+                return False
+            state["acked"] = True
+            return True
+
+
+def _use_fake_real_provider(orch_module):
+    """Inject the real-shaped double for tests that exercise the ladder."""
+    provider = FakeRealCallProvider()
+    orch_module.get_call_provider = lambda: provider
+    return provider
 
 
 passed = 0
@@ -291,11 +359,9 @@ def test_acknowledged_ends_incident():
     """Caregiver acknowledging (DTMF 1) ends incident as acknowledged."""
     print("\n[6] Acknowledged ends incident")
     db = _fresh_db()
-    # No auto-ack: the test supplies the acknowledgement through the same
-    # public entry point the Twilio DTMF webhook uses.
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "30"
     s, conversation, orch_module = _reset_session(db)
+    _use_fake_real_provider(orch_module)
     _give_phones_and_may_call()
 
     conversation.process_turn("I can't breathe")
@@ -321,18 +387,17 @@ def test_acknowledged_ends_incident():
     if ended:
         check("status is acknowledged", ended[-1].detail.get("status") == "acknowledged")
 
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
-
 
 def test_max_attempts_exhausted():
     """After the configured cap (primary, retry, secondary), ends exhausted."""
     print("\n[7] Max attempts exhausted")
     db = _fresh_db()
-    s, conversation, _ = _reset_session(db)
+    s, conversation, orch_module = _reset_session(db)
+    _use_fake_real_provider(orch_module)
     _give_phones_and_may_call()
 
-    # Disable demo ack so every call ends no_answer and the ladder runs.
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
+    # No acknowledgement ever arrives, so each call times out and the ladder
+    # runs: primary, retry, secondary.
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.1"
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "3"
 
@@ -343,9 +408,6 @@ def test_max_attempts_exhausted():
     if ended:
         check("status is exhausted", ended[-1].detail.get("status") == "exhausted")
         check("attempts == 3", ended[-1].detail.get("attempts") == 3)
-
-    # Restore demo ack
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
 
 
 def test_cancel_stops_retries():
@@ -392,12 +454,67 @@ def test_trigger_phrase_sanitised():
 
 
 def test_simulated_provider_always_simulated():
-    """All incidents in test mode are simulated: true."""
-    print("\n[10] Simulated provider flag")
+    """The simulated provider places nothing and never claims an answer."""
+    print("\n[10] Simulated provider is honest")
     from telephony.provider import get_call_provider
     provider = get_call_provider()
     check("Provider is simulated", provider.simulated is True)
     check("Provider name is simulated", provider.name == "simulated")
+
+    handle = provider.place_call(
+        to_e164="+919876543210",
+        message="test",
+        incident_id="emg_test",
+        attempt_id="emg_test_a1",
+        gate_reason="SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED is false",
+    )
+    check("simulated status is simulated_not_placed",
+          handle.status == "simulated_not_placed", handle.status)
+    check("gate reason travels on the handle",
+          handle.raw.get("gate_reason") == "SAHAARA_EMERGENCY_REAL_CALLS_CONFIRMED is false")
+    check("fetch_status never advances",
+          provider.fetch_status(handle) == "simulated_not_placed")
+    check("acknowledge can never succeed", provider.acknowledge("emg_test_a1") is False)
+
+
+def test_simulated_incident_records_no_answer():
+    """A simulated incident says `simulated` and stores the gate, never `answered`."""
+    print("\n[13] Simulated incident records the gate, not a fake answer")
+    import database
+
+    db = _fresh_db()
+    s, conversation, _ = _reset_session(db)
+    _give_phones_and_may_call()
+
+    conversation.process_turn("I can't breathe")
+    ended = _wait_for_ended(s.event_log)
+    check("incident ended", len(ended) >= 1)
+
+    incidents = s.event_log.get_events(EventType.EMERGENCY_CALL_STARTED)
+    incident_id = incidents[-1].detail["incident_id"] if incidents else None
+    check("incident id present", bool(incident_id))
+
+    if incident_id:
+        # Wait for the attempt row (the campaign thread writes it).
+        deadline = time.time() + 5.0
+        attempts = []
+        while time.time() < deadline:
+            attempts = database.get_emergency_attempts(incident_id)
+            if attempts:
+                break
+            time.sleep(0.05)
+        check("one attempt recorded", len(attempts) == 1, str(len(attempts)))
+        if attempts:
+            check("attempt is simulated_not_placed",
+                  attempts[0]["status"] == "simulated_not_placed",
+                  attempts[0]["status"])
+            check("no answered_at timestamp", attempts[0]["answered_at"] is None)
+
+        answered_events = [
+            e for e in s.event_log.get_events(EventType.EMERGENCY_CALL_STATUS)
+            if e.detail.get("status") in ("answered", "ringing", "dialing")
+        ]
+        check("no answered/ringing/dialing events", answered_events == [])
 
 
 def test_no_call_claims_in_reply():
@@ -428,9 +545,9 @@ def test_late_press_one_stops_the_ladder():
 
     db = _fresh_db()
     s, conversation, orch_module = _reset_session(db)
+    _use_fake_real_provider(orch_module)
     _give_phones_and_may_call()
 
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "0"
     os.environ["SAHAARA_EMERGENCY_ACK_SECONDS"] = "0.3"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "5"
     os.environ["SAHAARA_EMERGENCY_MAX_ATTEMPTS"] = "4"
@@ -466,7 +583,6 @@ def test_late_press_one_stops_the_ladder():
         len(database.get_emergency_attempts(incident_id)),
     )
 
-    os.environ["SAHAARA_EMERGENCY_DEMO_ACK"] = "1"
     os.environ["SAHAARA_EMERGENCY_RETRY_DELAY_SECONDS"] = "20"
 
 
@@ -487,6 +603,7 @@ def main() -> int:
     test_simulated_provider_always_simulated()
     test_no_call_claims_in_reply()
     test_late_press_one_stops_the_ladder()
+    test_simulated_incident_records_no_answer()
 
     print("=" * 74)
     print(f"  RESULTS: {passed} passed, {failed} failed")

@@ -78,6 +78,7 @@ class IncidentStatus(str, Enum):
     FAILED = "failed"
     EXHAUSTED = "exhausted"
     CANCELLED = "cancelled"
+    SIMULATED = "simulated"
 
 
 class AttemptStatus(str, Enum):
@@ -89,6 +90,10 @@ class AttemptStatus(str, Enum):
     NO_ANSWER = "no_answer"
     FAILED = "failed"
     CANCELED = "canceled"
+    # No telephone was involved. This is the ONLY status the simulated
+    # provider may produce: it exists so the dashboard can say "not placed,
+    # because <gate>" instead of pretending a call was made.
+    SIMULATED_NOT_PLACED = "simulated_not_placed"
 
 
 # Providers report status in their own vocabulary. Map everything the
@@ -151,6 +156,7 @@ _PROVIDER_FINAL_ATTEMPT_STATUSES = {
     AttemptStatus.CANCELED.value,
     AttemptStatus.FAILED.value,
     AttemptStatus.NO_ANSWER.value,
+    AttemptStatus.SIMULATED_NOT_PLACED.value,
 }
 
 # Progress order, so an out-of-order webhook cannot move an attempt backwards.
@@ -163,6 +169,7 @@ _ATTEMPT_RANK = {
     AttemptStatus.NO_ANSWER.value: 4,
     AttemptStatus.FAILED.value: 4,
     AttemptStatus.CANCELED.value: 4,
+    AttemptStatus.SIMULATED_NOT_PLACED.value: 4,
 }
 
 
@@ -431,15 +438,38 @@ class EmergencyOrchestrator:
             })
             return
 
-        # A provider can refuse the call outright (calling switched off,
-        # number not permitted on the account). Honour that before monitoring,
-        # otherwise the attempt sits at "dialing" forever and the dashboard
-        # shows a call that never happened.
+        # A simulated provider places NOTHING. Its single status must end the
+        # incident here: no retry, no next contact, no "dialing"/"answered"
+        # event. The gate that refused the call travels on the attempt and on
+        # the incident record so the dashboard can name it.
+        if handle.status == AttemptStatus.SIMULATED_NOT_PLACED.value:
+            gate = (handle.raw or {}).get("gate_reason") or self.ctx.gate_reason or "simulated"
+            update_emergency_attempt_status(
+                attempt_id,
+                AttemptStatus.SIMULATED_NOT_PLACED.value,
+                provider_call_id=handle.provider_call_id,
+                ended_at=time.time(),
+            )
+            self._log_event(EventType.EMERGENCY_CALL_SKIPPED, {
+                "incident_id": self.ctx.incident_id,
+                "attempt_id": attempt_id,
+                "contact_name": contact_name,
+                "phone_masked": phone_masked,
+                "reason": gate,
+                "status": AttemptStatus.SIMULATED_NOT_PLACED.value,
+                "simulated": True,
+            })
+            self._end_incident(IncidentStatus.SIMULATED, reason=gate)
+            self._handle = None
+            return
+
+        # A provider can refuse the call outright (number not permitted on the
+        # account, carrier rejection). Honour that before monitoring, otherwise
+        # the attempt sits at "dialing" forever and the dashboard shows a call
+        # that never happened.
         initial_terminal = _PROVIDER_TERMINAL_STATUS.get(handle.status)
         if initial_terminal:
             reason = (handle.raw or {}).get("reason") or initial_terminal
-            if reason == "disabled":
-                self._fatal_reason = "disabled"
             update_emergency_attempt_status(
                 attempt_id,
                 initial_terminal,
@@ -540,22 +570,11 @@ class EmergencyOrchestrator:
                     })
 
             elif attempt["status"] == AttemptStatus.ANSWERED.value:
-                # Check for acknowledgement (DTMF 1).
-                # Only a provider that says it auto-acks may be polled here.
-                # Calling `acknowledge()` unconditionally made the simulated
-                # campaign claim an acknowledgement the instant the call was
-                # answered, so the retry / next-contact ladder could never run.
-                if getattr(self.provider, "auto_ack", False):
-                    if self.provider.acknowledge(attempt_id):
-                        update_emergency_attempt_status(attempt_id, AttemptStatus.ACKNOWLEDGED.value, acknowledged_at=time.time(), ended_at=time.time())
-                        self._log_event(EventType.EMERGENCY_CALL_STATUS, {
-                            "incident_id": self.ctx.incident_id,
-                            "attempt_id": attempt_id,
-                            "status": "acknowledged",
-                            "simulated": self.ctx.simulated,
-                        })
-                        return
-
+                # An acknowledgement can ONLY come from a human keypress, and a
+                # keypress only arrives through the signed provider webhook
+                # (`acknowledge_attempt`). No provider is ever asked whether it
+                # feels acknowledged: that path fabricated a confirmation the
+                # person on the other end never gave.
                 # Check ack deadline
                 if ack_deadline and time.time() >= ack_deadline:
                     update_emergency_attempt_status(attempt_id, AttemptStatus.NO_ANSWER.value, ended_at=time.time())
@@ -567,7 +586,8 @@ class EmergencyOrchestrator:
                     })
                     return
 
-                # For real Twilio, ack comes via webhook — we'll poll but webhook updates status
+                # A provider reporting the call ended without a keypress is a
+                # no-answer, not an acknowledgement.
                 if status == "completed" and attempt["status"] == AttemptStatus.ANSWERED.value:
                     # Call completed without ack -> no_answer
                     update_emergency_attempt_status(attempt_id, AttemptStatus.NO_ANSWER.value, ended_at=time.time())

@@ -57,6 +57,19 @@ test("a simulated call still reports the provider status", () => {
   assert(/simulated/i.test(acked!.label), "acknowledged label carries the simulated marker");
 });
 
+test("a simulated call that never happened says so, once", () => {
+  // The simulated provider may only ever emit `simulated_not_placed`. It must
+  // never render as an answered call or carry an "Answered at" timestamp.
+  assertEqual(describeCallStatus({ status: "simulated_not_placed", simulated: true }), {
+    label: "No call was placed",
+    tone: "muted",
+  });
+  assertEqual(describeCallStatus({ incident_status: "simulated", simulated: true }), {
+    label: "No call was placed",
+    tone: "muted",
+  });
+});
+
 // 3. Incident-level terminal states
 test("exhausted shows honest 'no one reached' line", () => {
   const result = describeCallStatus({ incident_status: "exhausted" });
@@ -205,6 +218,8 @@ test("no reachable label contains forbidden words", () => {
     { status: "answered_unacknowledged", contact_name: "Rohan" },
     { incident_status: "failed", reason: "unknown" },
     { status: "unknown_status" },
+    { status: "simulated_not_placed", simulated: true },
+    { incident_status: "simulated", simulated: true },
     // Simulated variants go through the same forbidden-word gate.
     { status: "ringing", simulated: true, contact_name: "Rohan" },
     { status: "acknowledged", simulated: true, contact_name: "Rohan" },
