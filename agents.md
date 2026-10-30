@@ -816,6 +816,21 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 
 **Not verified / not claimed:** end-to-end **device receipt** still requires the Motorola (permission prompt → subscription stored → push displayed, app open/locked). Chrome's quiet-notification heuristic is the remaining display obstacle for a normal tab; the install-app nudge and the WebAPK path are the legitimate mitigations. No `--disable-features=QuietNotificationPrompts`. No OEM reliability claim.
 
+### 2026-10-31 — Item 5 device run (Motorola attached): pipeline confirmed working; normal-tab display blocked by Chrome quiet heuristic
+
+**Device:** Motorola edge 70 fusion, Android 17, Chrome 155.0.8059.84 (`adb`), app served over `adb reverse` on `http://127.0.0.1:4175`. Backend run with the emergency-call gates forced to **simulated** for the whole session (no real call possible).
+
+**Confirmed working (the part that was broken is now fixed):**
+- Login on the phone → `/choose` → `/caregiver`; the **"Enable alerts"** button renders in the caregiver header (was missing before).
+- The SW registers and controls the page. With the notification permission granted, tapping "Enable alerts" **subscribes** to a real FCM endpoint (`fcm.googleapis.com/fcm/send/…`) and the backend stores the row (`list_push_subscriptions` = 1 active).
+- A real send via `push_notify.send_alert_push` (Red, `urgent` header) returns **`status: sent`, FCM accepted 201** — so the server → FCM leg now works end-to-end.
+
+**Confirmed still blocked (Chrome behaviour, not a code bug):** in a **normal tab**, tapping "Enable alerts" leaves the **site** `Notification.permission` at `"default"` (the OS-level `POST_NOTIFICATIONS` is `granted`; it's the site-level quiet-notification heuristic suppressing the prompt). A push that FCM accepted 201 did **not** display — the service worker's `showNotification` is refused under the quiet heuristic. This is the documented candidate (a).
+
+**The working path (needs one human gesture):** install the app to the home screen (WebAPK) and grant notifications there — the prior "Shade text VERIFIED" run proved the WebAPK displays it in ~1 s. The in-app "install Sahaara" nudge points at this. **Not re-automated this session** (the installed WebAPKs point at stale origins `:5174`/`:5175`, and "Add to Home screen" is a native flow).
+
+**Not claimed:** no OEM reliability claim; locked-screen/Doze timing untested; the icon/badge remain placeholders.
+
 ### 2026-10-19 — Physical distress trigger (commit `005e38a`)
 - Added `PHYSICAL_URGENT_PATTERNS` and `PHYSICAL_GENERAL_PATTERNS` in `llm/intent_emotion.py`
 - Added physical-distress blocks in `llm/response_policy.py` (prompt instructions for urgent/general)
