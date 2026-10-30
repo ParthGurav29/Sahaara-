@@ -108,14 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(data.detail || "Login failed");
     }
 
-    // Store token in localStorage as fallback for WebSocket connections
-    // (HttpOnly cookie is primary, but WebSocket proxy may not forward cookies)
-    if (data.token) {
-      localStorage.setItem("sahaara_token", data.token);
-    }
-
-    // The response still carries a token for non-browser clients; the browser
-    // deliberately ignores it and relies on the HttpOnly cookie.
+    // The HttpOnly cookie is the only authentication mechanism.
+    // The token in the response is for non-browser clients only.
     setUser({
       user_id: data.user_id,
       username: data.username,
@@ -133,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout errors
     } finally {
-      localStorage.removeItem("sahaara_token");
       setUser(null);
     }
   }

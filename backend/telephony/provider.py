@@ -40,6 +40,7 @@ class CallProvider(Protocol):
         message: str,
         incident_id: str,
         attempt_id: str,
+        gate_reason: str = "",
     ) -> CallHandle:
         ...
 

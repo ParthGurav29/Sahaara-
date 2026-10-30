@@ -237,6 +237,7 @@ class VonageCallProvider(CallProvider):
         message: str,
         incident_id: str,
         attempt_id: str,
+        gate_reason: str = "",
     ) -> CallHandle:
         payload = {
             "to": [{"type": "phone", "number": to_e164}],
