@@ -29,10 +29,12 @@ interface VoiceActions {
   setIsActive: (active: boolean) => void;
   setTier: (tier: AvatarTier) => void;
   setMouth: (mouth: MouthShape) => void;
+  setListenLevel: (level: number) => void;
 }
 
 const VoiceStateContext = createContext<VoiceSnapshot | null>(null);
 const VoiceMouthContext = createContext<MouthShape>(SILENT_MOUTH);
+const VoiceListenLevelContext = createContext<number>(0);
 const VoiceActionsContext = createContext<VoiceActions | null>(null);
 
 export function VoiceStateProvider({ children }: { children: ReactNode }) {
@@ -40,6 +42,7 @@ export function VoiceStateProvider({ children }: { children: ReactNode }) {
   const [isActive, setIsActive] = useState(false);
   const [tier, setTier] = useState<AvatarTier>("green");
   const [mouth, setMouth] = useState<MouthShape>(SILENT_MOUTH);
+  const [listenLevel, setListenLevel] = useState(0);
 
   const snapshot = useMemo<VoiceSnapshot>(
     () => ({ state, isActive, tier }),
@@ -47,7 +50,7 @@ export function VoiceStateProvider({ children }: { children: ReactNode }) {
   );
 
   const actions = useMemo<VoiceActions>(
-    () => ({ setState, setIsActive, setTier, setMouth }),
+    () => ({ setState, setIsActive, setTier, setMouth, setListenLevel }),
     [],
   );
 
@@ -55,7 +58,9 @@ export function VoiceStateProvider({ children }: { children: ReactNode }) {
     <VoiceActionsContext.Provider value={actions}>
       <VoiceStateContext.Provider value={snapshot}>
         <VoiceMouthContext.Provider value={mouth}>
-          {children}
+          <VoiceListenLevelContext.Provider value={listenLevel}>
+            {children}
+          </VoiceListenLevelContext.Provider>
         </VoiceMouthContext.Provider>
       </VoiceStateContext.Provider>
     </VoiceActionsContext.Provider>
@@ -74,6 +79,12 @@ export function useVoiceActions(): VoiceActions {
 /** Live mouth shape from the TTS playback. Updates on almost every frame. */
 export function useVoiceMouth(): MouthShape {
   return useContext(VoiceMouthContext);
+}
+
+/** Live microphone (input) level for the listening ring. Updates while she is
+ *  listening; 0 otherwise. Its own context so only the ring re-renders. */
+export function useListenLevel(): number {
+  return useContext(VoiceListenLevelContext);
 }
 
 /** State + tier. Changes only when Sahaara's state or the tier actually moves. */

@@ -8,6 +8,9 @@ import {
   sameMouth,
   SILENT_MOUTH,
   smoothMouth,
+  listenLevelFromRms,
+  smoothLevel,
+  quantiseLevel,
 } from "../src/mouthShape.ts";
 
 const RATE = 48000;
@@ -110,4 +113,35 @@ test("the loudness gain matches the calibration note", () => {
   // Speech RMS is ~0.15–0.2; at that level the mouth should be near open.
   assert.ok(0.15 * MOUTH_LEVEL_GAIN >= 0.7);
   assert.ok(0.2 * MOUTH_LEVEL_GAIN >= 0.9);
+});
+
+test("listen level maps room tone to flat and speech to visible", () => {
+  // Below the ×5 noise floor there must be no ring (0.005 × 5 = 0.025 < 0.04).
+  assert.equal(listenLevelFromRms(0.0), 0);
+  assert.equal(listenLevelFromRms(0.005), 0);
+  // Speech RMS (~0.15–0.2 × gain 5) should reach most of the ring's range.
+  assert.ok(listenLevelFromRms(0.15) >= 0.7, `0.15 → ${listenLevelFromRms(0.15)}`);
+  assert.ok(listenLevelFromRms(0.2) >= 0.9, `0.2 → ${listenLevelFromRms(0.2)}`);
+  // It must clamp at 1, never exceed it.
+  assert.equal(listenLevelFromRms(0.9), 1);
+  assert.equal(listenLevelFromRms(2.0), 1);
+});
+
+test("smoothLevel attacks fast and releases slowly", () => {
+  const dt = 1 / 60;
+  // One frame should get most of the way up…
+  assert.ok(smoothLevel(0, 1, dt) > 0.5);
+  // …and only partially back down, so the ring decays rather than snapping.
+  const released = smoothLevel(1, 0, dt);
+  assert.ok(released < 0.9 && released > 0.1, `release frame → ${released}`);
+  // A bad dt must not move the level.
+  assert.equal(smoothLevel(0.4, 1, 0), 0.4);
+  assert.equal(smoothLevel(0.4, 0, Number.NaN), 0.4);
+});
+
+test("quantiseLevel clamps and stays on a coarse grid", () => {
+  assert.equal(quantiseLevel(0.3333), 0.34);
+  assert.equal(quantiseLevel(-1), 0);
+  assert.equal(quantiseLevel(2), 1);
+  assert.equal(quantiseLevel(Number.NaN), 0);
 });

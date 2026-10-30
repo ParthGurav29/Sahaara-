@@ -1,0 +1,137 @@
+/* HumanCharacter.css — calm motion for the human avatar.
+ *
+ * Same contract as the mascot: timing is divided by --anim-speed (per tier:
+ * Green 1.0 → Red 0.4) so a harder moment moves SLOWER, never faster. The mouth
+ * is the one part not animated from a keyframe — --mouth-open / --mouth-wide are
+ * written from the live TTS playback (mouthShape.ts). The listening ring lives in
+ * SahaaraAvatar and reads the mic, not this file.
+ *
+ * The character's colours never change here; only the reactive ring takes the
+ * state colour.
+ */
+
+/* The pale orbit line. */
+.hc-orbit {
+  stroke: #c9cfe8;
+  stroke-width: 1.5;
+  stroke-opacity: 0.5;
+  fill: none;
+}
+
+/* ── Baseline, always on ──────────────────────────────────────────────── */
+
+.hc-torso {
+  transform-box: view-box;
+  transform-origin: 200px 300px;
+  animation: hc-breathe calc(5s / var(--anim-speed, 1)) ease-in-out infinite;
+}
+
+@keyframes hc-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scaleY(1.015); }
+}
+
+.hc-halo {
+  transform-box: view-box;
+  transform-origin: 200px 150px;
+  animation: hc-glow-pulse calc(6s / var(--anim-speed, 1)) ease-in-out infinite;
+}
+
+@keyframes hc-glow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.66; }
+}
+
+.hc-eyes {
+  transform-box: view-box;
+  transform-origin: 200px 152px;
+  animation: hc-blink calc(6.5s / var(--anim-speed, 1)) ease-in-out infinite;
+}
+
+/* One soft blink per cycle. */
+@keyframes hc-blink {
+  0%, 88%, 100% { transform: scaleY(1); }
+  92% { transform: scaleY(0.08); }
+  96% { transform: scaleY(1); }
+}
+
+.hc-look,
+.hc-brows {
+  transform-box: view-box;
+  transition: translate 0.5s ease, scale 0.5s ease;
+}
+
+/* Live mouth: the opening pivots on the smile line. Depth = playback envelope,
+ * width = spectral brightness, --mouth-scale = tier factor (Red opens less). */
+.hc-mouth-open {
+  transform-box: view-box;
+  transform-origin: 200px 186px;
+  transform:
+    scaleX(calc(0.9 + var(--mouth-wide, 0) * 0.2))
+    scaleY(calc(var(--mouth-open, 0) * var(--mouth-scale, 1)));
+}
+
+/* ── Listening: eyes widen, brows lift (the reactive ring lives in SahaaraAvatar) */
+
+.sahaara-avatar[data-state="listening"] .hc-eyes { scale: 1.06; }
+.sahaara-avatar[data-state="listening"] .hc-brows { translate: 0 -2.5px; }
+
+/* ── Thinking: a slow glance up and to the side ────────────────────────── */
+
+.sahaara-avatar[data-state="thinking"] .hc-look {
+  animation: hc-look calc(4.5s / var(--anim-speed, 1)) ease-in-out infinite;
+}
+
+@keyframes hc-look {
+  0%, 28%, 100% { translate: 0 0; }
+  46%, 72% { translate: 4px -3.5px; }
+}
+
+.sahaara-avatar[data-state="thinking"] .hc-brows { translate: 0 -1.5px; }
+
+/* ── Speaking: a soft pulse, the mouth follows the audio ───────────────── */
+
+.sahaara-avatar[data-state="speaking"] .hc-torso {
+  animation: hc-speak-pulse calc(0.9s / var(--anim-speed, 1)) ease-in-out infinite;
+}
+
+@keyframes hc-speak-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scaleY(1.012); }
+}
+
+.sahaara-avatar[data-state="speaking"] .hc-brows { translate: 0 -1px; }
+
+/* ── Error: still, never flashing, never red on the character ──────────── */
+
+.sahaara-avatar[data-state="error"] .hc-torso,
+.sahaara-avatar[data-state="error"] .hc-halo,
+.sahaara-avatar[data-state="error"] .hc-eyes,
+.sahaara-avatar[data-state="error"] .hc-look {
+  animation: none !important;
+}
+
+/* ── Tab hidden: stop all motion ──────────────────────────────────────── */
+
+.sahaara-avatar.is-paused * {
+  animation-play-state: paused !important;
+}
+
+/* ── Reduced motion: no movement, expression only ─────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .sahaara-avatar * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .sahaara-avatar[data-state="listening"] .hc-eyes { scale: 1.06; }
+  .sahaara-avatar[data-state="listening"] .hc-brows,
+  .sahaara-avatar[data-state="thinking"] .hc-brows { translate: 0 -3px; }
+  .sahaara-avatar[data-state="thinking"] .hc-look { translate: 4px -3.5px; }
+  /* A fixed, slightly-open mouth: she is still visibly talking, but nothing
+     tracks the audio frame by frame. */
+  .sahaara-avatar[data-state="speaking"] .hc-mouth-open {
+    transform: scaleX(1) scaleY(0.3);
+  }
+}

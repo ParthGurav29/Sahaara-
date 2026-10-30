@@ -14,9 +14,9 @@
  *  - `prefers-reduced-motion` is respected; animation pauses on a hidden tab.
  */
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
-import { useVoiceMouth, useVoiceState } from "./VoiceStateContext";
+import { useVoiceMouth, useVoiceState, useListenLevel } from "./VoiceStateContext";
 import { useVoiceSession, type VoiceSessionState } from "./useVoiceSession";
-import OrbCharacter from "./OrbCharacter";
+import HumanCharacter from "./HumanCharacter";
 import "./SahaaraAvatar.css";
 
 export type AvatarState = VoiceSessionState;
@@ -67,8 +67,57 @@ const MIC_LABEL = "Microphone unavailable — tap to retry";
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 3000;
 
-// Mouth geometry is owned by OrbCharacter; this shell publishes the numbers the
+// Mouth geometry is owned by HumanCharacter; this shell publishes the numbers the
 // voice session measured (open/wide) as CSS custom properties.
+
+/**
+ * The audio-reactive listening ring. Reads the real microphone level (its own
+ * context, so only this component re-renders while the level changes) and draws
+ * a set of radial "waveform" bars around the head. Only shown while listening;
+ * when the mic gate is closed (thinking/speaking) it is not rendered at all, so
+ * it can never read as "hearing you" when she is not.
+ */
+function ListenRing({ state }: { state: AvatarState }) {
+  const level = useListenLevel();
+  if (state !== "listening") return null;
+
+  // Reduced motion: a static, fixed-height ring instead of a live readout.
+  const reduced =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const lvl = reduced ? 0.4 : level;
+
+  const bars = [];
+  const N = 48;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const wave = 0.5 + 0.5 * Math.sin(i * 0.66); // fixed waveform profile
+    const len = (4 + 8 * wave) * (0.3 + lvl * 0.7);
+    const x1 = 200 + Math.cos(a) * 86;
+    const y1 = 150 + Math.sin(a) * 86;
+    const x2 = 200 + Math.cos(a) * (86 + len);
+    const y2 = 150 + Math.sin(a) * (86 + len);
+    bars.push(
+      <line
+        key={i}
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke="var(--orb-color, #7C93A8)"
+        strokeWidth={2.4}
+        strokeLinecap="round"
+      />,
+    );
+  }
+
+  return (
+    <g className="listen-ring" style={{ opacity: reduced ? 0.5 : 0.25 + lvl * 0.75 }}>
+      {bars}
+    </g>
+  );
+}
 
 export interface AvatarVisualProps {
   state: AvatarState;
@@ -85,7 +134,7 @@ export interface AvatarVisualProps {
  * Pure visual. No session, no click handling — the dev preview drives it
  * directly, and the interactive `SahaaraAvatar` below wraps it in a button.
  *
- * Everything visible is drawn by `OrbCharacter`; this component owns the SVG
+ * Everything visible is drawn by `HumanCharacter`; this component owns the SVG
  * shell, the CSS custom properties and the two runtime switches (hidden tab,
  * reduced motion) that CSS cannot observe on its own.
  */
@@ -144,7 +193,8 @@ export function AvatarVisual({
       aria-hidden="true"
       focusable="false"
     >
-      <OrbCharacter state={state} />
+      <HumanCharacter state={state} />
+      <ListenRing state={state} />
     </svg>
   );
 }

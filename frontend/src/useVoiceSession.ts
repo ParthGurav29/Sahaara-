@@ -21,6 +21,9 @@ import {
   sameMouth,
   SILENT_MOUTH,
   smoothMouth,
+  listenLevelFromRms,
+  smoothLevel,
+  quantiseLevel,
   type MouthShape,
 } from "./mouthShape";
 import { useVoiceActions, type VoiceStateName } from "./VoiceStateContext";
@@ -84,7 +87,7 @@ export interface VoiceSession {
 }
 
 export function useVoiceSession(): VoiceSession {
-  const { setState: setGlobalState, setIsActive: setGlobalActive, setMouth } = useVoiceActions();
+  const { setState: setGlobalState, setIsActive: setGlobalActive, setMouth, setListenLevel } = useVoiceActions();
 
   const [state, setState] = useState<VoiceSessionState>("idle");
   const [isActive, setIsActiveLocal] = useState(false);
@@ -118,6 +121,16 @@ export function useVoiceSession(): VoiceSession {
   const freqDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const lastMouthRef = useRef<MouthShape>(SILENT_MOUTH);
   const lastTickRef = useRef(0);
+
+  // Microphone (input) analysis for the listening ring — a SEPARATE read-only
+  // AnalyserNode tapped from the mic source. It never connects to `destination`
+  // and never touches the ASR path, the gate, or the zero-gain node.
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const micTimeDataRef = useRef<Float32Array<ArrayBuffer> | null>(null);
+  const micListenRafRef = useRef<number | null>(null);
+  const lastListenTickRef = useRef(0);
+  const lastListenLevelRef = useRef(0);
+  const lastListenPublishedRef = useRef(0);
 
   // Radio stream handling.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -184,6 +197,19 @@ export function useVoiceSession(): VoiceSession {
         setMouth(SILENT_MOUTH);
       }
 
+      // Listening ring: drop to flat and tear the mic analyser down.
+      if (micListenRafRef.current !== null) {
+        cancelAnimationFrame(micListenRafRef.current);
+        micListenRafRef.current = null;
+        setListenLevel(0);
+      }
+      micAnalyserRef.current?.disconnect();
+      micAnalyserRef.current = null;
+      micTimeDataRef.current = null;
+      lastListenTickRef.current = 0;
+      lastListenLevelRef.current = 0;
+      lastListenPublishedRef.current = 0;
+
       if (unmuteTimerRef.current !== null) {
         window.clearTimeout(unmuteTimerRef.current);
         unmuteTimerRef.current = null;
@@ -207,7 +233,7 @@ export function useVoiceSession(): VoiceSession {
         setErrorKind(nextState === "error" ? (kind ?? "connection") : null);
       }
     },
-    [setMouth],
+    [setMouth, setListenLevel],
   );
 
   // ---- Radio stream control ----
@@ -515,7 +541,57 @@ export function useVoiceSession(): VoiceSession {
     source.connect(processor);
     processor.connect(zeroGain);
     zeroGain.connect(audioContext.destination);
-  }, [syncMicGate, playPcmChunk, stop, startRadio, stopRadio]);
+
+    // Listening-ring analyser: a read-only tap off the mic. It never connects
+    // to the speaker, never sits on the ASR path, and never touches the gate or
+    // the zero-gain node — it only feeds the ring, so it cannot change what is
+    // or is not transcribed.
+    const micAnalyser = audioContext.createAnalyser();
+    micAnalyser.fftSize = ANALYSER_FFT_SIZE;
+    micAnalyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
+    source.connect(micAnalyser);
+    micAnalyserRef.current = micAnalyser;
+    micTimeDataRef.current = new Float32Array(micAnalyser.fftSize);
+
+    lastListenTickRef.current = 0;
+    lastListenLevelRef.current = 0;
+    lastListenPublishedRef.current = 0;
+
+    const listenTick = (): void => {
+      if (!activeRef.current) {
+        micListenRafRef.current = null;
+        return;
+      }
+      const analyser = micAnalyserRef.current;
+      const timeData = micTimeDataRef.current;
+      if (analyser && timeData) {
+        analyser.getFloatTimeDomainData(timeData);
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
+        const rms = Math.sqrt(sumSq / timeData.length);
+
+        const now = performance.now();
+        const dt =
+          lastListenTickRef.current > 0
+            ? Math.min(0.05, (now - lastListenTickRef.current) / 1000)
+            : 1 / 60;
+        lastListenTickRef.current = now;
+
+        // Listening is a live mic readout; thinking/speaking gate the mic shut,
+        // so the ring must read flat there — never reusing the listening look.
+        const target = stateRef.current === "listening" ? listenLevelFromRms(rms) : 0;
+        const smoothed = smoothLevel(lastListenLevelRef.current, target, dt);
+        lastListenLevelRef.current = smoothed;
+        const quantised = quantiseLevel(smoothed);
+        if (quantised !== lastListenPublishedRef.current) {
+          lastListenPublishedRef.current = quantised;
+          setListenLevel(quantised);
+        }
+      }
+      micListenRafRef.current = requestAnimationFrame(listenTick);
+    };
+    micListenRafRef.current = requestAnimationFrame(listenTick);
+  }, [syncMicGate, playPcmChunk, stop, startRadio, stopRadio, setListenLevel]);
 
   const toggle = useCallback(() => {
     if (activeRef.current) {

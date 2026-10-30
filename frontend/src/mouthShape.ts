@@ -144,3 +144,26 @@ export function quantiseMouth(shape: MouthShape): MouthShape {
 export function sameMouth(a: MouthShape, b: MouthShape): boolean {
   return a.open === b.open && a.wide === b.wide;
 }
+
+/* ── Listening ring (Item 4) ─────────────────────────────────────────────
+ * The ring reads the MICROPHONE (input) loudness, not the TTS playback, so the
+ * avatar shows it is hearing the person. Same 5× gain and 0.04 noise floor as
+ * the mouth, so a speaking voice visibly moves the ring while room tone stays
+ * flat. */
+export function listenLevelFromRms(rms: number): number {
+  const level = clamp01(rms * MOUTH_LEVEL_GAIN);
+  return level < NOISE_FLOOR ? 0 : level;
+}
+
+/** Scalar exponential smoothing: fast attack, slower release (like the mouth). */
+export function smoothLevel(previous: number, target: number, dt: number): number {
+  if (!Number.isFinite(dt) || dt <= 0) return previous;
+  const tau = target > previous ? MOUTH_ATTACK_SECONDS : MOUTH_RELEASE_SECONDS;
+  const k = 1 - Math.exp(-dt / tau);
+  return clamp01(previous + (target - previous) * k);
+}
+
+/** Quantise to 1/50 so React only re-renders the ring on a visible change. */
+export function quantiseLevel(level: number): number {
+  return Math.round(clamp01(level) * 50) / 50;
+}
