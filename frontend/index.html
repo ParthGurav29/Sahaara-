@@ -8,8 +8,100 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      /* Inline first-paint styles: no white flash before the CSS bundle loads.
+         These are the exact design-system tokens from design-system.css, with a
+         dark variant, so the splash and body background match the app. */
+      :root {
+        --bg: #f5f3ee;
+        --surface: #fffdf9;
+        --ink: #26303a;
+        --lav: #8a7fb0;
+        --muted: #6b7480;
+        --accent: #5f7894;
+        --line: #e4dfd5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161a1f;
+          --surface: #1f252c;
+          --ink: #e9e6df;
+          --lav: #a59bd0;
+          --muted: #9aa3ad;
+          --accent: #8fa6c0;
+          --line: #2f3841;
+          color-scheme: dark;
+        }
+      }
+      html, body { min-height: 100%; background: var(--bg); color: var(--ink); }
+      body {
+        margin: 0;
+        font: 16px/1.5 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+      }
+      #splash.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .splash-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.9rem;
+        text-align: center;
+        padding: 0 1.5rem;
+      }
+      .splash-wordmark {
+        font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+        font-size: clamp(1.7rem, 6vw, 2.4rem);
+        letter-spacing: 0.01em;
+        color: var(--lav);
+        font-weight: 400;
+      }
+      .splash-tagline {
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+        color: var(--muted);
+      }
+      #progress-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--accent);
+        z-index: 10001;
+        transform-origin: left;
+        transform: scaleX(0);
+        transition: transform 0.15s ease-out, opacity 0.2s ease-out;
+        will-change: transform, opacity;
+      }
+      #progress-bar.done {
+        transform: scaleX(1);
+        opacity: 0;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash { transition: none; }
+        #progress-bar { transition: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-label="Loading Sahaara">
+      <div class="splash-inner">
+        <div class="splash-wordmark">Sahaara</div>
+        <div class="splash-tagline">A gentle companion for dementia care</div>
+      </div>
+    </div>
+    <div id="progress-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

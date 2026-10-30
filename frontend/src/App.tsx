@@ -1,13 +1,32 @@
+import { lazy, Suspense, useEffect } from "react";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { VoiceStateProvider } from "./VoiceStateContext";
-import DashboardView from "./DashboardView";
-import CompanionView from "./CompanionView";
-import ChooserView from "./ChooserView";
-import LoginView from "./LoginView";
 import ErrorBoundary from "./ErrorBoundary";
 import TaskAlarm from "./TaskAlarm";
 import { useRoute } from "./useRoute";
+import { progressStart, progressDone } from "./progress";
 import "./App.css";
+
+// Lazy route views: each becomes its own chunk so the first bundle stays small
+// and the top progress bar has something real to track on first load and on
+// route changes.
+const DashboardView = lazy(() => import("./DashboardView"));
+const CompanionView = lazy(() => import("./CompanionView"));
+const ChooserView = lazy(() => import("./ChooserView"));
+const LoginView = lazy(() => import("./LoginView"));
+
+function LoadingFallback() {
+  useEffect(() => {
+    progressStart();
+    return () => progressDone();
+  }, []);
+  return (
+    <div className="app-container loading">
+      <div className="loading-spinner" />
+      <p>Loading…</p>
+    </div>
+  );
+}
 
 /* Companion crash fallback */
 function CompanionCrashFallback() {
@@ -49,7 +68,9 @@ function App() {
     return (
       <ErrorBoundary name="CompanionView" fallback={<CompanionCrashFallback />}>
         <VoiceStateProvider>
-          <CompanionView />
+          <Suspense fallback={<LoadingFallback />}>
+            <CompanionView />
+          </Suspense>
         </VoiceStateProvider>
       </ErrorBoundary>
     );
@@ -59,7 +80,9 @@ function App() {
   if (route === "choose") {
     return (
       <AuthProvider>
-        <ChooserView />
+        <Suspense fallback={<LoadingFallback />}>
+          <ChooserView />
+        </Suspense>
       </AuthProvider>
     );
   }
@@ -69,7 +92,9 @@ function App() {
     <AuthProvider>
       <VoiceStateProvider>
         <ErrorBoundary name="AuthRouter" fallback={<AuthCrashFallback />}>
-          <AuthRouter />
+          <Suspense fallback={<LoadingFallback />}>
+            <AuthRouter />
+          </Suspense>
         </ErrorBoundary>
       </VoiceStateProvider>
     </AuthProvider>
@@ -78,6 +103,12 @@ function App() {
 
 function AuthRouter() {
   const { user, isLoading, authEnabled, authError, retryAuth } = useAuth();
+
+  // Auth resolution is a non-Suspense loading phase: finish the progress bar
+  // once it settles so the bar never sits at 90% on the retry/error screen.
+  useEffect(() => {
+    if (!isLoading) progressDone();
+  }, [isLoading]);
 
   if (isLoading) {
     return (
