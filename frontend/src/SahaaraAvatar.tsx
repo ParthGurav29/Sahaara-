@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useVoiceMouth, useVoiceState, useListenLevel } from "./VoiceStateContext";
 import { useVoiceSession, type VoiceSessionState } from "./useVoiceSession";
-import HumanCharacter from "./HumanCharacter";
+import OrbCharacter from "./OrbCharacter";
 import "./SahaaraAvatar.css";
 
 export type AvatarState = VoiceSessionState;
@@ -67,7 +67,7 @@ const MIC_LABEL = "Microphone unavailable — tap to retry";
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 3000;
 
-// Mouth geometry is owned by HumanCharacter; this shell publishes the numbers the
+// Mouth geometry is owned by OrbCharacter; this shell publishes the numbers the
 // voice session measured (open/wide) as CSS custom properties.
 
 /**
@@ -90,14 +90,16 @@ function ListenRing({ state }: { state: AvatarState }) {
 
   const bars = [];
   const N = 48;
+  // Ring centred on the mascot sphere (200,190) and just outside its r=120 body.
+  const R = 155;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
     const wave = 0.5 + 0.5 * Math.sin(i * 0.66); // fixed waveform profile
     const len = (4 + 8 * wave) * (0.3 + lvl * 0.7);
-    const x1 = 200 + Math.cos(a) * 86;
-    const y1 = 150 + Math.sin(a) * 86;
-    const x2 = 200 + Math.cos(a) * (86 + len);
-    const y2 = 150 + Math.sin(a) * (86 + len);
+    const x1 = 200 + Math.cos(a) * R;
+    const y1 = 190 + Math.sin(a) * R;
+    const x2 = 200 + Math.cos(a) * (R + len);
+    const y2 = 190 + Math.sin(a) * (R + len);
     bars.push(
       <line
         key={i}
@@ -134,7 +136,7 @@ export interface AvatarVisualProps {
  * Pure visual. No session, no click handling — the dev preview drives it
  * directly, and the interactive `SahaaraAvatar` below wraps it in a button.
  *
- * Everything visible is drawn by `HumanCharacter`; this component owns the SVG
+ * Everything visible is drawn by `OrbCharacter`; this component owns the SVG
  * shell, the CSS custom properties and the two runtime switches (hidden tab,
  * reduced motion) that CSS cannot observe on its own.
  */
@@ -193,7 +195,7 @@ export function AvatarVisual({
       aria-hidden="true"
       focusable="false"
     >
-      <HumanCharacter state={state} />
+      <OrbCharacter state={state} />
       <ListenRing state={state} />
     </svg>
   );

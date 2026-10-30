@@ -1,26 +1,12 @@
 # Sahaara Avatar — Design Decision (A1)
 
-> **⚠ SUPERSEDED 2026-10-31 — the avatar is now a HUMAN-STYLE CHARACTER.**
-> Owner decision: *"Switch to a human-style character."* The old **non-human**
-> rule ("never a person, no skin tones, no hair") — Option 1 / the A8 porcelain
-> mascot — is **overturned**. The mascot (`OrbCharacter.tsx`/`.css`) is deleted
-> and replaced by `HumanCharacter.tsx` /`.css`: a stylized, flat-vector human
-> portrait (navy backdrop, golden halo, pale orbit ring, round peach face, large
-> brown eyes, dark hair in a high bun with side tendrils, blush, a closed smile,
-> and a cream wrap top with a mint-green shawl). It is deliberately **stylized** —
-> not photographic, and never a likeness of Priya / Rohan / Vikram. The "voice is
-> a companion, not a person" safety rule in `agents.md` §6 still applies to
-> everything Sahaara *says*; the visual is now a friendly human face at the
-> owner's direction.
->
-> Carried over unchanged: the **mouth still lip-syncs to the TTS** (A9 —
-> `--mouth-open`/`--mouth-wide` from `mouthShape.ts`, now mapped to the human
-> mouth at the smile line), the state machine (idle/listening/thinking/speaking/
-> error), tier calming (`--anim-speed`/`--mouth-scale`), `prefers-reduced-motion`,
-> and the tab-hidden pause. New in the same change: the **audio-reactive
-> listening ring** (Item 4) — a radial "waveform" of 48 bars drawn from the real
-> microphone level via a separate read-only `AnalyserNode`; it only shows while
-> listening and reads flat otherwise.
+> **Note 2026-10-31:** a human-style character was briefly trialled at the owner's
+> direction, then **reverted** back to this non-human mascot at the owner's
+> request (the mascot `OrbCharacter` was restored, `HumanCharacter` deleted).
+> Retained from that pass: the **audio-reactive listening ring** (Item 4 — a
+> radial waveform of 48 bars driven by the real mic level, shown only while
+> `listening`) and a new **speaking glow** (a fast amber pulse of the halo while
+> `speaking`, so talking and listening are visually distinct).
 
 **Date:** 2026-10-28  
 **Decision:** Option 1 — Abstract Breathing Orb + Soft Face  

@@ -464,101 +464,68 @@ function SuggestionCard({ suggestion, onApprove, onReject }: { suggestion: Sugge
   );
 }
 
-const PROFILE_SECTIONS = [
+type FieldType = "text" | "textarea" | "array";
+
+// The Profile tab edits the profile document directly — one section per real key
+// in asha_profile.json. No invented "basics"/"health_notes"/"communication_tips"
+// fields that have nowhere to persist. `type: "array"` renders a comma-separated
+// input and splits it back into a list on save.
+const PROFILE_SECTIONS: Array<{
+  id: string;
+  title: string;
+  note?: string;
+  fields: Array<{ path: string[]; label: string; type: FieldType; shared: boolean }>;
+}> = [
   {
     id: "basics",
     title: "Basics",
     fields: [
-      { key: "preferred_name", label: "Preferred name", shared: true },
-      { key: "language_mix", label: "Language mix", shared: true },
-      { key: "age", label: "Age", shared: true },
-      { key: "city", label: "City", shared: true },
-    ],
-  },
-  {
-    id: "family",
-    title: "Family and contacts",
-    fields: [
-      { key: "name", label: "Name", shared: true },
-      { key: "relationship", label: "Relationship", shared: true },
-      { key: "living_status", label: "Status", shared: true },
-      { key: "phone", label: "Phone", shared: false },
-      { key: "may_offer_notify", label: "May offer notify", shared: true },
-      { key: "notify_order", label: "Notify order", shared: true },
-    ],
-  },
-  {
-    id: "life_story",
-    title: "Life story",
-    fields: [
-      { key: "career", label: "Career", shared: true },
-      { key: "key_memories", label: "Key memories", shared: true },
-      { key: "proud_moments", label: "Proud moments", shared: true },
+      { path: ["name"], label: "Name", type: "text", shared: true },
+      { path: ["life_story"], label: "Life story", type: "textarea", shared: true },
     ],
   },
   {
     id: "likes",
     title: "Likes and what soothes her",
     fields: [
-      { key: "music", label: "Music and food", shared: true },
-      { key: "calming_strategies", label: "What calms her when anxious", shared: true },
+      { path: ["likes", "music"], label: "Music", type: "array", shared: true },
+      { path: ["likes", "food"], label: "Food and drink", type: "array", shared: true },
+      { path: ["likes", "topics"], label: "Topics she enjoys", type: "array", shared: true },
+      { path: ["likes", "routines"], label: "Routines", type: "array", shared: true },
     ],
   },
   {
     id: "avoid",
     title: "Sensitive topics",
     fields: [
-      { key: "topics", label: "Topics to avoid or redirect", shared: true },
-      { key: "when_asking_for_deceased", label: "If she asks for someone who has died", shared: true },
+      { path: ["avoid", "topics"], label: "Topics to avoid or redirect", type: "array", shared: true },
     ],
   },
   {
     id: "daily_routine",
     title: "Daily routine",
     fields: [
-      { key: "wake_time", label: "Wake time", shared: true },
-      { key: "meals", label: "Meals", shared: true },
-      { key: "sleep_time", label: "Sleep time", shared: true },
-      { key: "restless_window", label: "Restless window", shared: true },
-      { key: "medication_times", label: "Medication times (reminders only)", shared: false },
-    ],
-  },
-  {
-    id: "health_notes",
-    title: "Health notes (caregiver record)",
-    note: "Kept private. Never sent to Sahaara's conversation prompt.",
-    fields: [
-      { key: "conditions", label: "Conditions and allergies", shared: false },
-      { key: "medications", label: "Medication times (reminders only)", shared: false },
-      { key: "doctor_contact", label: "Doctor, hearing, vision, mobility", shared: false },
-    ],
-  },
-  {
-    id: "communication_tips",
-    title: "Communication tips",
-    fields: [
-      { key: "tips", label: "What works with her", shared: true },
+      { path: ["daily_routine", "wake_time"], label: "Wake time", type: "text", shared: true },
+      { path: ["daily_routine", "breakfast"], label: "Breakfast", type: "text", shared: true },
+      { path: ["daily_routine", "lunch"], label: "Lunch", type: "text", shared: true },
+      { path: ["daily_routine", "tea_time"], label: "Tea time", type: "text", shared: true },
+      { path: ["daily_routine", "dinner"], label: "Dinner", type: "text", shared: true },
+      { path: ["daily_routine", "sleep_time"], label: "Sleep time", type: "text", shared: true },
+      { path: ["daily_routine", "restless_window"], label: "Restless window", type: "text", shared: true },
+      { path: ["daily_routine", "medication_times"], label: "Medication times (reminders only)", type: "array", shared: false },
     ],
   },
 ];
 
-interface ProfileData {
-  basics: Record<string, any>;
-  family: Array<Record<string, any>>;
-  life_story: Record<string, any>;
-  likes: Record<string, any>;
-  avoid: Record<string, any>;
-  daily_routine: Record<string, any>;
-  health_notes: Record<string, any>;
-  communication_tips: Record<string, any>;
-  [key: string]: any;
-}
+// The profile document is the source of truth (asha_profile.json). Loose on
+// purpose: the form reads/writes the real keys directly through `path` arrays.
+type ProfileData = Record<string, any>;
 
 interface SectionConfig {
   id: string;
   title: string;
   note?: string;
-  fields: Array<{ key: string; label: string; shared: boolean }>;
+  fields: Array<{ path: string[]; label: string; type: FieldType; shared: boolean }>;
 }
 
 export default function DashboardView() {
@@ -576,7 +543,6 @@ export default function DashboardView() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<"saved" | "error" | null>(null);
-  const [visibility, setVisibility] = useState<Record<string, boolean>>({});
   // Emergency Call incidents
   const [emergencyIncidents, setEmergencyIncidents] = useState<EmergencyIncident[]>([]);
   // Connection state for the shared event socket
@@ -686,7 +652,7 @@ export default function DashboardView() {
     setProfileSaving(true);
     setSaveMessage(null);
     try {
-      await apiFetch(`/profile/${profile.basics?.profile_id || "asha_demo_001"}`, {
+      await apiFetch(`/profile/${profile.profile_id || "asha_demo_001"}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: profile }),
@@ -930,31 +896,89 @@ export default function DashboardView() {
     fetchSuggestions();
   };
 
-  const updateProfile = (section: string, key: string, value: any) => {
+  const readProfilePath = (path: string[]): string => {
+    let node: unknown = profile;
+    for (const key of path) {
+      if (node && typeof node === "object") node = (node as Record<string, unknown>)[key];
+      else return "";
+    }
+    if (node == null) return "";
+    return Array.isArray(node) ? node.join(", ") : String(node);
+  };
+
+  const writeProfilePath = (path: string[], value: unknown) => {
     setProfile((prev) => {
       if (!prev) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      if (next[section as keyof ProfileData] && typeof next[section as keyof ProfileData] === "object") {
-        (next[section as keyof ProfileData] as Record<string, any>)[key] = value;
+      let node: Record<string, any> = next;
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (node[key] === null || typeof node[key] !== "object" || Array.isArray(node[key])) {
+          node[key] = {};
+        }
+        node = node[key];
       }
+      node[path[path.length - 1]] = value;
       return next;
     });
   };
 
-  const updateArrayProfile = (section: string, index: number, key: string, value: any) => {
+  const updateProfileField = (field: SectionConfig["fields"][number], text: string) => {
+    if (field.type === "array") {
+      const list = text.split(",").map((s) => s.trim()).filter(Boolean);
+      writeProfilePath(field.path, list);
+    } else {
+      writeProfilePath(field.path, text);
+    }
+  };
+
+  const updateFamilyMember = (index: number, key: string, value: unknown) => {
     setProfile((prev) => {
       if (!prev) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      const arr = next[section as keyof ProfileData] as Array<Record<string, any>>;
-      if (Array.isArray(arr) && arr[index]) {
-        arr[index][key] = value;
-      }
+      if (!Array.isArray(next.family)) next.family = [];
+      if (!next.family[index]) next.family[index] = {};
+      next.family[index][key] = value;
       return next;
     });
   };
 
-  const toggleVisibility = (path: string) => {
-    setVisibility((prev) => ({ ...prev, [path]: !prev[path] }));
+  const addFamilyMember = () => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      if (!Array.isArray(next.family)) next.family = [];
+      next.family.push({
+        name: "",
+        relationship: "",
+        phone: null,
+        notes: "",
+        notify_order: null,
+        may_offer_notify: false,
+        may_call: false,
+      });
+      return next;
+    });
+  };
+
+  const removeFamilyMember = (index: number) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      if (Array.isArray(next.family)) next.family = next.family.filter((_: unknown, i: number) => i !== index);
+      return next;
+    });
+  };
+
+  const updateRedirect = (topic: string, value: string) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      if (next.avoid === null || typeof next.avoid !== "object" || Array.isArray(next.avoid)) next.avoid = {};
+      if (next.avoid.redirects === null || typeof next.avoid.redirects !== "object" || Array.isArray(next.avoid.redirects)) next.avoid.redirects = {};
+      next.avoid.redirects[topic] = value;
+      return next;
+    });
   };
 
   if (!status) {
@@ -1144,137 +1168,50 @@ export default function DashboardView() {
               </div>
             )}
 
-            {PROFILE_SECTIONS.map((section: SectionConfig) => (
+            {/* Family & contacts */}
+            <div className="card sec" style={{ marginBottom: "1rem" }}>
+              <h3>Family and contacts</h3>
+              {(profile?.family ?? []).map((member: any, idx: number) => (
+                <div className="fr family" key={idx}>
+                  <div className="family-fields">
+                    <input className="ff-name" placeholder="Name" value={member.name || ""} onChange={(e) => updateFamilyMember(idx, "name", e.target.value)} />
+                    <input className="ff-rel" placeholder="Relationship" value={member.relationship || ""} onChange={(e) => updateFamilyMember(idx, "relationship", e.target.value)} />
+                    <input className="ff-phone" placeholder="Phone" value={member.phone || ""} onChange={(e) => updateFamilyMember(idx, "phone", e.target.value)} />
+                    <input className="ff-rel" placeholder="Notify order" value={member.notify_order ?? ""} onChange={(e) => updateFamilyMember(idx, "notify_order", e.target.value === "" ? null : Number(e.target.value))} />
+                  </div>
+                  <button className="btn sm ghost family-remove" onClick={() => removeFamilyMember(idx)}>✕</button>
+                </div>
+              ))}
+              <button className="btn ghost sm" onClick={addFamilyMember}>+ Add family member</button>
+            </div>
+
+            {/* Sensitive-topic replies */}
+            {profile?.avoid?.redirects && (
+              <div className="card sec" style={{ marginBottom: "1rem" }}>
+                <h3>What Sahaara says about sensitive topics</h3>
+                {Object.entries(profile.avoid.redirects).map(([topic, reply]) => (
+                  <label className="field" key={topic}>
+                    <span>When she asks about "{topic}"</span>
+                    <input value={String(reply)} onChange={(e) => updateRedirect(topic, e.target.value)} placeholder="What Sahaara says" />
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {PROFILE_SECTIONS.map((section) => (
               <div className="card sec" key={section.id} style={{ marginBottom: "1rem" }}>
                 <h3>{section.title}</h3>
                 {section.note && <p className="note">{section.note}</p>}
-                {section.id === "family" && profile?.family && (
-                  <>
-                    {profile?.family?.map((member, idx) => (
-                      <div className="fr family" key={idx}>
-                        <div className="family-fields">
-                          <input
-                            className="ff-name"
-                            value={member.name || ""}
-                            onChange={(e) => updateArrayProfile("family", idx, "name", e.target.value)}
-                            placeholder="Name"
-                          />
-                          <input
-                            className="ff-rel"
-                            value={member.relationship || ""}
-                            onChange={(e) => updateArrayProfile("family", idx, "relationship", e.target.value)}
-                            placeholder="Relationship"
-                          />
-                          <select
-                            className="ff-status"
-                            value={member.living_status || "living"}
-                            onChange={(e) => updateArrayProfile("family", idx, "living_status", e.target.value)}
-                          >
-                            <option value="living">Living</option>
-                            <option value="late">Late</option>
-                          </select>
-                          <input
-                            className="ff-phone"
-                            value={member.phone || ""}
-                            onChange={(e) => updateArrayProfile("family", idx, "phone", e.target.value)}
-                            placeholder="Phone"
-                          />
-                          <button
-                            className="vis"
-                            style={{ background: visibility[`family.${idx}.phone`] ? "color-mix(in srgb, var(--sage) 18%, var(--surface))" : "var(--surface2)", color: visibility[`family.${idx}.phone`] ? "var(--sage)" : "var(--muted)", borderColor: visibility[`family.${idx}.phone`] ? "var(--sage)" : "var(--line)" }}
-                            onClick={() => toggleVisibility(`family.${idx}.phone`)}
-                          >
-                            {visibility[`family.${idx}.phone`] ? "Shared with Sahaara" : "Caregiver only"}
-                          </button>
-                        </div>
-                        <button className="btn sm ghost family-remove" onClick={() => setProfile((p) => p ? { ...p, family: p.family.filter((_, i) => i !== idx) } : p)}>✕</button>
-                      </div>
-                    ))}
-                    <button className="btn ghost sm" onClick={() => setProfile((p) => p ? { ...p, family: [...p.family, { name: "", relationship: "", living_status: "living", phone: "", may_offer_notify: true, notify_order: null, notes: "", memory_box_clip: null }] } : p)}>+ Add family member</button>
-                  </>
-                )}
-                {section.id === "avoid" && profile?.avoid && (
-                  <>
-                    {profile?.avoid?.topics?.map((topic: any, idx: number) => (
-                      <div className="rrow" key={idx} style={{ flexDirection: "column", gap: "0.5rem", alignItems: "flex-start" }}>
-                        <div className="topic-fields">
-                          <input
-                            className="tf-topic"
-                            value={topic.topic || ""}
-                            onChange={(e) => updateArrayProfile("avoid.topics", idx, "topic", e.target.value)}
-                            placeholder="Topic (e.g. Vikram's death)"
-                          />
-                          <select
-                            className="tf-setting"
-                            value={topic.setting || "avoid"}
-                            onChange={(e) => updateArrayProfile("avoid.topics", idx, "setting", e.target.value)}
-                          >
-                            <option value="avoid">Avoid</option>
-                            <option value="redirect">Redirect</option>
-                            <option value="allow_with_care">Allow with care</option>
-                          </select>
-                          <button className="btn sm ghost tf-remove" onClick={() => setProfile((p) => p ? { ...p, avoid: { ...p.avoid, topics: p.avoid.topics.filter((_: any, i: number) => i !== idx) } } : p)}>✕</button>
-                        </div>
-                        {topic.setting === "redirect" && (
-                          <input
-                            value={topic.redirect_to || ""}
-                            onChange={(e) => updateArrayProfile("avoid.topics", idx, "redirect_to", e.target.value)}
-                            placeholder="e.g. happy memories of teaching"
-                            style={{ width: "100%" }}
-                          />
-                        )}
-                        <input
-                          value={topic.notes || ""}
-                          onChange={(e) => updateArrayProfile("avoid.topics", idx, "notes", e.target.value)}
-                          placeholder="Why this setting?"
-                          style={{ width: "100%" }}
-                        />
-                      </div>
-                    ))}
-                    <button className="btn ghost sm" onClick={() => setProfile((p) => p ? { ...p, avoid: { ...p.avoid, topics: [...(p.avoid.topics || []), { topic: "", setting: "avoid", redirect_to: "", notes: "" }] } } : p)}>+ Add topic</button>
-                    <div className="fr">
-                      <label className="field">
-                        <span>If she asks for someone who has died</span>
-                        <input
-                          value={profile?.avoid?.when_asking_for_deceased || ""}
-                          onChange={(e) => updateProfile("avoid", "when_asking_for_deceased", e.target.value)}
-                          placeholder="What to say when she asks for someone who has died"
-                        />
-                      </label>
-                      <button
-                        className="vis"
-                        style={{ background: visibility["avoid.when_asking_for_deceased"] ? "color-mix(in srgb, var(--sage) 18%, var(--surface))" : "var(--surface2)", color: visibility["avoid.when_asking_for_deceased"] ? "var(--sage)" : "var(--muted)", borderColor: visibility["avoid.when_asking_for_deceased"] ? "var(--sage)" : "var(--line)" }}
-                        onClick={() => toggleVisibility("avoid.when_asking_for_deceased")}
-                      >
-                        {visibility["avoid.when_asking_for_deceased"] ? "Shared with Sahaara" : "Caregiver only"}
-                      </button>
-                    </div>
-                  </>
-                )}
-                {["basics", "life_story", "likes", "daily_routine", "health_notes", "communication_tips"].includes(section.id) && (
-                  <>
-                    {section.fields.map((field) => (
-                      <div className="fr" key={field.key}>
-                        <label className="field">
-                          <span>{field.label}</span>
-                          <input
-                            value={profile?.[section.id]?.[field.key] || ""}
-                            onChange={(e) => updateProfile(section.id, field.key, e.target.value)}
-                            placeholder="Add details"
-                          />
-                        </label>
-                        <button
-                          className="vis"
-                          style={{ background: visibility[`${section.id}.${field.key}`] ? "color-mix(in srgb, var(--sage) 18%, var(--surface))" : "var(--surface2)", color: visibility[`${section.id}.${field.key}`] ? "var(--sage)" : "var(--muted)", borderColor: visibility[`${section.id}.${field.key}`] ? "var(--sage)" : "var(--line)" }}
-                          onClick={() => toggleVisibility(`${section.id}.${field.key}`)}
-                        >
-                          {visibility[`${section.id}.${field.key}`] ? "Shared with Sahaara" : "Caregiver only"}
-                        </button>
-                      </div>
-                    ))}
-                  </>
-                )}
-                {section.id === "health_notes" && section.note && <p className="note" style={{ marginTop: "0.5rem" }}>{section.note}</p>}
+                {section.fields.map((field) => (
+                  <label className="field" key={field.path.join(".")}>
+                    <span>{field.label}</span>
+                    {field.type === "textarea" ? (
+                      <textarea rows={3} value={readProfilePath(field.path)} onChange={(e) => updateProfileField(field, e.target.value)} placeholder="Add details" />
+                    ) : (
+                      <input value={readProfilePath(field.path)} onChange={(e) => updateProfileField(field, e.target.value)} placeholder={field.type === "array" ? "Comma separated" : "Add details"} />
+                    )}
+                  </label>
+                ))}
               </div>
             ))}
 
