@@ -759,6 +759,28 @@ def test_subscriptions_are_scoped_to_the_alert_profile():
     assert sender.calls[0]["subscription_info"]["endpoint"] == ENDPOINT
 
 
+def test_urgency_header_is_high_for_red_and_normal_otherwise():
+    _enable_push()
+    _clear_subscriptions()
+    _subscribe()
+
+    # Red (danger/emergency) must be flagged to the push service as urgent.
+    red_sender = RecordingSender()
+    red = _alert(tier=EscalationTier.RED, alert_id="red-1", tier_from=EscalationTier.ORANGE)
+    push_notify.send_alert_push(red, None, now=1000.0, sender=red_sender)
+    assert red_sender.calls[0]["headers"] == {"Urgency": "high"}, red_sender.calls[0]
+    assert "Urgency" not in red_sender.calls[0]["data"], "urgency must be a header, never in the payload"
+
+    # Anything below Red is normal.
+    _enable_push()
+    _clear_subscriptions()
+    _subscribe()
+    orange_sender = RecordingSender()
+    orange = _alert(tier=EscalationTier.ORANGE, alert_id="orange-1", tier_from=EscalationTier.YELLOW)
+    push_notify.send_alert_push(orange, None, now=2000.0, sender=orange_sender)
+    assert orange_sender.calls[0]["headers"] == {"Urgency": "normal"}, orange_sender.calls[0]
+
+
 def run_all_tests():
     tests = [
         test_gate_off_sends_nothing_and_logs_nothing,
@@ -789,6 +811,7 @@ def run_all_tests():
         test_alert_builder_store_dispatches_a_push,
         test_alert_sent_event_type_and_helper,
         test_subscriptions_are_scoped_to_the_alert_profile,
+        test_urgency_header_is_high_for_red_and_normal_otherwise,
     ]
 
     passed = 0

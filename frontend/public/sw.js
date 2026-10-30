@@ -119,21 +119,14 @@ const DASHBOARD_URL = "/";
 /** Alert ids are opaque; anything else is ignored (M5 Step 7). */
 const ALERT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/**
- * Where a tap should land. The only payload field we trust is `alert_id`, and
- * only when it looks like an opaque id; the notification body stays fixed and
- * the payload text is never rendered.
- */
-function notificationTarget(payloadText) {
-  let alertId = "";
+function notificationAlertId(payloadText) {
   try {
     const parsed = JSON.parse(payloadText || "{}");
-    alertId = typeof parsed.alert_id === "string" ? parsed.alert_id.trim() : "";
+    const id = typeof parsed.alert_id === "string" ? parsed.alert_id.trim() : "";
+    return ALERT_ID_RE.test(id) ? id : "";
   } catch {
-    alertId = "";
+    return "";
   }
-  if (!ALERT_ID_RE.test(alertId)) return DASHBOARD_URL;
-  return `/?alert=${encodeURIComponent(alertId)}`;
 }
 
 self.addEventListener("push", (event) => {
@@ -143,14 +136,22 @@ self.addEventListener("push", (event) => {
   } catch {
     raw = "";
   }
-  const target = notificationTarget(raw);
+  const alertId = notificationAlertId(raw);
+  const target = alertId ? `/?alert=${encodeURIComponent(alertId)}` : DASHBOARD_URL;
 
   event.waitUntil(
     self.registration.showNotification(NOTIFICATION_TITLE, {
       body: NOTIFICATION_BODY,
       icon: NOTIFICATION_ICON,
       badge: NOTIFICATION_ICON,
-      tag: "sahaara-checkin",
+      // Per-alert tag: under Chrome's "same tag = replace" rule, a fixed tag
+      // means a Red alert silently replaces an earlier Yellow/Orange one. A
+      // distinct tag per alert keeps each one visible (falling back to the
+      // fixed tag for payloads without a valid alert_id).
+      tag: alertId ? `sahaara-${alertId}` : "sahaara-checkin",
+      // A calm two-pulse vibration; no sound otherwise. Fixed for every alert
+      // because the payload (and therefore the tier) is deliberately constant.
+      vibrate: [120, 60, 120],
       data: { url: target },
     }),
   );

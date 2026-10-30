@@ -129,6 +129,32 @@ test("a push event always shows exactly one notification", async () => {
   assert.equal(worker.notifications[0].title, "Sahaara");
 });
 
+test("a valid alert_id gives each alert its own tag (Red is not replaced)", async () => {
+  const worker = loadWorker();
+  await dispatchPush(worker, JSON.stringify({ alert_id: "alert_1" }));
+  await dispatchPush(worker, JSON.stringify({ alert_id: "alert_2" }));
+
+  assert.equal(worker.notifications[0].options.tag, "sahaara-alert_1");
+  assert.equal(worker.notifications[1].options.tag, "sahaara-alert_2");
+  assert.notEqual(worker.notifications[0].options.tag, worker.notifications[1].options.tag);
+});
+
+test("an unsafe or missing alert_id falls back to the shared tag", async () => {
+  const unsafe = loadWorker();
+  await dispatchPush(unsafe, JSON.stringify({ alert_id: "../admin" }));
+  assert.equal(unsafe.notifications[0].options.tag, "sahaara-checkin");
+
+  const empty = loadWorker();
+  await dispatchPush(empty, "");
+  assert.equal(empty.notifications[0].options.tag, "sahaara-checkin");
+});
+
+test("the notification vibrates with a calm fixed pattern", async () => {
+  const worker = loadWorker();
+  await dispatchPush(worker);
+  assert.deepEqual([...worker.notifications[0].options.vibrate], [120, 60, 120]);
+});
+
 test("the notification body is the fixed check-in sentence", async () => {
   const worker = loadWorker();
   await dispatchPush(worker);

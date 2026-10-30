@@ -7,6 +7,7 @@ import {
   readPushConfig,
   type AlertsState,
 } from "./pushAlerts";
+import { isIos, isStandalone } from "./pushSupport";
 import "./PushButton.css";
 
 /**
@@ -114,6 +115,12 @@ export default function PushButton() {
               : "Enable alerts"}
       </button>
       {state === "enabled" && <span className="push-alerts-status">Alerts on</span>}
+      {state === "enabled" && !isIos() && !isStandalone() && (
+        <span className="push-alerts-status push-alerts-hint">
+          For the most reliable delivery, install Sahaara to your home screen —
+          a Chrome tab may delay or block alerts.
+        </span>
+      )}
       {state === "error" && (
         <span className="push-alerts-status push-alerts-error">
           Couldn't turn on alerts. Check notifications in Chrome settings.

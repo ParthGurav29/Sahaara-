@@ -165,6 +165,16 @@ def _tier_from_value(alert: Any) -> str:
     return getattr(tier, "value", str(tier))
 
 
+def _urgency_header(alert: Any) -> dict:
+    """
+    Web Push `Urgency` header for this alert. Red (danger / emergency) sends
+    `high` so a sleeping phone treats it as urgent; everything else is `normal`.
+    This is a delivery hint on the HTTP request — the constant JSON payload and
+    the cooldown/tier rules are unchanged.
+    """
+    return {"Urgency": "high"} if _tier_value(alert).lower() == "red" else {"Urgency": "normal"}
+
+
 def is_pushable(alert: Any) -> bool:
     """
     Phone alerts are for upward tier moves only (Step 5 hardening).
@@ -355,6 +365,7 @@ def send_alert_push(
                 vapid_claims=claims,
                 timeout=SEND_TIMEOUT_SECONDS,
                 ttl=ttl_seconds(),
+                headers=_urgency_header(alert),
             )
             code = getattr(response, "status_code", None)
             if isinstance(code, int) and 200 <= code < 300:
