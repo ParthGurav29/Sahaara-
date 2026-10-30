@@ -207,15 +207,17 @@ def test_non_claim_states_never_claim_a_call():
         check(f"{state}: no diagnosis", "diagnos" not in line.lower(), line)
 
 
-def test_simulated_says_it_is_a_demo():
-    print("\n[4] Simulated mode says it is a demo")
+def test_simulated_says_blocked_line():
+    print("\n[4] Simulated mode says the blocked line (no 'demo' to Asha)")
     from conversation import emergency_call_line_for_state
 
     line = emergency_call_line_for_state("simulated", "Rohan")
-    check("says demo", "this is a demo" in line.lower(), line)
-    check("uses the conditional", "in a real situation" in line.lower(), line)
+    check("says dashboard", "dashboard" in line.lower(), line)
+    check("offers 112", "112" in line, line)
+    check("offers someone nearby", "someone nearby" in line.lower(), line)
     check("never says 'placed'", "placed" not in line.lower(), line)
     check("never says 'delivered'", "delivered" not in line.lower(), line)
+    check("never says 'demo'", "demo" not in line.lower(), line)
 
 
 def test_not_reached_offers_112_and_stays_present():
@@ -236,15 +238,16 @@ def test_chooser_prioritises_simulated():
     print("\n[6] A simulated provider can never produce the 'calling' line")
     from conversation import _emergency_call_line
 
-    # Even with a (theoretically impossible) allowed gate, simulated wins.
+    # Even with a (theoretically impossible) allowed gate, simulated wins -> blocked line
     line = _emergency_call_line(
         contact_name="Rohan",
         real_call_allowed=True,
         gate_reason="allowed",
         provider_simulated=True,
     )
-    check("simulated + allowed -> demo line", "this is a demo" in line.lower(), line)
+    check("simulated + allowed -> blocked line", "dashboard" in line.lower(), line)
     check("no claim wording", _contains_claim(line) is None, line)
+    check("never says 'demo'", "demo" not in line.lower(), line)
 
     # Real provider, gate refused -> blocked line
     line = _emergency_call_line(
@@ -281,8 +284,9 @@ def test_chooser_reads_the_live_provider_when_unknown():
     os.environ["EMERGENCY_CALLS_ENABLED"] = "false"
     os.environ["SAHAARA_EMERGENCY_PROVIDER"] = "vonage"
     line = conversation._emergency_call_line("Rohan", True, "allowed")
-    check("defaults to simulated when calling is off", "this is a demo" in line.lower(), line)
+    check("defaults to simulated when calling is off", "dashboard" in line.lower(), line)
     check("no claim wording", _contains_claim(line) is None, line)
+    check("never says 'demo'", "demo" not in line.lower(), line)
 
 
 # ---- 3. End to end --------------------------------------------------------
@@ -301,8 +305,9 @@ def test_disabled_campaign_word_is_honest():
 
     check("reply exists", bool(reply), reply)
     check("no claim wording in the reply", _contains_claim(reply) is None, reply)
-    check("reply says it is a demo", "this is a demo" in reply.lower(), reply)
+    check("reply says dashboard", "dashboard" in reply.lower(), reply)
     check("reply offers 112", "112" in reply, reply)
+    check("never says 'demo'", "demo" not in reply.lower(), reply)
     check("meta carries the deterministic line", bool(result.get("meta", {}).get("emergency_call_line")))
     check(
         "the deterministic line is the tail of the reply",
@@ -447,7 +452,7 @@ def main():
     test_every_state_has_one_sentence()
     test_placed_and_answered_sentences()
     test_non_claim_states_never_claim_a_call()
-    test_simulated_says_it_is_a_demo()
+    test_simulated_says_blocked_line()
     test_not_reached_offers_112_and_stays_present()
     test_chooser_prioritises_simulated()
     test_chooser_reads_the_live_provider_when_unknown()

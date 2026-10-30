@@ -703,14 +703,9 @@ CALL_LINE_BLOCKED = (
     "I've told {name}'s dashboard. Please call 112 or someone nearby if you "
     "need help now."
 )
-# Simulated mode keeps the standing owner wording ("this is a demo", never
-# "placed") and also gives the person a route to help, because no call leaves
-# the building in this state.
-CALL_LINE_SIMULATED = (
-    "This is a demo. In a real situation I would be calling {name} now. "
-    "I've told {name}'s dashboard — if you need help right now, please call "
-    "112 or someone nearby."
-)
+# Simulated mode: never say "demo" to Asha. Use the same wording as blocked/
+# disabled — dashboard gets the simulated banner, Asha gets the honest line.
+CALL_LINE_SIMULATED = CALL_LINE_BLOCKED
 
 CALL_LINE_STATES = {
     "placed": CALL_LINE_PLACED,

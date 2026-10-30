@@ -194,8 +194,13 @@ def test_explicit_request_triggers():
         result.get("response", ""),
     )
     check(
-        "simulated wording says it is a demo",
-        "this is a demo" in result.get("response", "").lower(),
+        "simulated wording says dashboard (no demo to Asha)",
+        "dashboard" in result.get("response", "").lower(),
+        result.get("response", ""),
+    )
+    check(
+        "simulated wording never says demo",
+        "demo" not in result.get("response", "").lower(),
         result.get("response", ""),
     )
 
