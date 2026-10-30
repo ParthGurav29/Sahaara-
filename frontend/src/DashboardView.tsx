@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { apiFetch } from "./api";
 import { subscribeEvents, subscribeConnection } from "./eventStream";
 import { describePushAttempt } from "./pushStatus";
@@ -579,6 +579,14 @@ export default function DashboardView() {
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
   // Emergency Call incidents
   const [emergencyIncidents, setEmergencyIncidents] = useState<EmergencyIncident[]>([]);
+  // Connection state for the shared event socket
+  const [socketConnected, setSocketConnected] = useState(false);
+  // Debounce timer for refetches triggered by events
+  const refetchDebounceTimer = useRef<number | null>(null);
+  // Polling timer for slow fallback (20s, paused when hidden)
+  const pollingTimer = useRef<number | null>(null);
+  // Track if the tab is currently visible
+  const isTabVisible = useRef(true);
 
   const fetchWhyContext = useCallback(async () => {
     try {
@@ -693,6 +701,63 @@ export default function DashboardView() {
     }
   };
 
+  // Debounced refetch helper — coalesces multiple rapid events into one refetch
+  const scheduleRefetch = useCallback((fn: () => void) => {
+    if (refetchDebounceTimer.current !== null) {
+      window.clearTimeout(refetchDebounceTimer.current);
+    }
+    refetchDebounceTimer.current = window.setTimeout(() => {
+      if (isTabVisible.current) {
+        fn();
+      }
+    }, 500);
+  }, []);
+
+  // Slow polling fallback (20s, paused when tab is hidden)
+  useEffect(() => {
+    const poll = () => {
+      if (isTabVisible.current) {
+        fetchData();
+        fetchAlerts();
+        fetchEmergencyIncidents();
+        fetchSuggestions();
+      }
+    };
+    pollingTimer.current = window.setInterval(poll, 20000);
+    return () => {
+      if (pollingTimer.current !== null) {
+        window.clearInterval(pollingTimer.current);
+        pollingTimer.current = null;
+      }
+    };
+  }, [fetchData, fetchAlerts, fetchEmergencyIncidents, fetchSuggestions]);
+
+  // Visibility change handler — refetch when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisible.current = !document.hidden;
+      if (!document.hidden) {
+        // Refetch everything when tab becomes visible (missed frames while asleep)
+        fetchData();
+        fetchAlerts();
+        fetchEmergencyIncidents();
+        fetchSuggestions();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fetchData, fetchAlerts, fetchEmergencyIncidents, fetchSuggestions]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refetchDebounceTimer.current !== null) {
+        window.clearTimeout(refetchDebounceTimer.current);
+        refetchDebounceTimer.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     fetchData();
     fetchAlerts();
@@ -714,6 +779,8 @@ export default function DashboardView() {
           const data = msg.data as Alert;
           setAlerts((prev) => [data, ...prev].slice(0, 10));
           setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 40));
+          scheduleRefetch(fetchAlerts);
+          scheduleRefetch(fetchSuggestions);
         } catch {}
         return;
       }
@@ -723,6 +790,7 @@ export default function DashboardView() {
           setEvents((prev) =>
             [...arr.reverse().map((a) => ({ ...a, type: "alert" } as Event)), ...prev].slice(0, 40)
           );
+          scheduleRefetch(fetchAlerts);
         } catch {}
         return;
       }
@@ -752,10 +820,12 @@ export default function DashboardView() {
           const data = JSON.parse(e.data);
           setAlerts((prev) => [data, ...prev].slice(0, 10));
           setEvents((prev) => [{ ...data, type: "alert" }, ...prev].slice(0, 40));
+          scheduleRefetch(fetchAlerts);
+          scheduleRefetch(fetchSuggestions);
         } catch {}
       },
-      consent_asked: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_asked" }, ...prev].slice(0, 40)); } catch {} },
-      consent_resolved: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_resolved" }, ...prev].slice(0, 40)); } catch {} },
+      consent_asked: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_asked" }, ...prev].slice(0, 40)); scheduleRefetch(fetchSuggestions); } catch {} },
+      consent_resolved: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "consent_resolved" }, ...prev].slice(0, 40)); scheduleRefetch(fetchSuggestions); } catch {} },
       repeat: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "repeat" }, ...prev].slice(0, 40)); } catch {} },
       distress: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "distress" }, ...prev].slice(0, 40)); } catch {} },
       system_health: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "system_health" }, ...prev].slice(0, 40)); } catch {} },
@@ -770,7 +840,7 @@ export default function DashboardView() {
       },
       memory_box_played: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "memory_box_played" }, ...prev].slice(0, 40)); } catch {} },
       sahaara_initiative: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "sahaara_initiative" }, ...prev].slice(0, 40)); } catch {} },
-      alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); } catch {} },
+      alert_sent: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "alert_sent" }, ...prev].slice(0, 40)); scheduleRefetch(fetchAlerts); } catch {} },
       action: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "action" }, ...prev].slice(0, 40)); } catch {} },
       reminder_fired: (e) => { try { setEvents((prev) => [{ ...JSON.parse(e.data), type: "reminder_fired" }, ...prev].slice(0, 40)); } catch {} },
       // Emergency Call events. The event envelope is
@@ -805,6 +875,7 @@ export default function DashboardView() {
     };
 
     const unsubscribeConnection = subscribeConnection((live) => {
+      setSocketConnected(live);
       if (live) fetchData();
     });
 
@@ -952,6 +1023,9 @@ export default function DashboardView() {
           </button>
         </nav>
         <div className="header-actions">
+          <span className={`connection-indicator ${socketConnected ? "connected" : "reconnecting"}`}>
+            {socketConnected ? "Live" : "Reconnecting…"}
+          </span>
           <button className="btn ghost sm" onClick={() => navigateTo("/choose")}>
             Switch mode
           </button>

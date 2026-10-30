@@ -25,6 +25,34 @@
   gap: 0.5rem;
 }
 
+.connection-indicator {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 99px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.connection-indicator.connected {
+  color: var(--sage);
+  border-color: var(--sage);
+  background: color-mix(in srgb, var(--sage) 15%, var(--surface));
+}
+
+.connection-indicator.reconnecting {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 15%, var(--surface));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-indicator {
+    transition: none;
+  }
+}
+
 .dmain {
   max-width: 1040px;
   margin: 0 auto;
