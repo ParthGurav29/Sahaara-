@@ -98,7 +98,7 @@ def _incident(incident_id: str, profile_id: str = PROFILE, simulated: bool = Tru
         trigger_phrase="I can't breathe",
         tier="red",
         simulated=simulated,
-        provider="simulated" if simulated else "twilio",
+        provider="simulated" if simulated else "vonage",
     )
 
 

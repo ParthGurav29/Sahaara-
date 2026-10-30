@@ -216,23 +216,39 @@ def test_request_helper_prefers_cookie_then_bearer():
 def test_voice_ws_rejects_without_credentials_with_a_clean_close():
     """
     The `/ws/voice` handler used to raise NameError (`status` was never
-    imported) and answer HTTP 500. It must now deny the handshake cleanly.
+    imported) and answer HTTP 500 on a denied handshake.
+
+    The denial rule itself changed deliberately when the no-login companion
+    view shipped: `/ws/voice` and `/chat` are the PERSON's surfaces and stay
+    open, falling back to the default profile. What must never happen is a
+    500, or a bogus token being treated as valid.
     """
     import main as main_module
 
     _seed()
     client = TestClient(main_module.app)
+
+    # No credentials at all -> accepted on the companion (default-profile) path.
+    accepted_state = None
+    with client.websocket_connect("/ws/voice") as ws:
+        accepted_state = ws.receive_json()
+    assert accepted_state and accepted_state.get("type") == "state", accepted_state
+
+    # A token that does not validate is refused, and refused cleanly.
     denied = None
     try:
-        with client.websocket_connect("/ws/voice") as ws:
+        with client.websocket_connect("/ws/voice?token=not-a-real-token") as ws:
             ws.receive_text()
     except Exception as exc:  # starlette raises its own denial type
         denied = exc
 
-    assert denied is not None, "unauthenticated /ws/voice was accepted"
+    assert denied is not None, "an invalid voice token was accepted"
     message = str(denied)
     assert "500" not in message, f"handshake failed with a 500: {message}"
-    print(f"PASS: /ws/voice denies an unauthenticated handshake ({type(denied).__name__})")
+    print(
+        f"PASS: /ws/voice accepts the open companion path and refuses an invalid "
+        f"token cleanly ({type(denied).__name__})"
+    )
 
 
 # ---------------------------------------------------------------------------

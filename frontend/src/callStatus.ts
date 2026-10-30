@@ -18,12 +18,16 @@
 export type CallTone = "neutral" | "muted" | "warn" | "urgent";
 
 export interface CallStatus {
-  status?: string;          // dialing | ringing | answered | acknowledged | no_answer | failed | canceled
-  reason?: string;          // cooldown | no_callable_contact | disabled | max_attempts_reached | etc.
+  // Per-attempt: queued | dialing | ringing | answered | answered_unacknowledged
+  //               | acknowledged | no_answer | failed | canceled
+  status?: string;
+  // Incident-level: cooldown | no_callable_contact | disabled | no_caregiver_reached
+  //                 | all_contacts_exhausted | max_attempts_reached | caregiver_cancelled | etc.
+  reason?: string;
   simulated?: boolean;      // true for SimulatedCallProvider
   contact_name?: string;    // caregiver name
   phone_masked?: string;    // masked phone number
-  attempt?: number;         // attempt number (1..3)
+  attempt?: number;         // attempt number (1..4)
   incident_status?: string; // overall incident status
 }
 
@@ -70,10 +74,24 @@ function describeNonSimulated(
   if (incidentStatus) {
     const incStatus = incidentStatus.toLowerCase();
     if (incStatus === "exhausted") {
+      // The ladder ran to the end. "No caregiver reached" is the reason the
+      // orchestrator records; the label says what happened without implying
+      // anyone was notified.
+      if (reason === "no_caregiver_reached" || reason === "all_contacts_exhausted") {
+        return { label: "No caregiver was reached — dashboard alert only", tone: "warn" };
+      }
       return { label: "No contact acknowledged a call — dashboard alert only", tone: "warn" };
     }
     if (incStatus === "cancelled" || incStatus === "canceled") {
       return { label: "Call campaign cancelled by caregiver", tone: "neutral" };
+    }
+    if (incStatus === "acknowledged") {
+      return {
+        label: contact
+          ? `${contact} pressed 1 to acknowledge`
+          : "Caller pressed 1 to acknowledge",
+        tone: "neutral",
+      };
     }
     if (incStatus === "failed") {
       switch (reason) {
@@ -88,6 +106,8 @@ function describeNonSimulated(
           };
         case "cooldown":
           return { label: "No new call — a recent emergency call was already placed", tone: "muted" };
+        case "no_caregiver_reached":
+          return { label: "No caregiver was reached — dashboard alert only", tone: "warn" };
         default:
           return { label: "Call could not be placed — dashboard alert only", tone: "warn" };
       }
@@ -103,6 +123,7 @@ function describeNonSimulated(
     case "ringing":
       return { label: contact ? `Ringing ${contact}` : "Ringing", tone: "neutral" };
     case "answered":
+    case "answered_unacknowledged":
       // The carrier says the line opened; that is not a person acknowledging.
       return {
         label: contact

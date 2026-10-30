@@ -454,7 +454,7 @@ class AlertBuilder:
             message = (
                 f"URGENT: {self.profile.preferred_address} said: \"{phrase}\". "
                 f"Please check on them now. "
-                f"Sahaara has urged them to get help immediately and call 112 if alone."
+                f"Sahaara stayed with them and urged them to reach you right away."
             )
         else:
             message = (
@@ -477,6 +477,53 @@ class AlertBuilder:
                 "matched_pattern": matched_pattern,
                 "urgency": urgency,
                 "contact_name": contact_name,
+            },
+        )
+        self._store(alert)
+        return alert
+
+    def build_no_caregiver_reached_alert(
+        self,
+        incident_id: str,
+        attempted_contacts: list[str],
+        simulated: bool,
+    ) -> Alert:
+        """
+        Build the Red alert raised when the call ladder ran out.
+
+        This is the only place the dashboard tells the caregiver *and* Asha's
+        side that nobody was reached. It states exactly what was tried and never
+        claims a human was contacted.
+        """
+        now = datetime.now().timestamp()
+        tried = ", ".join(attempted_contacts) if attempted_contacts else "no contacts"
+
+        if simulated:
+            message = (
+                f"No caregiver was reached. Attempts to {tried} were simulated — "
+                f"no real call was placed. Please check on "
+                f"{self.profile.preferred_address} now."
+            )
+        else:
+            message = (
+                f"No caregiver was reached. Sahaara tried {tried} and got no "
+                f"acknowledgement. Please check on "
+                f"{self.profile.preferred_address} now."
+            )
+
+        safe_message = self._build_guardrail_safe_message(message)
+
+        alert = Alert(
+            timestamp=now,
+            tier_from=EscalationTier.GREEN,
+            tier_to=EscalationTier.RED,
+            reason="no_caregiver_reached",
+            profile_id=self.profile.profile_id,
+            message=safe_message,
+            detail={
+                "incident_id": incident_id,
+                "attempted_contacts": attempted_contacts,
+                "simulated": simulated,
             },
         )
         self._store(alert)

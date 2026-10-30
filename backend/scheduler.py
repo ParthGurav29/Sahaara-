@@ -18,8 +18,9 @@ import asyncio
 import logging
 import os
 import json
+import time
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 from memory.profile import Profile
@@ -57,6 +58,31 @@ CHECK_INTERVAL = int(os.environ.get("SCHEDULER_CHECK_INTERVAL", "30"))
 # they get their own fast loop rather than waiting for the check-in tick.
 TIMER_POLL_SECONDS = float(os.environ.get("SAHAARA_TIMER_POLL_SECONDS", "1.0"))
 
+# How often the Orange dwell is re-checked. This is the tick that lets a call
+# campaign start when the person has gone quiet after an Orange turn — the whole
+# point is that it does not need another utterance to fire.
+DWELL_POLL_SECONDS = float(os.environ.get("SAHAARA_ORANGE_DWELL_POLL_SECONDS", "5.0"))
+
+# Orange dwell: how long Orange tier must hold before triggering a call
+# (real seconds; demo compression does NOT apply to this — it's a safety timer)
+ORANGE_CALL_DWELL_SECONDS = float(os.environ.get("SAHAARA_ORANGE_CALL_DWELL_SECONDS", "120.0"))
+
+
+def _orange_dwell_seconds() -> float:
+    """How long Orange must hold before the phone campaign starts.
+
+    Read at call time, not import time: this is a safety window, and an
+    operator changing it should not need a restart to be believed.
+    """
+    try:
+        return float(
+            os.environ.get(
+                "SAHAARA_ORANGE_CALL_DWELL_SECONDS", str(ORANGE_CALL_DWELL_SECONDS)
+            )
+        )
+    except (TypeError, ValueError):
+        return ORANGE_CALL_DWELL_SECONDS
+
 
 @dataclass
 class Scheduler:
@@ -85,6 +111,10 @@ class Scheduler:
     _recent_wording: List[str] = field(default_factory=list)
     # M3 feature flag (env-level hard gate; default OFF per agents.md)
     _env_v2_enabled: bool = field(init=False, default=False)
+    
+    # Orange dwell tracking (Emergency Call Trigger 4)
+    _orange_since: Optional[float] = field(init=False, default=None)
+    _orange_call_triggered: bool = field(init=False, default=False)
     
     def __post_init__(self):
         self._env_v2_enabled = os.environ.get("SAHAARA_PROACTIVE_V2", "false").strip().lower() in (
@@ -179,6 +209,25 @@ class Scheduler:
     def voice_session_open(self) -> bool:
         return self._voice_sessions > 0
 
+    async def _dwell_loop(self):
+        """Re-check the Orange dwell on its own tick.
+
+        Deliberately independent of `_paused` and `SAHAARA_PROACTIVE_V2`: those
+        control gentle check-ins. A tier that has held at Orange is a safety
+        signal, and silence afterwards is exactly the case this exists for.
+        """
+        from conversation import get_session_for_profile
+
+        while self._running:
+            try:
+                session = get_session_for_profile(self.profile_id)
+                await self._check_orange_dwell(session)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Orange dwell loop error")
+            await asyncio.sleep(DWELL_POLL_SECONDS)
+
     async def _timer_loop(self):
         """Fire due timers/reminders roughly once a second."""
         while self._running:
@@ -264,12 +313,20 @@ class Scheduler:
         # Timers run on their own fast loop and are NOT gated by _paused or the
         # M3 feature flag — the person asked for them directly.
         self._timer_task = asyncio.create_task(self._timer_loop())
+        # The Orange dwell runs on its own loop for the same reason: an
+        # emergency call must not depend on the gentle check-in feature flag
+        # (SAHAARA_PROACTIVE_V2, default OFF) or on monitoring being unpaused.
+        self._dwell_task = asyncio.create_task(self._dwell_loop())
         logger.info("Scheduler started for profile %s", self.profile_id)
-    
+
     async def stop(self):
         """Stop the scheduler."""
         self._running = False
-        for task in (self._task, self._timer_task):
+        for task in (
+            getattr(self, "_task", None),
+            getattr(self, "_timer_task", None),
+            getattr(self, "_dwell_task", None),
+        ):
             if not task:
                 continue
             task.cancel()
@@ -279,6 +336,7 @@ class Scheduler:
                 pass
         self._task = None
         self._timer_task = None
+        self._dwell_task = None
     
     async def _loop(self):
         """Main scheduler loop — runs every CHECK_INTERVAL seconds."""
@@ -303,7 +361,10 @@ class Scheduler:
         # Build engine context
         from conversation import _get_session
         s = _get_session()
-        
+
+        # NOTE: the Orange dwell is NOT checked here. It runs on its own loop
+        # (`_dwell_loop`) so an emergency call never depends on this flag.
+
         context = EngineContext(
             now=datetime.now(),
             profile_settings=self._settings,
@@ -326,7 +387,120 @@ class Scheduler:
         
         # Check for check-in responses (user turns during response window)
         self._check_response_windows()
-    
+
+    async def _check_orange_dwell(self, session) -> None:
+        """
+        Emergency Call Trigger 4: the Orange dwell.
+
+        Orange is the tier that means "something is wrong and it is not going
+        away". If it HOLDS for the configured window, a call campaign starts —
+        even if the person has stopped speaking, which is why this runs on the
+        background tick rather than on a turn.
+
+        A step back down before the window closes cancels the pending call and
+        records that it did, with the reason. Nothing here ever suppresses the
+        dashboard alert or the Red tier; only the phone campaign is affected.
+        """
+        from database import get_profile
+        from events.event_log import Event, EventType
+        from memory.profile import Profile as ProfileClass, get_callable_contacts
+        from telephony.orchestrator import trigger_emergency_call
+        from telephony.provider import can_place_real_call
+
+        current_tier = session.escalation_engine.current_tier.value
+        now = time.time()
+
+        if current_tier == "orange":
+            if self._orange_since is None:
+                self._orange_since = now
+                self._orange_call_triggered = False
+                logger.info("Orange tier started for profile %s", self.profile_id)
+                return
+
+            if self._orange_call_triggered:
+                return
+
+            dwell = _orange_dwell_seconds()
+            elapsed = now - self._orange_since
+            if elapsed < dwell:
+                return
+
+            fresh_profile_data = get_profile(self.profile_id)
+            fresh_profile = (
+                ProfileClass(fresh_profile_data) if fresh_profile_data else session.profile
+            )
+            contacts = get_callable_contacts(fresh_profile)
+
+            real_call_allowed = False
+            gate_reason = "no_callable_contact"
+            if contacts:
+                real_call_allowed, gate_reason = can_place_real_call(
+                    self.profile_id, contacts[0]
+                )
+
+            phrase = (
+                "Sustained physical unwellness"
+                if session.escalation_engine.current_tier.value == "orange"
+                else None
+            )
+            incident_id = trigger_emergency_call(
+                profile_id=self.profile_id,
+                trigger="physical_general_dwell",
+                trigger_phrase=phrase,
+                tier="orange",
+                event_log=session.event_log,
+                profile=session.profile,
+                real_call_allowed=real_call_allowed,
+                gate_reason=gate_reason,
+                alert_builder=getattr(session, "alert_builder", None),
+            )
+            # Only latch once a campaign actually started: a skipped trigger
+            # (cooldown, another incident running) must not silently mark Orange
+            # as "handled" for the rest of the tier.
+            if incident_id:
+                self._orange_call_triggered = True
+                logger.info(
+                    "Orange dwell (%ss) triggered emergency call for profile %s",
+                    dwell,
+                    self.profile_id,
+                )
+            return
+
+        # ---- tier is no longer Orange ----
+        if self._orange_since is not None:
+            held = now - self._orange_since
+            pending = not self._orange_call_triggered
+            logger.info(
+                "Tier stepped down from Orange for profile %s (was Orange for %.1fs)",
+                self.profile_id,
+                held,
+            )
+            if pending:
+                # The call never happened. Say so on the dashboard, with the
+                # reason, rather than leaving a silent gap in the record.
+                try:
+                    session.event_log.append(
+                        Event(
+                            type=EventType.EMERGENCY_CALL_SKIPPED,
+                            profile_id=self.profile_id,
+                            timestamp=time.time(),
+                            detail={
+                                "incident_id": None,
+                                "reason": "tier_stepped_down",
+                                "trigger": "physical_general_dwell",
+                                "tier": current_tier,
+                                "held_seconds": round(held, 1),
+                                "dwell_seconds": _orange_dwell_seconds(),
+                            },
+                        )
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "Could not log the Orange step-down", exc_info=True
+                    )
+            self._orange_since = None
+            self._orange_call_triggered = False
+
     async def _process_decision(self, decision):
         """Process a single engine decision."""
         if decision.action == "fire":

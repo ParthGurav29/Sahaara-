@@ -140,6 +140,30 @@ test("unknown status falls back to cautious label", () => {
   assertEqual(result, { label: "Call status unknown", tone: "warn" });
 });
 
+test("an in-progress answered attempt says confirmation was not received", () => {
+  const result = describeCallStatus({ status: "answered_unacknowledged", contact_name: "Rohan" });
+  assertEqual(result, {
+    label: "Rohan's phone answered — confirmation not received",
+    tone: "neutral",
+  });
+});
+
+test("an exhausted ladder says no caregiver was reached", () => {
+  assertEqual(describeCallStatus({ incident_status: "exhausted", reason: "no_caregiver_reached" }), {
+    label: "No caregiver was reached — dashboard alert only",
+    tone: "warn",
+  });
+  assertEqual(describeCallStatus({ incident_status: "exhausted", reason: "all_contacts_exhausted" }), {
+    label: "No caregiver was reached — dashboard alert only",
+    tone: "warn",
+  });
+});
+
+test("a caregiver acknowledgement at the incident level invents no delivery", () => {
+  const result = describeCallStatus({ incident_status: "acknowledged", contact_name: "Rohan" });
+  assertEqual(result, { label: "Rohan pressed 1 to acknowledge", tone: "neutral" });
+});
+
 // 5. Next contact transition
 test("a status without a contact name invents no name", () => {
   // The dashboard timeline's status event carries no contact, so the label
@@ -174,6 +198,11 @@ test("no reachable label contains forbidden words", () => {
     { incident_status: "failed", reason: "disabled" },
     { incident_status: "failed", reason: "no_callable_contact", contact_name: "Rohan", phone_masked: "+91 **** 3210" },
     { incident_status: "failed", reason: "cooldown" },
+    { incident_status: "failed", reason: "no_caregiver_reached" },
+    { incident_status: "exhausted", reason: "no_caregiver_reached" },
+    { incident_status: "exhausted", reason: "all_contacts_exhausted" },
+    { incident_status: "acknowledged", contact_name: "Rohan" },
+    { status: "answered_unacknowledged", contact_name: "Rohan" },
     { incident_status: "failed", reason: "unknown" },
     { status: "unknown_status" },
     // Simulated variants go through the same forbidden-word gate.

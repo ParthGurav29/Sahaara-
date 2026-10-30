@@ -76,8 +76,11 @@ def test_resolve_contacts_orders_by_notify_order():
     """Contacts sorted by notify_order first."""
     _reset_profile_to_defaults()
     profile = get_profile("asha_demo_001")
+    # Set notify_order explicitly for this test
+    profile["family"][0]["notify_order"] = 1  # Priya first
     profile["family"][0]["phone"] = "+919876543210"
     profile["family"][0]["may_call"] = True
+    profile["family"][1]["notify_order"] = 2  # Rohan second
     profile["family"][1]["phone"] = "+919876543211"
     profile["family"][1]["may_call"] = True
     save_profile("asha_demo_001", profile)

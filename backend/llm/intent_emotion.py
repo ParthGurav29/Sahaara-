@@ -59,6 +59,23 @@ IDENTITY_PATTERNS = [
     r"\bwho is this\b", r"\bwhat is sahaara\b",
 ]
 
+# Explicit call request patterns (Trigger 1)
+CALL_REQUEST_PATTERNS = [
+    r"\bcall (rohan|my son|my daughter|priya|someone|them)\b",
+    r"\bplease call\b",
+    r"\bI need help,? call\b",
+    r"\bcall for help\b",
+    r"\bcan you call\b",
+    r"\bcould you call\b",
+]
+
+# Consent acceptance patterns (after Sahaara asks "Would you like me to call X?")
+CONSENT_ACCEPT_PATTERNS = [
+    r"\byes\b", r"\byeah\b", r"\byep\b", r"\byup\b",
+    r"\bsure\b", r"\bok\b", r"\bokay\b", r"\bplease\b",
+    r"\bdo it\b", r"\bgo ahead\b", r"\bcall\b",
+]
+
 # ---- Physical distress patterns ----------------------------------------
 # Two levels: Urgent (Red) and General (Orange)
 # These are PHYSICAL symptoms, not emotional distress.
@@ -157,6 +174,9 @@ class IntentResult:
     is_physical_urgent: bool = False   # Urgent physical symptom -> RED
     is_physical_general: bool = False  # General physical unwellness -> ORANGE
     matched_physical_keywords: list[str] = field(default_factory=list)
+    # Call request flags (Emergency Call)
+    is_call_request: bool = False      # Explicit "call someone" request
+    is_consent_accepted: bool = False  # Yes after "Would you like me to call?"
 
 
 def classify_intent(text: str) -> IntentResult:
@@ -189,6 +209,12 @@ def classify_intent(text: str) -> IntentResult:
     is_identity = any(re.search(p, text_lower) for p in IDENTITY_PATTERNS)
     is_emotional = matched_emotion is not None and matched_emotion != "content"
 
+    # Call request detection (Trigger 1)
+    is_call_request = any(re.search(p, text_lower) for p in CALL_REQUEST_PATTERNS)
+
+    # Consent acceptance detection (Trigger 2)
+    is_consent_accepted = any(re.search(p, text_lower) for p in CONSENT_ACCEPT_PATTERNS)
+
     emotion = matched_emotion or (DEFAULT_EMOTION if not is_factual else "neutral")
 
     return IntentResult(
@@ -202,6 +228,8 @@ def classify_intent(text: str) -> IntentResult:
         is_physical_urgent=is_physical_urgent,
         is_physical_general=is_physical_general,
         matched_physical_keywords=matched_physical,
+        is_call_request=is_call_request,
+        is_consent_accepted=is_consent_accepted,
     )
 
 
@@ -241,6 +269,10 @@ def classify_with_llm(text: str, llm_call: Callable[[str], str]) -> IntentResult
     is_danger = any(re.search(p, text_lower) for p in DANGER_PATTERNS)
     is_factual = any(re.search(p, text_lower) for p in FACTUAL_MARKERS)
 
+    # Call request and consent acceptance for LLM path
+    is_call_request = any(re.search(p, text_lower) for p in CALL_REQUEST_PATTERNS)
+    is_consent_accepted = any(re.search(p, text_lower) for p in CONSENT_ACCEPT_PATTERNS)
+
     return IntentResult(
         text=text,
         emotion=emotion,
@@ -251,6 +283,8 @@ def classify_with_llm(text: str, llm_call: Callable[[str], str]) -> IntentResult
         is_physical_urgent=is_physical_urgent,
         is_physical_general=is_physical_general,
         matched_physical_keywords=matched_physical,
+        is_call_request=is_call_request,
+        is_consent_accepted=is_consent_accepted,
     )
 
 

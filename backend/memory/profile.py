@@ -57,7 +57,10 @@ class Profile:
         name = self._data["name"]
         if isinstance(name, dict):
             return name.get("preferred_address", name.get("full_name", "Asha"))
-        return str(name) if name else "Asha"
+        # Extract first name from string like "Asha Kulkarni"
+        if isinstance(name, str):
+            return name.split()[0] if name else "Asha"
+        return "Asha"
 
     @property
     def full_name(self) -> str:
@@ -71,6 +74,16 @@ class Profile:
         ls = self._data.get("life_story")
         if isinstance(ls, dict):
             return ls.get("hometown")
+        if isinstance(ls, str):
+            # Extract hometown from string like "Born in Pune, 1952..."
+            import re
+            match = re.search(r"Born in ([^,]+)", ls)
+            if match:
+                return match.group(1).strip()
+            # Try to find city names
+            for city in ["Pune", "Mumbai", "Delhi", "Bangalore", "Chennai", "Kolkata", "Hyderabad"]:
+                if city.lower() in ls.lower():
+                    return city
         return None
 
     @property
@@ -78,6 +91,20 @@ class Profile:
         ls = self._data.get("life_story")
         if isinstance(ls, dict):
             return ls.get("work")
+        if isinstance(ls, str):
+            # Extract work from string like "Retired school teacher"
+            import re
+            # Look for patterns like "retired X", "worked as X", "was a X"
+            patterns = [
+                r"retired\s+([^.]+)",
+                r"worked as\s+([^.]+)",
+                r"was a\s+([^.]+)",
+                r"(school teacher|teacher|doctor|engineer|nurse|farmer|shopkeeper)",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, ls, re.IGNORECASE)
+                if match:
+                    return match.group(1).strip() if match.lastindex else match.group(0).strip()
         return None
 
     @property
@@ -121,7 +148,9 @@ class Profile:
 
     @staticmethod
     def _keyword_overlap(topic: str, text_lower: str) -> bool:
-        topic_words = {w for w in topic.lower().split() if len(w) > 3}
+        # Strip possessive 's from words (e.g., "vikram's" -> "vikram")
+        import re
+        topic_words = {re.sub(r"'s$", "", w) for w in topic.lower().split() if len(w) > 3}
         return any(w in text_lower for w in topic_words)
 
     # ---- Routine -------------------------------------------------------

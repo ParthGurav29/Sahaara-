@@ -190,11 +190,15 @@ def build_prompt(
             "  1. NAME THE FEELING first — e.g., 'I hear this is scary, I'm right here.'\n"
             "  2. STAY PRESENT — 'I'm right here with you.'\n"
             "  3. URGE HUMAN HELP IMMEDIATELY — 'Please get Rohan right now' or "
-            "'If you're alone, please call 112 (emergency services) right now.'\n"
+            "'Who is nearby that you can call right now?'\n"
             "  4. NO MEDICAL ADVICE — Do NOT say 'it's probably nothing,' 'just breathe,' "
             "'you'll be fine,' or give any medical assessment.\n"
             "  5. NO MUSIC OR WINDOW OFFERS — Do not offer activities that could feel dismissive.\n"
-            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true.\n"
+            "  7. Do NOT tell her to call an emergency number. That sentence is added by "
+            "the system only when no caregiver could be reached.\n"
+            "  8. KEEP IT SHORT AND DIRECTIVE — 1-3 sentences. Do NOT ask 'Would you like me "
+            "to go on?' or offer to explain more; this turn is about reaching a person."
         )
     elif intent and intent.is_physical_general:
         physical_general_block = (
@@ -207,7 +211,9 @@ def build_prompt(
             "  4. NO MEDICAL ADVICE — Do NOT diagnose, minimize ('it's probably nothing'), "
             "or give medical reassurance.\n"
             "  5. OFFER COMFORT CHOICE — One concrete choice from their likes (music, Memory Box, etc.).\n"
-            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true.\n"
+            "  7. KEEP IT SHORT — 1-3 sentences. Do NOT ask 'Would you like me to go on?' "
+            "or offer to explain more; this turn is about how she feels right now."
         )
 
     red_block = ""
@@ -223,7 +229,9 @@ def build_prompt(
             "Framing: 'You can also call Tele-MANAS at 14416 any time — they're there to listen.'\n"
             "  5. NO MUSIC OR WINDOW OFFERS on danger turns — do not offer activities that "
             "could feel dismissive. Your only offers are: call Rohan, call Tele-MANAS, or stay together quietly.\n"
-            "  6. Do NOT claim a human has already been notified unless it is verifiably true."
+            "  6. Do NOT claim a human has already been notified unless it is verifiably true.\n"
+            "  7. KEEP IT SHORT — 1-3 sentences. Do NOT ask 'Would you like me to go on?' "
+            "or offer to explain more; this turn is about reaching a person, not information."
         )
 
     # Combine all escalation blocks

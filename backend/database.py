@@ -286,13 +286,13 @@ def _migrate_profile(conn: sqlite3.Connection):
         member.setdefault("may_call", False)
     
     # name can be a string (current format) or a dict with preferred_address (old format)
-        name_val = data.get("name")
-        if isinstance(name_val, dict):
-            name_str = name_val.get("preferred_address", "Asha")
-        else:
-            name_str = str(name_val) if name_val else "Asha"
+    name_val = data.get("name")
+    if isinstance(name_val, dict):
+        name_str = name_val.get("preferred_address", "Asha")
+    else:
+        name_str = str(name_val) if name_val else "Asha"
 
-        conn.execute(
+    conn.execute(
         "INSERT INTO profiles (profile_id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         (profile_id, name_str, json.dumps(data), now, now)
     )
@@ -329,7 +329,12 @@ def save_profile(profile_id: str, data: dict):
     # The path id always wins, so a client that round-trips a profile without
     # `profile_id` cannot silently strip the key from the stored document.
     data = {**data, "profile_id": profile_id}
-    name = data.get("name", {}).get("preferred_address", profile_id)
+    # name can be a string (current format) or a dict with preferred_address (old format)
+    name_val = data.get("name")
+    if isinstance(name_val, dict):
+        name = name_val.get("preferred_address", profile_id)
+    else:
+        name = str(name_val) if name_val else profile_id
     now = time.time()
     conn.execute(
         "INSERT OR REPLACE INTO profiles (profile_id, name, data, created_at, updated_at) VALUES (?, ?, ?, COALESCE((SELECT created_at FROM profiles WHERE profile_id = ?), ?), ?)",

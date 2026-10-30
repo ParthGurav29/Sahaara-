@@ -156,6 +156,39 @@ HOSTILE_DETAILS: dict[EventType, dict] = {
     EventType.CONVERSATION_TURN: {"speaker": "user", "text": "I fell"},
     EventType.ACTION: {"action_type": "tell_time", "success": True},
     EventType.REMINDER_FIRED: {"reminder_id": 1, "kind": "timer", "label": "Tea"},
+    # Emergency call track. Every one of these carries a tier, a trigger
+    # phrase, a caregiver name and a masked number — precisely the things the
+    # companion must never receive. If any of them ever mapped to a caption,
+    # the leak would be immediate, so they are listed here with hostile detail.
+    EventType.EMERGENCY_CALL_STARTED: {
+        "incident_id": "emg_1",
+        "trigger": "physical_urgent",
+        "trigger_phrase": "I can't breathe",
+        "tier": "red",
+        "simulated": False,
+        "contact_name": "Rohan",
+    },
+    EventType.EMERGENCY_CALL_ATTEMPT: {
+        "incident_id": "emg_1",
+        "contact_name": "Rohan",
+        "phone_masked": "+91 **** 4967",
+        "attempt": 1,
+    },
+    EventType.EMERGENCY_CALL_STATUS: {
+        "incident_id": "emg_1",
+        "status": "acknowledged",
+        "contact_name": "Rohan",
+    },
+    EventType.EMERGENCY_CALL_ENDED: {
+        "incident_id": "emg_1",
+        "status": "exhausted",
+        "reason": "no_caregiver_reached",
+    },
+    EventType.EMERGENCY_CALL_SKIPPED: {
+        "incident_id": "emg_1",
+        "reason": "cooldown",
+        "contact_name": "Rohan",
+    },
 }
 
 missing = set(EventType) - set(HOSTILE_DETAILS)

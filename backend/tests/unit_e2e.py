@@ -474,7 +474,7 @@ from memory.profile import Profile, load_profile
 p = load_profile()
 check("profile_id", p.profile_id == "asha_demo_001")
 check("preferred_address", p.preferred_address == "Asha")
-check("hometown", p.hometown == "Pune, Maharashtra")
+check("hometown", p.hometown == "Pune")
 check("work", "teacher" in p.work.lower())
 
 family = p.get_family()

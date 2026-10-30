@@ -163,11 +163,23 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             with decision_lock:
                 response_chosen = True
 
+            # Accepting the offer is a real emergency-call trigger. The
+            # deterministic line is appended verbatim, so the reply can never
+            # imply a call that did not happen.
+            call_line = _trigger_emergency_call(
+                s,
+                trigger="consent_accepted",
+                trigger_phrase=user_message.strip()[:200],
+            )
+            if call_line:
+                response_text = f"{response_text} {call_line}"
+
             return {
                 "response": response_text,
                 "meta": {"emotion": "neutral", "is_repeated_question": False,
                          "sustained_distress": False, "consent_outcome": "accepted",
-                         "contact_called": None, "tier": s.escalation_engine.current_tier.value},
+                         "contact_called": None, "emergency_call_line": call_line,
+                         "tier": s.escalation_engine.current_tier.value},
             }
         elif consent_result == ConsentState.DECLINED:
             s.alert_builder.build_consent_alert("declined", pending_contact, s.escalation_engine.current_tier)
@@ -275,38 +287,61 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
                 reason=latest.detail.get("reason", "unknown"), context=latest.detail.get("context", {}),
             )
 
-    # ---- EMERGENCY CALL TRIGGER ----
-    # Physical urgent or danger statement triggers the call orchestrator.
-    # Runs as daemon thread — does not block the turn.
-    if intent and (intent.is_danger_statement or intent.is_physical_urgent):
-        trigger = "danger" if intent.is_danger_statement else "physical_urgent"
-        # The dashboard must show what Asha actually said — never the regex that
-        # matched it. `matched_physical_keywords` holds pattern text, which is
-        # useless to a caregiver and leaks the internals of the classifier.
+    # ---- EMERGENCY CALL TRIGGERS ----
+    # Trigger 1: Explicit call request ("call Rohan", "call someone", etc.)
+    # Trigger 2: Consent acceptance after Sahaara offers to call
+    # Trigger 3: Red (danger or physical urgent) - immediate
+    # Trigger 4: Orange dwell - handled in background tick (scheduler.py)
+    should_trigger_call = False
+    trigger = None
+    trigger_phrase = None
+    call_reason = None  # for logging/debugging
+    emergency_call_line = None  # deterministic wording for this turn; never LLM-written
+
+    if intent and (intent.is_call_request or intent.is_consent_accepted):
+        should_trigger_call = True
+        # Record which trigger it was, honestly: an explicit request is not the
+        # same event as accepting an offer, and the dashboard shows the value.
+        trigger = "explicit_request" if intent.is_call_request else "consent_accepted"
+        call_reason = trigger
+        # Use the person's own words (capped at 30 words)
         phrase_words = user_message.strip().split()
         trigger_phrase = " ".join(phrase_words[:30])
         if len(phrase_words) > 30:
             trigger_phrase += "…"
-        
-        try:
-            trigger_emergency_call(
-                profile_id=s.profile.profile_id,
-                trigger=trigger,
-                trigger_phrase=trigger_phrase,
-                tier=s.escalation_engine.current_tier.value,
-                event_log=s.event_log,
-                profile=s.profile,
-            )
-        except Exception:
-            # Emergency call must never break the turn
-            import logging
-            logging.getLogger(__name__).exception("Emergency call trigger failed")
+
+    elif intent and (intent.is_danger_statement or intent.is_physical_urgent):
+        should_trigger_call = True
+        trigger = "danger" if intent.is_danger_statement else "physical_urgent"
+        call_reason = trigger
+        # Binding spec decision 3: a physical-symptom call quotes only the
+        # matched phrase (capped); a danger statement is categorised only and
+        # its words are never repeated on the phone or in the incident row.
+        if intent.is_danger_statement:
+            trigger_phrase = None
+        else:
+            phrase_words = user_message.strip().split()
+            trigger_phrase = " ".join(phrase_words[:30])
+            if len(phrase_words) > 30:
+                trigger_phrase += "…"
+
+    if should_trigger_call:
+        emergency_call_line = _trigger_emergency_call(
+            s, trigger=trigger, trigger_phrase=trigger_phrase
+        )
 
     # ---- TASK ACTIONS (deterministic, after escalation) ----
     # Skipped on danger / physical-distress turns: the safety reply must never
     # be replaced by "I've set a timer". Everything else returns a fixed reply
     # built from what actually happened — no LLM, so no invented completions.
-    if not (intent.is_danger_statement or intent.is_physical_urgent or intent.is_physical_general):
+    # A call-request turn is skipped too, for the same reason: "call Rohan"
+    # must never be answered with a timer confirmation.
+    if not (
+        intent.is_danger_statement
+        or intent.is_physical_urgent
+        or intent.is_physical_general
+        or should_trigger_call
+    ):
         action_response = _handle_action(s, user_message, current_tier)
         if action_response is not None:
             return action_response
@@ -371,6 +406,18 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
         response_text = SAFE_FALLBACK_RESPONSE
         used_fallback = True
         s.event_log.log_fallback(FallbackType.GUARDRAIL, detail={"violations": guardrail.violations})
+
+    # ---- EMERGENCY CALL WORDING (verbatim, never LLM-written) ----
+    if should_trigger_call:
+        # An emergency turn must never end with a "would you like me to go on?"
+        # style check-in: it invites her to ask for more explanation at the
+        # moment she needs a person. The prompt forbids it, but the model is
+        # advisory at temperature 0.7, so strip it deterministically.
+        response_text = _strip_continuation_offer(response_text)
+    # Appended after the guardrail gate because it is deterministic text, and
+    # kept out of the prompt so the model cannot rephrase it into a claim.
+    if emergency_call_line:
+        response_text = f"{response_text} {emergency_call_line}"
     
     # ---- CONTEXT TRACE ----
     context_trace = {
@@ -417,6 +464,7 @@ def process_turn(user_message: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> dic
             "structure_check_passed": structure.passes, "model": result.model,
             "tier": current_tier, "consent_state": s.consent_manager.state.value,
             "continuation_state": s.continuation_manager.state.value,
+            "emergency_call_line": emergency_call_line,
             # Action turns return earlier with their own media fields; ordinary
             # conversation never starts or stops playback.
             "radio_stream_url": None,
@@ -582,6 +630,168 @@ def _detect_consent_request(response_text: str, tier: str, s) -> tuple | None:
                     break
             return (contact_name, relationship, match.group(0))
     return None
+
+
+def _trigger_emergency_call(s, *, trigger: str, trigger_phrase: str | None) -> str | None:
+    """
+    Run the emergency-call trigger once and return the deterministic line that
+    may be said about it.
+
+    Gates are evaluated here (never in the prompt), and the gate result is
+    handed to the orchestrator so simulated mode can label itself honestly.
+    Any failure is swallowed: an emergency call must never break the turn.
+    """
+    try:
+        from database import get_profile
+        from memory.profile import Profile as ProfileClass, get_callable_contacts
+        from telephony.provider import can_place_real_call, get_call_provider
+
+        fresh_profile_data = get_profile(s.profile.profile_id)
+        fresh_profile = (
+            ProfileClass(fresh_profile_data) if fresh_profile_data else s.profile
+        )
+        contacts = get_callable_contacts(fresh_profile)
+
+        real_call_allowed = False
+        gate_reason = "no_callable_contact"
+        if contacts:
+            # Instantiate the provider so a missing SDK / bad key degrades to
+            # the simulated provider instead of half-dialling.
+            get_call_provider()
+            real_call_allowed, gate_reason = can_place_real_call(
+                s.profile.profile_id, contacts[0]
+            )
+
+        trigger_emergency_call(
+            profile_id=s.profile.profile_id,
+            trigger=trigger,
+            trigger_phrase=trigger_phrase,
+            tier=s.escalation_engine.current_tier.value,
+            event_log=s.event_log,
+            profile=s.profile,
+            real_call_allowed=real_call_allowed,
+            gate_reason=gate_reason,
+            alert_builder=s.alert_builder,
+        )
+
+        return _emergency_call_line(
+            contact_name=(contacts[0]["name"] if contacts else None),
+            real_call_allowed=real_call_allowed,
+            gate_reason=gate_reason,
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Emergency call trigger failed")
+        return None
+
+
+# ---- Emergency-call wording (deterministic, never LLM-written) ----
+#
+# Each state has exactly one sentence. The LLM never sees these strings; they
+# are appended to the reply verbatim so no paraphrase can imply a call that did
+# not happen. `112` appears ONLY where the person has no other route to help
+# (nothing was dialled, or nobody was reached).
+
+CALL_LINE_PLACED = "I'm calling {name} now. I'm right here with you."
+CALL_LINE_ANSWERED = "{name} is on the line."
+CALL_LINE_NOT_REACHED = (
+    "I couldn't reach {name} yet. Please call 112 or ask someone nearby. "
+    "I'm still here."
+)
+CALL_LINE_BLOCKED = (
+    "I've told {name}'s dashboard. Please call 112 or someone nearby if you "
+    "need help now."
+)
+# Simulated mode keeps the standing owner wording ("this is a demo", never
+# "placed") and also gives the person a route to help, because no call leaves
+# the building in this state.
+CALL_LINE_SIMULATED = (
+    "This is a demo. In a real situation I would be calling {name} now. "
+    "I've told {name}'s dashboard — if you need help right now, please call "
+    "112 or someone nearby."
+)
+
+CALL_LINE_STATES = {
+    "placed": CALL_LINE_PLACED,
+    "answered": CALL_LINE_ANSWERED,
+    "not_reached": CALL_LINE_NOT_REACHED,
+    "blocked": CALL_LINE_BLOCKED,
+    "simulated": CALL_LINE_SIMULATED,
+}
+
+
+def _strip_continuation_offer(text: str) -> str:
+    """Remove a long-answer check-in from an emergency reply.
+
+    The system prompt's reply-length rule asks the model to append "Would you
+    like me to go on?" after a short lead. That is right for a factual answer
+    and wrong on a danger or symptom turn: it invites her to ask for more
+    explanation instead of getting a person. The prompt now forbids it on these
+    turns; this is the deterministic backstop, because at temperature 0.7 the
+    prompt is advisory.
+
+    Only the check-in sentence is removed — nothing else in the reply is
+    rewritten, so an emergency reply keeps whatever the model actually said.
+    """
+    if not text:
+        return text
+    pattern = re.compile(
+        r"(?:would you like me to|shall i|should i|do you want me to)\s+"
+        r"(?:go on|continue|keep going|say more)\s*\?*",
+        re.IGNORECASE,
+    )
+    cleaned = pattern.sub("", text)
+    # Collapse the gap the removed sentence leaves, without touching newlines
+    # that carry meaning (the prompt/voice split uses them).
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def emergency_call_line_for_state(state: str, contact_name: str | None = None) -> str:
+    """
+    The sentence for a known call state.
+
+    Used by the campaign when a later state arrives (answered / exhausted), so
+    the same wording table drives both the turn reply and any follow-up.
+    """
+    template = CALL_LINE_STATES.get(state)
+    if template is None:
+        template = CALL_LINE_BLOCKED
+    return template.format(name=contact_name or "your family")
+
+
+def _emergency_call_line(
+    contact_name: str | None,
+    real_call_allowed: bool,
+    gate_reason: str,
+    provider_simulated: bool | None = None,
+) -> str:
+    """
+    The one sentence Sahaara may say about the call this turn, built from what
+    the gates and the provider actually did.
+
+    Order matters: a simulated provider is checked FIRST, so the word "calling"
+    can never be spoken when no call can leave the building — even if a gate
+    result were wrong.
+    """
+    if provider_simulated is None:
+        try:
+            from telephony.provider import get_call_provider
+
+            provider_simulated = bool(get_call_provider().simulated)
+        except Exception:
+            provider_simulated = True
+
+    if provider_simulated:
+        return emergency_call_line_for_state("simulated", contact_name)
+
+    if not real_call_allowed:
+        return emergency_call_line_for_state("blocked", contact_name)
+
+    return emergency_call_line_for_state("placed", contact_name)
 
 
 def _handle_continuation(

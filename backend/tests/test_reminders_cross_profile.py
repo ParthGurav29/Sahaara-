@@ -70,7 +70,10 @@ demo = dict(database.get_profile(PROFILE))
 other = {
     **demo,
     "profile_id": OTHER,
-    "name": {**demo.get("name", {}), "preferred_address": "Test"},
+    # `name` is a plain string in the shipped profile. The point of this
+    # fixture is that it sorts FIRST in `list_profiles` (ORDER BY name), so it
+    # must sort before "Asha Kulkarni".
+    "name": "Aaa Test Profile",
 }
 database.save_profile(OTHER, other)
 

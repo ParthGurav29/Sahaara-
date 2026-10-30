@@ -53,6 +53,7 @@ class SimulatedCallProvider:
         message: str,
         incident_id: str,
         attempt_id: str,
+        gate_reason: str = "simulated",
     ) -> CallHandle:
         if self.disabled:
             # Immediately return a "failed" handle with disabled reason
@@ -76,6 +77,7 @@ class SimulatedCallProvider:
             "dialing_until": now + self.dial_seconds,
             "ringing_until": now + self.dial_seconds + self.ring_seconds,
             "acked": False,
+            "gate_reason": gate_reason,
         }
         with self._lock:
             self._handles[attempt_id] = handle_state
@@ -86,7 +88,7 @@ class SimulatedCallProvider:
         return CallHandle(
             provider_call_id=handle_state["provider_call_id"],
             status="dialing",
-            raw={"simulated": True, "stage": "dialing"},
+            raw={"simulated": True, "stage": "dialing", "gate_reason": gate_reason},
         )
 
     def _run_progression(self, attempt_id: str) -> None:

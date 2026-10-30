@@ -16,10 +16,12 @@ Two rules govern this module:
 
 from __future__ import annotations
 
+import json
 import time
+import urllib.parse
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth_routes import require_caregiver
 from database import (
@@ -88,3 +90,123 @@ def cancel_emergency_incident_route(
             incident_id, "cancelled", reason="caregiver_cancelled", ended_at=time.time()
         )
     return {"status": "ok", "incident_id": incident_id, "orchestrator_stopped": stopped}
+
+
+# ---- Provider webhooks (unauthenticated: Vonage cannot send a cookie) ----
+#
+# Both routes are written to be safe when abused:
+#   * every request must carry a signature that verifies against OUR Vonage
+#     application, or it is refused with 403;
+#   * nothing here reads or writes a phone number;
+#   * a webhook can only ever move an attempt towards a state the provider
+#     itself reported — it can never invent an acknowledgement.
+
+def _verify_provider_signature(request: Request) -> bool:
+    """
+    True when the request is a genuine provider callback.
+
+    With the real provider this is a hard requirement. With the simulated
+    provider there is no signature to check and no real call to protect.
+    """
+    from telephony.provider import get_call_provider
+
+    provider = get_call_provider()
+    validator = getattr(provider, "validate_webhook_signature", None)
+    if validator is None:
+        return True
+    return bool(validator(request.headers.get("Authorization", "")))
+
+
+async def _webhook_payload(request: Request) -> dict:
+    """Read a provider callback body without the multipart dependency.
+
+    Vonage posts ``application/x-www-form-urlencoded``; some dashboard setups
+    post JSON. Starlette's ``request.form()`` asserts that ``python-multipart``
+    is installed even for urlencoded bodies, which turns every real callback
+    into a 500 — so the body is decoded here instead. Field values stay
+    strings, exactly as the form parser would have returned them.
+    """
+    raw = await request.body()
+    if not raw:
+        return {}
+
+    content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    if content_type == "application/json":
+        try:
+            decoded = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+
+    try:
+        text = raw.decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001
+        return {}
+    parsed = urllib.parse.parse_qs(text, keep_blank_values=True)
+    return {key: values[-1] if values else "" for key, values in parsed.items()}
+
+
+@router.post("/emergency/vonage/ack")
+async def vonage_ack_webhook(request: Request):
+    """DTMF acknowledgement from the call ("press 1")."""
+    from telephony.orchestrator import acknowledge_attempt
+    from telephony.provider import get_call_provider
+
+    if not _verify_provider_signature(request):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+
+    payload = await _webhook_payload(request)
+    attempt_id = request.query_params.get("attempt_id") or payload.get("attempt_id")
+    if not attempt_id:
+        raise HTTPException(status_code=400, detail="Missing attempt_id")
+
+    provider = get_call_provider()
+    from telephony.provider import parse_dtmf_digits
+
+    parser = getattr(provider, "parse_dtmf_webhook", None)
+    # The real webhook can flatten the fields instead of sending the `dtmf`
+    # JSON string, so reconstruct the object form when only digits arrive.
+    if "dtmf" not in payload:
+        digits = payload.get("digits") or payload.get("dtmf_digits")
+        if digits is not None:
+            payload["dtmf"] = {
+                "digits": digits,
+                "timed_out": str(payload.get("timed_out", "")).lower() == "true",
+            }
+    # A provider without its own parser (the simulated one) still uses the
+    # shared shape-tolerant parser, so the demo can be acknowledged too.
+    digit = parser(payload) if parser is not None else parse_dtmf_digits(payload)
+
+    if digit != "1":
+        return {"status": "ignored", "detail": "no acknowledgement digit"}
+
+    if acknowledge_attempt(attempt_id, digit="1"):
+        return {"status": "acknowledged"}
+    return {"status": "ignored", "detail": "attempt not open"}
+
+
+@router.post("/emergency/vonage/event")
+async def vonage_event_webhook(request: Request):
+    """Call status events (ringing / answered / completed / ...)."""
+    from telephony.orchestrator import record_provider_status
+    from telephony.provider import get_call_provider
+
+    if not _verify_provider_signature(request):
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+
+    payload = await _webhook_payload(request)
+    attempt_id = request.query_params.get("attempt_id") or payload.get("attempt_id")
+    if not attempt_id:
+        raise HTTPException(status_code=400, detail="Missing attempt_id")
+
+    provider = get_call_provider()
+    parser = getattr(provider, "parse_status_webhook", None)
+    status = parser(payload) if parser is not None else None
+
+    if status is None:
+        # Not a status we act on (e.g. an intermediate event). Acknowledge the
+        # request so Vonage does not retry, but record nothing.
+        return {"status": "ignored"}
+
+    record_provider_status(attempt_id, status)
+    return {"status": "received"}
