@@ -1017,40 +1017,14 @@ export default function DashboardView() {
   return (
     <div className="dashboard-screen">
       <header className="dtop">
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="dtop-brand">
           <div className="wordmark">Sahaara</div>
-          <span className="muted">Asha's dashboard</span>
-        </div>
-        <nav className="tabs" role="tablist">
-          <button
-            className={`tab ${activeTab === "today" ? "active" : ""}`}
-            role="tab"
-            onClick={() => setActiveTab("today")}
-            aria-selected={activeTab === "today"}
-          >
-            Today
-          </button>
-          <button
-            className={`tab ${activeTab === "alerts" ? "active" : ""}`}
-            role="tab"
-            onClick={() => setActiveTab("alerts")}
-            aria-selected={activeTab === "alerts"}
-          >
-            Alerts {(alerts.length + emergencyIncidents.length) > 0 && <span className="badge">{alerts.length + emergencyIncidents.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === "profile" ? "active" : ""}`}
-            role="tab"
-            onClick={() => setActiveTab("profile")}
-            aria-selected={activeTab === "profile"}
-          >
-            Profile {suggestionsCount > 0 && <span className="badge">{suggestionsCount}</span>}
-          </button>
-        </nav>
-        <div className="header-actions">
+          <span className="dtop-subtitle">Asha's dashboard</span>
           <span className={`connection-indicator ${socketConnected ? "connected" : "reconnecting"}`}>
             {socketConnected ? "Live" : "Reconnecting…"}
           </span>
+        </div>
+        <div className="header-actions">
           <PushButton />
           <button className="btn ghost sm" onClick={() => navigateTo("/choose")}>
             Switch mode
@@ -1060,6 +1034,33 @@ export default function DashboardView() {
           </button>
         </div>
       </header>
+
+      <nav className="dtabs" role="tablist">
+        <button
+          className={`tab ${activeTab === "today" ? "active" : ""}`}
+          role="tab"
+          onClick={() => setActiveTab("today")}
+          aria-selected={activeTab === "today"}
+        >
+          Today
+        </button>
+        <button
+          className={`tab ${activeTab === "alerts" ? "active" : ""}`}
+          role="tab"
+          onClick={() => setActiveTab("alerts")}
+          aria-selected={activeTab === "alerts"}
+        >
+          Alerts {(alerts.length + emergencyIncidents.length) > 0 && <span className="badge">{alerts.length + emergencyIncidents.length}</span>}
+        </button>
+        <button
+          className={`tab ${activeTab === "profile" ? "active" : ""}`}
+          role="tab"
+          onClick={() => setActiveTab("profile")}
+          aria-selected={activeTab === "profile"}
+        >
+          Profile {suggestionsCount > 0 && <span className="badge">{suggestionsCount}</span>}
+        </button>
+      </nav>
 
       <main className="dmain">
         {activeTab === "today" && (

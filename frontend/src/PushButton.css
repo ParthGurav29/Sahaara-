@@ -46,4 +46,13 @@
   font-size: 11px;
   line-height: 1.4;
   color: var(--text-muted);
+  max-width: 340px;
+}
+
+/* Keep the header compact on phones/tablets: the button and its status are
+   enough; the verbose "best-effort" line stays on desktop only. */
+@media (max-width: 768px) {
+  .push-alerts-note {
+    display: none;
+  }
 }

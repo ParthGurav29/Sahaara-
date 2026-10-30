@@ -831,6 +831,21 @@ Harness and production both use Nemotron Nano with temperature 0.7 and max_token
 
 **Not claimed:** no OEM reliability claim; locked-screen/Doze timing untested; the icon/badge remain placeholders.
 
+### 2026-10-31 — Caregiver dashboard UI cleanup (CSS/JSX only, no functionality change)
+
+**Owner:** "make the caregiver dashboard more clean, professional but friendly, adaptable for different screen sizes — it looks like a mess on mobile; don't touch functionality."
+
+**What changed:**
+- `DashboardView.tsx` — restructured the header into two clear layers: a top bar (`Sahaara` + "Asha's dashboard" + the "Live" pill) and a dedicated full-width **segmented tab bar** (`Today / Alerts / Profile` with badges) underneath it. The tabs and the user-actions (Enable alerts / Switch mode / Logout) are no longer mixed in one wrapping strip.
+- `DashboardView.css` — new `.dtop`/`.dtop-brand`/`.dtop-subtitle`/`.dtabs` styles; stats are now three equal bordered **stat cards**; cards got a consistent radius/padding/soft shadow; added uppercase section labels; responsive breakpoints (≤640 px stacks the header, tightens spacing; tabs stay equal-width with 44 px tap targets).
+- `PushButton.css` — the verbose "best-effort" note is hidden below 768 px so it no longer inflates the phone header (still shown on desktop).
+
+**Verified (headless Chrome):** `scrollWidth − innerWidth = 0` at 360/390/412/768/1280 px; brand and actions never overlap; the three tabs render equal-width; stats stay 3 columns; no console errors. Screenshots saved to `/tmp/sahaara-dashboard-redesign-mobile.png` and `-desktop.png`.
+
+**Gates:** `tsc -b` clean · lint **22 (baseline)** · `test:pwa` **92/92** · build clean. No API, handler, or data-path touched — same endpoints, tabs, and actions.
+
+**Not verified:** visual polish not eyeballed on the physical phone (this model can't view the screenshots) — the owner should confirm the look at each width.
+
 ### 2026-10-19 — Physical distress trigger (commit `005e38a`)
 - Added `PHYSICAL_URGENT_PATTERNS` and `PHYSICAL_GENERAL_PATTERNS` in `llm/intent_emotion.py`
 - Added physical-distress blocks in `llm/response_policy.py` (prompt instructions for urgent/general)
